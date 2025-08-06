@@ -31,7 +31,6 @@ const GoogleLoginButtonMobile = ({
         if (perfil && perfil.perfil) body.perfil = perfil.perfil;
       }
 
-      // Usar la variable de entorno
       const API_URL = import.meta.env.VITE_API_URL;
       const res = await axios.post(`${API_URL}/api/usuarios/google`, body);
 
@@ -46,7 +45,7 @@ const GoogleLoginButtonMobile = ({
           title: "¡Acceso con Google!",
           text: res.data?.mensaje || "Sesión iniciada correctamente.",
           customClass: {
-            popup: 'rounded-md'
+            popup: "rounded-md"
           }
         });
 
@@ -60,7 +59,7 @@ const GoogleLoginButtonMobile = ({
           title: "Error con Google",
           text: res.data?.mensaje || "No se pudo autenticar con Google.",
           customClass: {
-            popup: 'rounded-md'
+            popup: "rounded-md"
           }
         });
         limpiarEstadoTemporal();
@@ -86,7 +85,7 @@ const GoogleLoginButtonMobile = ({
           title: titulo,
           text: mensaje,
           customClass: {
-            popup: 'rounded-md'
+            popup: "rounded-md"
           }
         });
 
@@ -96,7 +95,7 @@ const GoogleLoginButtonMobile = ({
           title: "Cuenta ya Existente",
           text: mensaje,
           customClass: {
-            popup: 'rounded-md'
+            popup: "rounded-md"
           }
         });
       }
@@ -113,16 +112,11 @@ const GoogleLoginButtonMobile = ({
           title: "Google Login",
           text: "No se pudo conectar con Google.",
           customClass: {
-            popup: 'rounded-3xl'
+            popup: "rounded-3xl"
           }
         });
       }}
-      ux_mode="redirect"
-      redirectUri={
-        window.location.origin === "http://localhost:5173"
-          ? "http://localhost:5173/auth/google/callback"
-          : "https://anunciaya-backend-production.up.railway.app/auth/google/callback"
-      }
+      ux_mode="popup"
       width="100%"
     />
   );
