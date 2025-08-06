@@ -44,13 +44,14 @@ const AuthProvider = ({ children }) => {
     setAutenticado(false);
   };
 
-  // Login sin enviar el header "x-tipo-cuenta"
+  // LOGIN
   const login = async ({ correo, contraseña, tipo }) => {
     limpiarEstadoTemporal();
     if (!tipo) throw new Error("Tipo de cuenta no especificado");
+    const API_URL = import.meta.env.VITE_API_URL;
     try {
       const res = await axios.post(
-        "http://localhost:5000/api/usuarios/login",
+        `${API_URL}/api/usuarios/login`,
         { correo, contraseña }
       );
       iniciarSesion(res.data.token, res.data.usuario);
@@ -59,14 +60,15 @@ const AuthProvider = ({ children }) => {
     }
   };
 
+  // REGISTRO
   const registrar = async ({ nombre, correo, contraseña, nickname }) => {
     const tipo = localStorage.getItem("tipoCuentaIntentada") || "usuario";
+    const API_URL = import.meta.env.VITE_API_URL;
     const res = await axios.post(
-      "http://localhost:5000/api/usuarios/registro",
+      `${API_URL}/api/usuarios/registro`,
       { nombre, correo, contraseña, nickname, tipo }
     );
     limpiarEstadoTemporal();
-    // No inicia sesión automáticamente, frontend decide qué hacer después
     return res.data;
   };
 
