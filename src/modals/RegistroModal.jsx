@@ -53,13 +53,17 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
     }
 
     try {
-      const res = await axios.post("http://localhost:5000/api/usuarios/registro", {
-        nombre,
-        correo,
-        contraseña: password,
-        tipo,
-        perfil: perfil.perfil,
-      });
+      const res = await axios.post(
+  `${import.meta.env.VITE_API_URL}/api/usuarios/registro`,
+  {
+    nombre,
+    correo,
+    contraseña: password,
+    tipo,
+    perfil: perfil.perfil,
+  }
+);
+
 
       if (res.status === 200 && res.data?.token && res.data?.usuario) {
         iniciarSesion(res.data.token, res.data.usuario);
