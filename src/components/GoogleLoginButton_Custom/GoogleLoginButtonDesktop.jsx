@@ -31,7 +31,6 @@ const GoogleLoginButtonDesktop = ({
         if (perfil && perfil.perfil) body.perfil = perfil.perfil;
       }
 
-      // Usar variable de entorno para endpoint
       const API_URL = import.meta.env.VITE_API_URL;
       const res = await axios.post(`${API_URL}/api/usuarios/google`, body);
 
@@ -116,12 +115,7 @@ const GoogleLoginButtonDesktop = ({
           },
         });
       }}
-      ux_mode="redirect"
-      redirectUri={
-        window.location.origin === "http://localhost:5173"
-          ? "http://localhost:5173/auth/google/callback"
-          : "https://anunciaya-backend-production.up.railway.app/auth/google/callback"
-      }
+      ux_mode="popup"
       width="100%"
     />
   );
