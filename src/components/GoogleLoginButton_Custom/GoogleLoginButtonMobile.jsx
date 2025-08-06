@@ -104,23 +104,28 @@ const GoogleLoginButtonMobile = ({
   };
 
   return (
-    <GoogleLogin
-      onSuccess={handleSuccess}
-      onError={() => {
-        limpiarEstadoTemporal();
-        Swal.fire({
-          icon: "error",
-          title: "Google Login",
-          text: "No se pudo conectar con Google.",
-          customClass: {
-            popup: 'rounded-3xl'
-          }
-        });
-      }}
-      ux_mode="redirect"
-      width="100%"
-    />
-  );
-};
+  <GoogleLogin
+    onSuccess={handleSuccess}
+    onError={() => {
+      limpiarEstadoTemporal();
+      Swal.fire({
+        icon: "error",
+        title: "Google Login",
+        text: "No se pudo conectar con Google.",
+        customClass: {
+          popup: 'rounded-3xl'
+        }
+      });
+    }}
+    ux_mode="redirect"
+    redirectUri={
+      window.location.origin === "http://localhost:5173"
+        ? "http://localhost:5173/auth/google/callback"
+        : "https://anunciaya-frontend.vercel.app/auth/google/callback"
+    }
+    width="100%"
+  />
+);
+
 
 export default GoogleLoginButtonMobile;
