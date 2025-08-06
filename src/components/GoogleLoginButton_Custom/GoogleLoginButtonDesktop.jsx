@@ -117,7 +117,12 @@ const GoogleLoginButtonDesktop = ({
           }
         });
       }}
-      ux_mode="popup"
+      ux_mode="redirect"
+      redirectUri={
+        window.location.origin === "http://localhost:5173"
+          ? "http://localhost:5173/auth/google/callback"
+          : "https://anunciaya-backend-production.up.railway.app/auth/google/callback"
+      }
       width="100%"
     />
   );
