@@ -1,4 +1,3 @@
-// ✅ src/components/HomeMobile/HomeNoLogeadoMobile.jsx
 import React, { useState, useRef, useEffect, useContext } from "react";
 import HeaderNoLogeado from "../HeaderNoLogeado";
 import RegistroModal from "../../modals/RegistroModal";
@@ -127,12 +126,42 @@ const HomeNoLogeadoMobile = () => {
         onClickBienvenida={handleClickBienvenida}
       />
 
+      {/* 1. Caja ÚNETE a la plataforma */}
+      <motion.div
+        className="w-full flex justify-center mt-8 mb-5"
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 1.2 }}
+      >
+        <div className="
+          bg-white/50
+          rounded-[1.2rem]
+          px-7 py-4
+          shadow-[0_10px_44px_0_rgba(80,130,250,0.13)]
+          text-center max-w-[360px] w-full mx-2
+          border border-white/60
+          backdrop-blur-[9px]
+        ">
+          <span className="block text-[18px] font-semibold text-gray-900 drop-shadow-sm">
+            {typeof ciudad !== "undefined" && (
+              <span>
+                Únete a la Plataforma más Completa<br />para Crecer en
+                <br />
+                <span className="font-bold text-[30px] text-blue-900">
+                  {ciudad ? `${ciudad}` : "tu Ciudad"}
+                </span>
+              </span>
+            )}
+          </span>
+        </div>
+      </motion.div>
+
       <main className="
         flex-1 flex flex-col
         items-center
         justify-center
         w-full
-        mt-10
+        mt-15
       ">
         {mostrarTooltip && (
           <div className="fixed left-1/2 top-[210px] -translate-x-1/2 z-50">
@@ -331,9 +360,10 @@ const HomeNoLogeadoMobile = () => {
         <div className="flex-1"></div>
       </main>
 
+      {/* Carrousel fijo */}
       <motion.div
         className={`
-          w-full fixed bottom-6 left-0 z-40 flex justify-center pointer-events-none
+          w-full fixed bottom-0 left-0 z-40 flex justify-center pointer-events-none
           transition-transform duration-500
           ${showFooter ? "translate-y-0 opacity-100" : "translate-y-28 opacity-0"}
         `}
@@ -341,36 +371,6 @@ const HomeNoLogeadoMobile = () => {
       >
         <div className="pointer-events-auto">
           <CarrouselCategorias />
-        </div>
-      </motion.div>
-
-      <motion.div
-        className="w-full flex justify-center mb-[150px]"
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 1.2 }}
-      >
-        <div className="
-          bg-white/50
-          rounded-[1.2rem]
-          px-7 py-4
-          shadow-[0_10px_44px_0_rgba(80,130,250,0.13)]
-          text-center max-w-[360px] w-full mx-2
-          border border-white/60
-          backdrop-blur-[9px]
-        ">
-          <span className="block text-[18px] font-semibold text-gray-900 drop-shadow-sm">
-            {typeof ciudad !== "undefined" && (
-              <span>
-                Únete a la Plataforma más Completa<br /> para Crecer en
-                <br />
-                {" "}
-                <span className="font-bold text-[30px] text-blue-900">
-                  {ciudad ? `${ciudad}` : "tu Ciudad"}
-                </span>
-              </span>
-            )}
-          </span>
         </div>
       </motion.div>
     </div>
