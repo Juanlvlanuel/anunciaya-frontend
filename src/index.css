@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+/* ✅ Elimina flechas del input type number en todos los navegadores */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type=number] {
+  -moz-appearance: textfield;
+}
+html, body {
+  background: transparent !important;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+/* ✅ Elimina flechas del input type number en todos los navegadores */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type=number] {
+  -moz-appearance: textfield;
+}
+html, body {
+  background: transparent !important;
+}
+
+@keyframes vibrar {
+  0% { transform: translateX(0); }
+  15% { transform: translateX(-5px); }
+  30% { transform: translateX(5px); }
+  45% { transform: translateX(-5px); }
+  60% { transform: translateX(5px); }
+  75% { transform: translateX(-5px); }
+  100% { transform: translateX(0); }
+}
+
+.animate-resaltar-bienvenida {
+  box-shadow: 0 0 0 4px #2563eb, 0 10px 24px 0 rgba(0,0,0,0.12) !important;
+  animation: vibrar 0.6s cubic-bezier(.36,.07,.19,.97) both;
+  transition: box-shadow 0.2s;
+}
