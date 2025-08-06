@@ -137,12 +137,13 @@ const HomeNoLogeadoMobile = () => {
           bg-white/50
           rounded-[1.2rem]
           px-7 py-4
+          pt-1 pb-0
           shadow-[0_10px_44px_0_rgba(80,130,250,0.13)]
           text-center max-w-[360px] w-full mx-2
           border border-white/60
           backdrop-blur-[9px]
         ">
-          <span className="block text-[18px] font-semibold text-gray-900 drop-shadow-sm">
+          <span className="block text-[18px] font-semibold text-gray-900 drop-shadow-sm leading-[1.3]">
             {typeof ciudad !== "undefined" && (
               <span>
                 Únete a la Plataforma más Completa<br />para Crecer en
@@ -162,24 +163,7 @@ const HomeNoLogeadoMobile = () => {
         justify-center
         w-full
         mt-15
-      ">
-        {mostrarTooltip && (
-          <div className="fixed left-1/2 top-[210px] -translate-x-1/2 z-50">
-            <div className="relative">
-              <div className="bg-blue-800 text-white text-lg px-6 py-2 rounded-xl shadow-xl font-bold select-none text-center"
-                style={{ minWidth: "320px", fontSize: "15px" }}>
-                <span className="flex items-center gap-1">
-                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24">
-                    <path fill="#fff" d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 13a1 1 0 110 2 1 1 0 010-2zm1-7v5a1 1 0 11-2 0V8a1 1 0 112 0z" />
-                  </svg>
-                  Debes <b>iniciar sesión</b> o <b>registrarte</b> para acceder
-                </span>
-              </div>
-              <div className="absolute left-1/2 -bottom-2 -translate-x-1/2 w-3 h-3 bg-blue-800 rotate-45"></div>
-            </div>
-          </div>
-        )}
-
+      "><samp></samp>
         <div className="
           w-full 
           max-w-xs mx-auto 
@@ -193,13 +177,13 @@ const HomeNoLogeadoMobile = () => {
                   w-[calc(100vw-40px)] mx-[20px]
                   bg-white/50
                   rounded-[1.2rem]
-                  p-5 pt-6
+                  p-5 pt-1 pb-2
                   shadow-[0_7px_32px_0_rgba(80,130,250,0.15)]
                   flex flex-col items-center justify-center
-                  gap-1
+                  gap-0.5
                   relative
                   transition-all duration-300
-                  backdrop-blur-[10px]
+                  backdrop-blur-[20px]
                   border border-white/50
                   overflow-hidden
                 `}
