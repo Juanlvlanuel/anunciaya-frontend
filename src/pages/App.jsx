@@ -3,7 +3,6 @@ import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import { useContext } from "react";
 import { AuthContext } from "../context/AuthContext";
 import SplashScreen from "../components/SplashScreen";
-
 import PanelAdministrativo from "../layouts/PanelAdministrativo";
 
 // Páginas públicas MODERNAS (solo las válidas)
@@ -22,6 +21,9 @@ import CarouselPage from "./admin/CarouselPage";
 
 // Modal login/registro
 import LoginModal from "../modals/LoginModal";
+
+// 🔵 IMPORTA el callback de Google
+import GoogleCallback from "./GoogleCallback"; // AJUSTA la ruta si lo guardas en otra carpeta
 
 function App() {
   const { autenticado, cargando } = useContext(AuthContext);
@@ -56,9 +58,7 @@ function App() {
     <>
       <Routes location={location} key={location.pathname}>
         {/* Layout principal del sitio público */}
-        <Route
-          path="/"
-        >
+        <Route path="/">
           <Route
             index
             element={
@@ -83,7 +83,7 @@ function App() {
         <Route path="/marketplace" element={<Marketplace />} />
         <Route path="/negocios-locales" element={<NegociosLocales />} />
         <Route path="/regala-o-dona" element={<RegalaODona />} />
-        <Route path="rifas" element={<Rifas />} />
+        <Route path="/rifas" element={<Rifas />} />
 
         {/* Ruta del dashboard (logueado) */}
         <Route path="/dashboard" element={<Dashboard />} />
@@ -93,6 +93,10 @@ function App() {
         <Route path="/admin/PanelAdministrativo" element={<PanelAdministrativo />}>
           <Route path="carousel" element={<CarouselPage />} />
         </Route>
+
+        {/* 🔵 Ruta de callback para Google Login */}
+        <Route path="/auth/google/callback" element={<GoogleCallback />} />
+
       </Routes>
 
       {typeof window !== "undefined" && (
