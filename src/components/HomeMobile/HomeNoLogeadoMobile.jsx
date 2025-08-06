@@ -344,12 +344,10 @@ const HomeNoLogeadoMobile = () => {
           </span>
         </div>
       </motion.div>
-
-
-
-      <div className="w-full fixed bottom-0 left-0 z-30 bg-white/60 py-1">
+      <div className="w-full fixed bottom-6 left-0 z-40 flex justify-center pointer-events-none">
         <CarrouselCategorias />
       </div>
+
     </div>
   );
 };

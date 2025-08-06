@@ -1,6 +1,5 @@
-// ✅ CarrouselCategoriasMobile.jsx (PREMIUM MOBILE)
 import React, { useRef, useEffect } from "react";
-
+import { useNavigate } from "react-router-dom";
 import comercioIcon from "../../assets/icons/comercios.png";
 import marketplaceIcon from "../../assets/icons/marketplace.png";
 import ofertasIcon from "../../assets/icons/ofertas.png";
@@ -9,21 +8,22 @@ import rifaIcon from "../../assets/icons/rifa.png";
 import donativosIcon from "../../assets/icons/donativos.png";
 import bolsaIcon from "../../assets/icons/bolsa.png";
 
-// Si quieres algún ícono bloqueado, usa: { nombre, archivo, bloqueado: true }
 const iconos = [
-  { nombre: "Negocios\nLocales", archivo: comercioIcon },
-  { nombre: "Marketplace", archivo: marketplaceIcon },
-  { nombre: "Promociones", archivo: ofertasIcon },
-  { nombre: "Subastas", archivo: subastaIcon },
-  { nombre: "Rifas", archivo: rifaIcon },
-  { nombre: "Regala\no Dona", archivo: donativosIcon },
-  { nombre: "Empleos", archivo: bolsaIcon },
+  { nombre: "Negocios\nLocales", archivo: comercioIcon, to: "/negocios-locales" },
+  { nombre: "Marketplace", archivo: marketplaceIcon, to: "/marketplace" },
+  { nombre: "Promociones", archivo: ofertasIcon, to: "/promociones" },
+  { nombre: "Subastas", archivo: subastaIcon, to: "/subastas" },
+  { nombre: "Rifas", archivo: rifaIcon, to: "/rifas" },
+  { nombre: "Regala\no Dona", archivo: donativosIcon, to: "/donativos" },
+  { nombre: "Empleos", archivo: bolsaIcon, to: "/empleos" },
 ];
 
-// Repite íconos para el efecto infinito
-const iconosLoop = [...iconos, ...iconos, ...iconos, ...iconos];
+// Repite íconos varias veces para hacer efecto infinito
+const REPETICIONES = 6;
+const iconosLoop = Array(REPETICIONES).fill(iconos).flat();
 
-export default function CarrouselCategoriasMobile({ onIntentoBloqueado }) {
+export default function CarrouselCategoriasMobile() {
+  const navigate = useNavigate();
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -34,51 +34,45 @@ export default function CarrouselCategoriasMobile({ onIntentoBloqueado }) {
     let animationFrame;
     let pauseTimeout;
 
-    const onReady = () => {
-      const singleListWidth = container.scrollWidth / 4;
-      container.scrollLeft = singleListWidth;
+    const singleListWidth = container.scrollWidth / REPETICIONES;
 
-      const speed = 0.2; // Puedes cambiar la velocidad aquí
+    // Empieza centrado
+    container.scrollLeft = singleListWidth;
 
-      const animate = () => {
-        if (!userInteracting) {
-          if (container.scrollLeft >= singleListWidth * 3) {
-            container.scrollLeft = singleListWidth;
-          } else {
-            container.scrollLeft += speed;
-          }
+    const speed = 0.6; // velocidad del scroll (ajusta aquí)
+
+    const animate = () => {
+      if (!userInteracting) {
+        if (container.scrollLeft >= singleListWidth * (REPETICIONES - 1)) {
+          container.scrollLeft = singleListWidth;
+        } else {
+          container.scrollLeft += speed;
         }
-        animationFrame = requestAnimationFrame(animate);
-      };
-
-      const pauseScroll = () => {
-        userInteracting = true;
-        clearTimeout(pauseTimeout);
-        pauseTimeout = setTimeout(() => {
-          userInteracting = false;
-        }, 2200);
-      };
-
-      container.addEventListener("mousedown", pauseScroll);
-      container.addEventListener("touchstart", pauseScroll);
-      container.addEventListener("wheel", pauseScroll);
-
+      }
       animationFrame = requestAnimationFrame(animate);
-
-      return () => {
-        cancelAnimationFrame(animationFrame);
-        clearTimeout(pauseTimeout);
-        container.removeEventListener("mousedown", pauseScroll);
-        container.removeEventListener("touchstart", pauseScroll);
-        container.removeEventListener("wheel", pauseScroll);
-      };
     };
 
-    if (container && container.scrollWidth === 0) {
-      setTimeout(onReady, 300);
-    } else {
-      onReady();
-    }
+    const pauseScroll = () => {
+      userInteracting = true;
+      clearTimeout(pauseTimeout);
+      pauseTimeout = setTimeout(() => {
+        userInteracting = false;
+      }, 2200);
+    };
+
+    container.addEventListener("mousedown", pauseScroll);
+    container.addEventListener("touchstart", pauseScroll);
+    container.addEventListener("wheel", pauseScroll);
+
+    animationFrame = requestAnimationFrame(animate);
+
+    return () => {
+      cancelAnimationFrame(animationFrame);
+      clearTimeout(pauseTimeout);
+      container.removeEventListener("mousedown", pauseScroll);
+      container.removeEventListener("touchstart", pauseScroll);
+      container.removeEventListener("wheel", pauseScroll);
+    };
   }, []);
 
   return (
@@ -86,79 +80,67 @@ export default function CarrouselCategoriasMobile({ onIntentoBloqueado }) {
       <div
         ref={scrollRef}
         className="
-          relative
-          w-full max-w-[430px]
-          overflow-x-auto
-          flex gap-6 py-4 px-2
-          min-h-[120px]
-          scrollbar-hide
-          // --- Estilo glass igual que desktop:
-          bg-white/50
-          rounded-[3rem]
-          shadow-[0_10px_44px_0_rgba(80,130,250,0.15)]
-          border border-white/50
-          backdrop-blur-[10px]
-        "
+    flex items-center
+    w-full max-w-[430px] mx-auto
+        shadow-[0_6px_30px_0_rgba(47,62,90,0.11)]
+    border border-white/0
+    px-1 py-2
+    backdrop-blur-[5px]  // <- Y aquí
+    select-none
+    overflow-x-auto
+    scrollbar-hide
+    gap-3
+  "
         style={{
+          boxSizing: "border-box",
           WebkitOverflowScrolling: "touch",
-          scrollbarWidth: "none",
-          msOverflowStyle: "none",
         }}
       >
         {iconosLoop.map((icono, idx) => (
-          <div
+          <button
             key={icono.nombre + idx}
             className="
-              flex flex-col items-center 
-              min-w-[82px] md:min-w-[108px]
-              snap-center
-              group
+              flex flex-col items-center justify-center
+              min-w-[72px] max-w-[86px] mx-3
+              active:scale-95 transition-all duration-150
+              group outline-none
             "
+            style={{ WebkitTapHighlightColor: "transparent" }}
+            onClick={() => navigate(icono.to)}
+            tabIndex={-1}
           >
             <div
-              className={`
-                bg-transparent
-                rounded-2xl
-                flex items-center justify-center
-                w-14 h-14 md:w-16 md:h-16
-                transition-all duration-200 
-                hover:scale-110 hover:shadow-xl
-                active:scale-105
-                cursor-pointer
-                overflow-hidden
-                border border-blue-200
-                group-hover:bg-blue-100
-              `}
-              tabIndex={0}
-              // 🚫 SIN TOOLTIP
-              // title={icono.nombre.replace('\n', ' ')}
-              onClick={() => {
-                // Si tuvieras íconos bloqueados: if (icono.bloqueado) { ... }
-                // Por ahora solo vibramos si pasas la prop (puedes condicionar aquí si quieres)
-                if (typeof onIntentoBloqueado === "function" && icono.bloqueado) {
-                  onIntentoBloqueado();
-                }
-              }}
+              className="
+    flex items-center justify-center
+    w-16 h-16 bg-white rounded-xl mb-1
+    shadow-[0_2px_8px_0_rgba(44,114,255,0.11)]
+    group-active:scale-95
+    transition-all duration-150
+    overflow-hidden
+  "
             >
               <img
                 src={icono.archivo}
                 alt={icono.nombre.replace('\n', ' ')}
-                className="max-w-[64%] max-h-[64%] object-contain select-none pointer-events-none"
+                className="max-w-[70%] max-h-[70%] object-contain"
                 draggable="false"
                 style={{ aspectRatio: "1 / 1", display: "block" }}
               />
             </div>
             <span
               className="
-                text-[13px] md:text-base mt-1 
-                text-blue-900 font-bold 
-                text-center whitespace-pre-line
-                select-none drop-shadow-sm
+                text-[12px] mt-0.5 text-blue-900 font-bold text-center leading-tight
+                whitespace-pre-line
+                transition-all duration-150 group-active:text-blue-700
               "
+              style={{
+                lineHeight: "1.15",
+                textShadow: "0 2px 9px #b3e3ff40, 0 1px 0 #ffffffa3",
+              }}
             >
               {icono.nombre}
             </span>
-          </div>
+          </button>
         ))}
       </div>
     </div>

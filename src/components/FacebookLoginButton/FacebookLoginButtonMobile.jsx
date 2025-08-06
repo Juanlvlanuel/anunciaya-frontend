@@ -1,16 +1,20 @@
 const FacebookLoginButtonMobile = (props) => {
   return (
     <button
-      style={{
-        padding: 16,
-        width: "100%",
-        background: "#3b5998",
-        color: "#fff",
-        borderRadius: 8,
-        fontWeight: "bold",
-        border: "none",
-        margin: "8px 0",
-      }}
+      className="
+        w-full
+        bg-[#3b5998]
+        text-white
+        rounded-lg
+        font-bold
+        border-none
+        py-4
+        my-2
+        transition-all
+        active:scale-95
+        shadow
+        text-base
+      "
       {...props}
     >
       Facebook Login (Móvil)
