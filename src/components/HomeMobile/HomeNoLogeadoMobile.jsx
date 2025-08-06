@@ -1,12 +1,11 @@
 // ✅ src/components/HomeMobile/HomeNoLogeadoMobile.jsx
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useContext } from "react";
 import HeaderNoLogeado from "../HeaderNoLogeado";
 import RegistroModal from "../../modals/RegistroModal";
 import PerfilModal from "../../modals/PerfilModal";
 import LoginModal from "../../modals/LoginModal";
 import CarrouselCategorias from "../CarrouselCategorias";
 import { motion, AnimatePresence } from "framer-motion";
-import { useContext } from "react";
 import { UbiContext } from "../../context/UbiContext"; // Ajusta la ruta si es diferente
 
 const limpiarEstadoRegistro = () => {
@@ -15,17 +14,34 @@ const limpiarEstadoRegistro = () => {
 };
 
 const HomeNoLogeadoMobile = () => {
-  // Solo estados y handlers necesarios para NO logeado
+  // Estados y handlers necesarios
   const [mostrarModalLogin, setMostrarModalLogin] = useState(false);
   const [mostrarModalRegistro, setMostrarModalRegistro] = useState(false);
   const [mostrarSeleccionPerfilModal, setMostrarSeleccionPerfilModal] = useState(false);
   const [tipoSeleccionado, setTipoSeleccionado] = useState(null);
   const [perfilSeleccionado, setPerfilSeleccionado] = useState(null);
-
   const [contornoBienvenida, setContornoBienvenida] = useState(false);
   const [resaltarBienvenida, setResaltarBienvenida] = useState(false);
   const [mostrarTooltip, setMostrarTooltip] = useState(false);
   const bienvenidaRef = useRef(null);
+
+  // Lógica para esconder el footer según scroll
+  const [showFooter, setShowFooter] = useState(true);
+
+  useEffect(() => {
+    let lastScroll = window.scrollY;
+    const handleScroll = () => {
+      const currentScroll = window.scrollY;
+      if (currentScroll > lastScroll && currentScroll > 60) {
+        setShowFooter(false); // Scroll abajo: ocultar
+      } else {
+        setShowFooter(true); // Scroll arriba: mostrar
+      }
+      lastScroll = currentScroll;
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const boxVariants = {
     hidden: { opacity: 0, y: 30, scale: 0.98 },
@@ -92,7 +108,6 @@ const HomeNoLogeadoMobile = () => {
     setTimeout(() => setResaltarBienvenida(false), 800);
   };
 
-
   const { ubicacion } = useContext(UbiContext);
   const ciudad = ubicacion?.ciudad;
 
@@ -146,19 +161,19 @@ const HomeNoLogeadoMobile = () => {
               <motion.div
                 ref={bienvenidaRef}
                 className={`
-        w-[calc(100vw-40px)] mx-[20px]
-        bg-white/50
-        rounded-[1.2rem]
-        p-5 pt-6
-        shadow-[0_7px_32px_0_rgba(80,130,250,0.15)]
-        flex flex-col items-center justify-center
-        gap-1
-        relative
-        transition-all duration-300
-        backdrop-blur-[10px]
-        border border-white/50
-        overflow-hidden
-      `}
+                  w-[calc(100vw-40px)] mx-[20px]
+                  bg-white/50
+                  rounded-[1.2rem]
+                  p-5 pt-6
+                  shadow-[0_7px_32px_0_rgba(80,130,250,0.15)]
+                  flex flex-col items-center justify-center
+                  gap-1
+                  relative
+                  transition-all duration-300
+                  backdrop-blur-[10px]
+                  border border-white/50
+                  overflow-hidden
+                `}
                 key="botones"
                 initial={{ x: -90, opacity: 0, scale: 0.98 }}
                 animate={{ x: 0, opacity: 1, scale: 1 }}
@@ -197,13 +212,13 @@ const HomeNoLogeadoMobile = () => {
                 <motion.button
                   onClick={handleAbrirModalLogin}
                   className="
-          w-full bg-blue-700 hover:bg-blue-800
-          text-white font-bold text-base py-3 rounded-xl shadow transition-all duration-100 mb-2
-          hover:shadow-[0_7px_32px_0_rgba(80,130,250,0.16)]
-          hover:scale-[1.03]
-          focus:outline-none focus:ring-2 focus:ring-blue-400
-          relative z-10
-        "
+                    w-full bg-blue-700 hover:bg-blue-800
+                    text-white font-bold text-base py-3 rounded-xl shadow transition-all duration-100 mb-2
+                    hover:shadow-[0_7px_32px_0_rgba(80,130,250,0.16)]
+                    hover:scale-[1.03]
+                    focus:outline-none focus:ring-2 focus:ring-blue-400
+                    relative z-10
+                  "
                   whileHover={{
                     scale: 1.04,
                     boxShadow: "0 9px 32px 0 rgba(80,130,250,0.20)",
@@ -241,12 +256,12 @@ const HomeNoLogeadoMobile = () => {
                   <motion.button
                     onClick={() => handleSeleccionTipo("usuario")}
                     className="
-            flex-1 bg-blue-100 hover:bg-blue-200 text-blue-700
-            font-bold py-3 px-2 rounded-xl shadow transition-all duration-100 text-base
-            hover:scale-[1.03]
-            hover:shadow-[0_3px_14px_0_rgba(80,130,250,0.11)]
-            relative z-10
-          "
+                      flex-1 bg-blue-100 hover:bg-blue-200 text-blue-700
+                      font-bold py-3 px-2 rounded-xl shadow transition-all duration-100 text-base
+                      hover:scale-[1.03]
+                      hover:shadow-[0_3px_14px_0_rgba(80,130,250,0.11)]
+                      relative z-10
+                    "
                     initial={{ opacity: 0, y: 23 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.49, duration: 0.13, type: "spring" }}
@@ -261,12 +276,12 @@ const HomeNoLogeadoMobile = () => {
                   <motion.button
                     onClick={() => handleSeleccionTipo("comerciante")}
                     className="
-            flex-1 bg-green-100 hover:bg-green-200 text-green-700
-            font-bold py-3 px-2 rounded-xl shadow transition-all duration-100 text-base
-            hover:scale-[1.03]
-            hover:shadow-[0_3px_14px_0_rgba(5,150,105,0.13)]
-            relative z-10
-          "
+                      flex-1 bg-green-100 hover:bg-green-200 text-green-700
+                      font-bold py-3 px-2 rounded-xl shadow transition-all duration-100 text-base
+                      hover:scale-[1.03]
+                      hover:shadow-[0_3px_14px_0_rgba(5,150,105,0.13)]
+                      relative z-10
+                    "
                     initial={{ opacity: 0, y: 23 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.58, duration: 0.13, type: "spring" }}
@@ -294,7 +309,6 @@ const HomeNoLogeadoMobile = () => {
             )}
           </AnimatePresence>
 
-
           <LoginModal
             isOpen={mostrarModalLogin}
             onClose={() => setMostrarModalLogin(false)}
@@ -318,36 +332,47 @@ const HomeNoLogeadoMobile = () => {
       </main>
 
       <motion.div
+        className={`
+          w-full fixed bottom-6 left-0 z-40 flex justify-center pointer-events-none
+          transition-transform duration-500
+          ${showFooter ? "translate-y-0 opacity-100" : "translate-y-28 opacity-0"}
+        `}
+        style={{ willChange: "transform, opacity" }}
+      >
+        <div className="pointer-events-auto">
+          <CarrouselCategorias />
+        </div>
+      </motion.div>
+
+      <motion.div
         className="w-full flex justify-center mb-[150px]"
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 1.2 }}
       >
         <div className="
-    bg-white/50
-    rounded-[1.2rem]      // <-- Cambia aquí el radio a tu gusto
-    px-7 py-4
-    shadow-[0_10px_44px_0_rgba(80,130,250,0.13)]
-    text-center max-w-[385px] w-full mx-2
-    border border-white/60
-    backdrop-blur-[9px]
-  ">
-          <span className="block text-[17px] font-semibold text-gray-900 drop-shadow-sm">
+          bg-white/50
+          rounded-[1.2rem]
+          px-7 py-4
+          shadow-[0_10px_44px_0_rgba(80,130,250,0.13)]
+          text-center max-w-[360px] w-full mx-2
+          border border-white/60
+          backdrop-blur-[9px]
+        ">
+          <span className="block text-[18px] font-semibold text-gray-900 drop-shadow-sm">
             {typeof ciudad !== "undefined" && (
               <span>
-                Únete a la Plataforma más Completa para{" "}
-                <span className="font-bold text-[23px] text-blue-900">
-                  {ciudad ? `Crecer en ${ciudad}` : "Crecer en tu Ciudad"}
+                Únete a la Plataforma más Completa<br /> para Crecer en
+                <br />
+                {" "}
+                <span className="font-bold text-[30px] text-blue-900">
+                  {ciudad ? `${ciudad}` : "tu Ciudad"}
                 </span>
               </span>
             )}
           </span>
         </div>
       </motion.div>
-      <div className="w-full fixed bottom-6 left-0 z-40 flex justify-center pointer-events-none">
-        <CarrouselCategorias />
-      </div>
-
     </div>
   );
 };
