@@ -31,7 +31,9 @@ const GoogleLoginButtonMobile = ({
         if (perfil && perfil.perfil) body.perfil = perfil.perfil;
       }
 
-      const res = await axios.post("http://localhost:5000/api/usuarios/google", body);
+      // Usar la variable de entorno
+      const API_URL = import.meta.env.VITE_API_URL;
+      const res = await axios.post(`${API_URL}/api/usuarios/google`, body);
 
       if (res.status === 200 && res.data?.token) {
         localStorage.setItem("token", res.data.token);
