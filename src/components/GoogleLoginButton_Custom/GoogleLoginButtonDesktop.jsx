@@ -46,8 +46,8 @@ const GoogleLoginButtonDesktop = ({
           title: "¡Acceso con Google!",
           text: res.data?.mensaje || "Sesión iniciada correctamente.",
           customClass: {
-            popup: 'rounded-md'
-          }
+            popup: "rounded-md",
+          },
         });
 
         iniciarSesion(res.data.token, res.data.usuario);
@@ -60,14 +60,14 @@ const GoogleLoginButtonDesktop = ({
           title: "Error con Google",
           text: res.data?.mensaje || "No se pudo autenticar con Google.",
           customClass: {
-            popup: 'rounded-md'
-          }
+            popup: "rounded-md",
+          },
         });
         limpiarEstadoTemporal();
       }
-
     } catch (err) {
-      const mensaje = err?.response?.data?.mensaje || "Error con autenticación Google";
+      const mensaje =
+        err?.response?.data?.mensaje || "Error con autenticación Google";
       limpiarEstadoTemporal();
       if (
         mensaje.toLowerCase().includes("registrada") ||
@@ -86,18 +86,17 @@ const GoogleLoginButtonDesktop = ({
           title: titulo,
           text: mensaje,
           customClass: {
-            popup: 'rounded-md'
-          }
+            popup: "rounded-md",
+          },
         });
-
       } else {
         Swal.fire({
           icon: "info",
           title: "Cuenta ya Existente",
           text: mensaje,
           customClass: {
-            popup: 'rounded-md'
-          }
+            popup: "rounded-md",
+          },
         });
       }
     }
@@ -113,8 +112,8 @@ const GoogleLoginButtonDesktop = ({
           title: "Google Login",
           text: "No se pudo conectar con Google.",
           customClass: {
-            popup: 'rounded-3xl'
-          }
+            popup: "rounded-3xl",
+          },
         });
       }}
       ux_mode="redirect"
