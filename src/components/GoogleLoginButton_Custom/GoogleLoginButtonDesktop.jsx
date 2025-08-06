@@ -31,7 +31,9 @@ const GoogleLoginButtonDesktop = ({
         if (perfil && perfil.perfil) body.perfil = perfil.perfil;
       }
 
-      const res = await axios.post("http://localhost:5000/api/usuarios/google", body);
+      // Usar variable de entorno para endpoint
+      const API_URL = import.meta.env.VITE_API_URL;
+      const res = await axios.post(`${API_URL}/api/usuarios/google`, body);
 
       if (res.status === 200 && res.data?.token) {
         localStorage.setItem("token", res.data.token);
