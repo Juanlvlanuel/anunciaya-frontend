@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import MobileBottomNav from "../components/NavsLogeado/MobileBottomNav"; // Ajusta la ruta si tu proyecto la tiene diferente
+import HeaderCategorias from "../components/HeaderCategorias";
 
 // Colores oficiales
+
 const COLORS = {
   azulOscuro: "#0C1424",
   azulAnuncia: "#2364ef",
@@ -16,44 +18,44 @@ const COLORS = {
 const ICONOS = {
   Comida: (
     <svg width="28" height="28" fill="none" viewBox="0 0 28 28">
-      <circle cx="14" cy="14" r="13" fill="#2364ef22"/>
-      <path d="M10 13a4 4 0 018 0v5" stroke="#2364ef" strokeWidth="2"/>
-      <rect x="9" y="18" width="10" height="5" rx="2.5" stroke="#2364ef" strokeWidth="2"/>
+      <circle cx="14" cy="14" r="13" fill="#2364ef22" />
+      <path d="M10 13a4 4 0 018 0v5" stroke="#2364ef" strokeWidth="2" />
+      <rect x="9" y="18" width="10" height="5" rx="2.5" stroke="#2364ef" strokeWidth="2" />
     </svg>
   ),
   Salud: (
     <svg width="28" height="28" fill="none" viewBox="0 0 28 28">
-      <circle cx="14" cy="14" r="13" fill="#2364ef22"/>
-      <rect x="10" y="11" width="8" height="10" rx="4" stroke="#2364ef" strokeWidth="2"/>
-      <path d="M14 14v5M11 16h6" stroke="#2364ef" strokeWidth="2" strokeLinecap="round"/>
+      <circle cx="14" cy="14" r="13" fill="#2364ef22" />
+      <rect x="10" y="11" width="8" height="10" rx="4" stroke="#2364ef" strokeWidth="2" />
+      <path d="M14 14v5M11 16h6" stroke="#2364ef" strokeWidth="2" strokeLinecap="round" />
     </svg>
   ),
   "Hogar y Servicios": (
     <svg width="28" height="28" fill="none" viewBox="0 0 28 28">
-      <circle cx="14" cy="14" r="13" fill="#0C142420"/>
-      <rect x="7" y="12" width="14" height="8" rx="2.5" stroke="#2364ef" strokeWidth="2"/>
-      <path d="M14 8L21 14M14 8L7 14" stroke="#2364ef" strokeWidth="2" strokeLinecap="round"/>
+      <circle cx="14" cy="14" r="13" fill="#0C142420" />
+      <rect x="7" y="12" width="14" height="8" rx="2.5" stroke="#2364ef" strokeWidth="2" />
+      <path d="M14 8L21 14M14 8L7 14" stroke="#2364ef" strokeWidth="2" strokeLinecap="round" />
     </svg>
   ),
   "Educación y Bienestar": (
     <svg width="28" height="28" fill="none" viewBox="0 0 28 28">
-      <circle cx="14" cy="14" r="13" fill="#e1252511"/>
-      <rect x="9" y="15" width="10" height="5" rx="2.5" stroke="#2364ef" strokeWidth="2"/>
-      <path d="M14 10L20 13M14 10L8 13" stroke="#e12525" strokeWidth="2" strokeLinecap="round"/>
+      <circle cx="14" cy="14" r="13" fill="#e1252511" />
+      <rect x="9" y="15" width="10" height="5" rx="2.5" stroke="#2364ef" strokeWidth="2" />
+      <path d="M14 10L20 13M14 10L8 13" stroke="#e12525" strokeWidth="2" strokeLinecap="round" />
     </svg>
   ),
   "Moda y Regalos": (
     <svg width="28" height="28" fill="none" viewBox="0 0 28 28">
-      <circle cx="14" cy="14" r="13" fill="#2364ef13"/>
-      <rect x="10" y="13" width="8" height="6" rx="2.5" stroke="#2364ef" strokeWidth="2"/>
-      <path d="M14 10v8M11 16h6" stroke="#e12525" strokeWidth="2" strokeLinecap="round"/>
+      <circle cx="14" cy="14" r="13" fill="#2364ef13" />
+      <rect x="10" y="13" width="8" height="6" rx="2.5" stroke="#2364ef" strokeWidth="2" />
+      <path d="M14 10v8M11 16h6" stroke="#e12525" strokeWidth="2" strokeLinecap="round" />
     </svg>
   ),
   Servicios: (
     <svg width="28" height="28" fill="none" viewBox="0 0 28 28">
-      <circle cx="14" cy="14" r="13" fill="#e1252520"/>
-      <circle cx="14" cy="14" r="7" stroke="#2364ef" strokeWidth="2"/>
-      <path d="M11 17l6-6M17 17l-6-6" stroke="#2364ef" strokeWidth="2" strokeLinecap="round"/>
+      <circle cx="14" cy="14" r="13" fill="#e1252520" />
+      <circle cx="14" cy="14" r="7" stroke="#2364ef" strokeWidth="2" />
+      <path d="M11 17l6-6M17 17l-6-6" stroke="#2364ef" strokeWidth="2" strokeLinecap="round" />
     </svg>
   )
 };
@@ -200,13 +202,12 @@ const NegociosLocales = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#f6f8fa] via-[#e5e7eb] to-[#ffffff] flex flex-col relative pb-24 transition-all">
-      {/* HEADER */}
-      <header className="w-full max-w-xl mx-auto bg-white/95 backdrop-blur-md shadow-md rounded-b-3xl sticky top-0 z-30 transition">
-        <div className="flex items-center justify-between px-4 py-3">
-          <img src="https://anunciaya.online/logo-anunciaya.png" className="h-9" alt="AnunciaYA" />
-          <span className="font-bold text-[#2364ef] text-lg tracking-tight">Negocios Locales</span>
-        </div>
-      </header>
+      {/* HEADER CON SOLO ICONO Y TÍTULO */}
+      <HeaderCategorias
+        seccion="Negocios Locales"
+        icono="/icons/comercios.png"
+        color="#2364ef"
+      />
 
       {/* BUSCADOR */}
       <section className="w-full max-w-xl mx-auto px-4 mt-2">
