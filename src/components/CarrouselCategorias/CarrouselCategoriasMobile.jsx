@@ -129,17 +129,29 @@ export default function CarrouselCategoriasMobile() {
             </div>
             <span
               className="
-                text-[12px] mt-0.5 text-blue-900 font-bold text-center leading-tight
-                whitespace-pre-line
-                transition-all duration-150 group-active:text-blue-700
-              "
+    text-[14px] mt-1 text-blue-800 font-bold text-center
+    leading-[1.22] tracking-tight whitespace-pre-line
+    transition-all duration-150 group-active:text-blue-700
+    select-none
+  "
               style={{
-                lineHeight: "1.15",
-                textShadow: "0 2px 9px #b3e3ff40, 0 1px 0 #ffffffa3",
+                textShadow: `
+      0 0 3px #fff,
+      0 0 2px #fff,
+      1px 1px 0 #fff,
+      -1px -1px 0 #fff,
+      1px -1px 0 #fff,
+      -1px 1px 0 #fff,
+      0 2px 6px #b3e3ff29,
+      0 1px 0 #ffffffcf
+    `,
+                letterSpacing: "-0.01em",
+                filter: "brightness(0.98) contrast(1.12)"
               }}
             >
               {icono.nombre}
             </span>
+
           </button>
         ))}
       </div>

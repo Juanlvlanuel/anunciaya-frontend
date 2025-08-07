@@ -148,7 +148,7 @@ const HomeNoLogeadoMobile = () => {
               <span>
                 Únete a la Plataforma más Completa<br />para Crecer en
                 <br />
-                <span className="font-bold text-[30px] text-blue-900">
+                <span className="font-bold text-[25px] text-blue-900">
                   {ciudad ? `${ciudad}` : "tu Ciudad"}
                 </span>
               </span>
@@ -206,7 +206,7 @@ const HomeNoLogeadoMobile = () => {
 
                 {/* Título con micro-glow */}
                 <motion.h1
-                  className="text-[32px] font-extrabold text-blue-900 drop-shadow text-center w-full mb-1 z-10"
+                  className="text-[34px] font-extrabold text-blue-900 drop-shadow text-center w-full mb-1 z-10"
                   initial={{ textShadow: "0 0px 0px #3b82f6aa" }}
                   animate={{
                     textShadow: [
