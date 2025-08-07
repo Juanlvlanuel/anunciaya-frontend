@@ -106,7 +106,6 @@ export default function CarrouselCategoriasMobile() {
               group outline-none
             "
             style={{ WebkitTapHighlightColor: "transparent" }}
-            onClick={() => navigate(icono.to)}
             tabIndex={-1}
           >
             <div
