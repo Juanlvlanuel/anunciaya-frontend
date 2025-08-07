@@ -1,33 +1,30 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
 /* ✅ Elimina flechas del input type number en todos los navegadores */
 input[type=number]::-webkit-inner-spin-button,
 input[type=number]::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
-
 input[type=number] {
   -moz-appearance: textfield;
 }
-html, body {
-  background: transparent !important;
-}
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-/* ✅ Elimina flechas del input type number en todos los navegadores */
-input[type=number]::-webkit-inner-spin-button,
-input[type=number]::-webkit-outer-spin-button {
+/* ✅ Elimina la X nativa de los input[type="search"] en todos los navegadores */
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-clear-button {
+  display: none !important;
   -webkit-appearance: none;
-  margin: 0;
+}
+input[type="search"]::-ms-clear {
+  display: none !important;
+}
+input[type="search"]::-moz-search-clear {
+  display: none !important;
 }
 
-input[type=number] {
-  -moz-appearance: textfield;
-}
 html, body {
   background: transparent !important;
 }

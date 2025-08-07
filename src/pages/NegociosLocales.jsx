@@ -1,10 +1,12 @@
+// src/pages/NegociosLocales.jsx
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import MobileBottomNav from "../components/NavsLogeado/MobileBottomNav"; // Ajusta la ruta si tu proyecto la tiene diferente
+import MobileBottomNav from "../components/NavsLogeado/MobileBottomNav";
 import HeaderCategorias from "../components/HeaderCategorias";
+import BuscadorPro from "../components/BuscadorPro";
+import CarouselBannerCategorias from "../components/CarouselBannerCategorias"; 
 
 // Colores oficiales
-
 const COLORS = {
   azulOscuro: "#0C1424",
   azulAnuncia: "#2364ef",
@@ -14,7 +16,7 @@ const COLORS = {
   blanco: "#ffffff"
 };
 
-// Iconos minimalistas tipo app (puedes reemplazar por SVGs premium o imágenes)
+// Iconos minimalistas tipo app
 const ICONOS = {
   Comida: (
     <svg width="28" height="28" fill="none" viewBox="0 0 28 28">
@@ -177,74 +179,75 @@ const AccordionGrupo = ({ grupo, abierto, onClick, categorias, icono, accentClas
   </motion.div>
 );
 
-// Hero
+// CARROUSEL CATEGORIAS
 const Hero = () => (
   <section className="w-full max-w-xl mx-auto px-2 mt-3 relative">
-    <motion.div
-      initial={{ opacity: 0, y: 35 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-      className="rounded-3xl overflow-hidden shadow-xl h-[120px] flex items-center justify-center relative bg-gradient-to-br from-[#e5e7eb]/90 to-white/95"
-    >
-      <img src="https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=600&q=80"
-        alt="Ciudad" className="absolute w-full h-full object-cover opacity-55 scale-105" />
-      <div className="absolute inset-0 bg-gradient-to-b from-white/90 via-[#f6f8fa]/90 to-[#e5e7eb]/80 backdrop-blur-[10px]"></div>
-      <div className="relative z-10 flex flex-col items-center text-center px-5 py-7">
-        <h1 className="text-lg font-extrabold text-[#0C1424] mb-1 drop-shadow-xl tracking-tight">Explora los mejores negocios cerca de ti</h1>
-        <p className="text-sm text-[#2364ef] mb-1">Apoya el comercio local, descubre ofertas y conecta con tu comunidad.</p>
-      </div>
-    </motion.div>
+    <CarouselBannerCategorias />
   </section>
 );
 
 const NegociosLocales = () => {
   const [grupoAbierto, setGrupoAbierto] = useState(null);
+  const [resultados, setResultados] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  // Buscar global (aquí integras tu lógica real con API o Context)
+  const onBuscar = async (query) => {
+    setLoading(true);
+
+    // Simulación de búsqueda: aquí conecta a tu API real
+    setTimeout(() => {
+      // Si hay texto muestra resultados, si no vacía
+      if (query.length > 0) {
+        setResultados([
+          { id: 1, nombre: "Farmacia Guadalajara", categoria: "Salud" },
+          { id: 2, nombre: "Panadería La Flor", categoria: "Comida" },
+        ]);
+      } else {
+        setResultados([]);
+      }
+      setLoading(false);
+    }, 600);
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#f6f8fa] via-[#e5e7eb] to-[#ffffff] flex flex-col relative pb-24 transition-all">
-      {/* HEADER CON SOLO ICONO Y TÍTULO */}
-      <HeaderCategorias
-        seccion="Negocios Locales"
-        icono="/icons/comercios.png"
-        color="#2364ef"
-      />
-
-      {/* BUSCADOR */}
-      <section className="w-full max-w-xl mx-auto px-4 mt-2">
-        <div className="relative">
-          <input
-            className="w-full rounded-2xl border border-[#e5e7eb] px-4 py-2 text-base text-[#0C1424] bg-white/80 shadow-md outline-none focus:border-[#2364ef] transition placeholder:text-[#2364ef90]"
-            type="text"
-            placeholder="Buscar negocio, producto o servicio..."
-          />
-          <span className="absolute top-2.5 right-4 text-[#2364efb2]">
-            <svg width="21" height="21" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <circle cx="11" cy="11" r="7" />
-              <path d="M21 21l-4.3-4.3" strokeLinecap="round" />
-            </svg>
-          </span>
+    <div className="min-h-screen bg-gradient-to-b from-[#f6f8fa] via-[#e5e7eb] to-[#ffffff] relative pb-24 transition-all">
+      {/* HEADER + BUSCADOR FIJOS */}
+      <div className="fixed top-0 left-0 w-full z-50 pb-2">
+        <HeaderCategorias />
+        <div className="flex justify-center w-full mt-1">
+          <div className="w-full max-w-[500px] px-2">
+            <BuscadorPro
+              onBuscar={onBuscar}
+              resultados={resultados}
+              loading={loading}
+            />
+          </div>
         </div>
-      </section>
-
-      {/* HERO */}
-      <Hero />
-
-      {/* ACORDEÓN DE GRUPOS */}
-      <div className="w-full max-w-xl mx-auto mt-6 px-2">
-        {grupos.map((grupo, idx) => (
-          <AccordionGrupo
-            key={grupo.grupo}
-            grupo={grupo.grupo}
-            abierto={grupoAbierto === idx}
-            onClick={() => setGrupoAbierto(grupoAbierto === idx ? null : idx)}
-            categorias={grupo.categorias}
-            icono={ICONOS[grupo.grupo]}
-            accentClass={ACCENT[grupo.grupo]}
-          />
-        ))}
       </div>
 
-      {/* FOOTER FIJO */}
+      {/* ESPACIADO PARA QUE NO SE TAPE EL CONTENIDO */}
+      <div className="pt-[134px]">
+        {/* HERO */}
+        <Hero />
+
+        {/* ACORDEÓN DE GRUPOS */}
+        <div className="w-full max-w-xl mx-auto mt-6 px-2">
+          {grupos.map((grupo, idx) => (
+            <AccordionGrupo
+              key={grupo.grupo}
+              grupo={grupo.grupo}
+              abierto={grupoAbierto === idx}
+              onClick={() => setGrupoAbierto(grupoAbierto === idx ? null : idx)}
+              categorias={grupo.categorias}
+              icono={ICONOS[grupo.grupo]}
+              accentClass={ACCENT[grupo.grupo]}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* FOOTER */}
       <div className="fixed bottom-0 left-0 w-full z-40">
         <MobileBottomNav />
       </div>
