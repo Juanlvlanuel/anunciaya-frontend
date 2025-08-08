@@ -23,12 +23,12 @@ const categoriasInicial = [
 ];
 
 const sidebarVariants = {
-  closed: { x: 0, opacity: 0, transition: { duration: 0.18 } }, // <- Ya no se mueve a la izquierda
+  closed: { x: 0, opacity: 0, transition: { duration: 0.18 } },
   open: { x: 0, opacity: 1, transition: { type: "spring", stiffness: 320, damping: 24 } },
 };
 
-const BOTON_WIDTH = 48;
-const BOTON_HEIGHT = 48;
+const BOTON_WIDTH = 56;
+const BOTON_HEIGHT = 56;
 const MENU_WIDTH = 60;
 
 const LS_CATEGORIAS_KEY = "anunciaya_menu_categorias";
@@ -39,7 +39,6 @@ const SidebarCategoriasLogeado = () => {
   const { autenticado } = useContext(AuthContext);
   const [open, setOpen] = useState(false);
 
-  // Persistencia de categorías
   const [categorias, setCategorias] = useState(() => {
     const saved = localStorage.getItem(LS_CATEGORIAS_KEY);
     if (saved) {
@@ -48,30 +47,29 @@ const SidebarCategoriasLogeado = () => {
         if (Array.isArray(parsed) && parsed.every(cat => cat.id && cat.label && cat.icon && cat.to)) {
           return parsed;
         }
-      } catch { }
+      } catch {}
     }
     return categoriasInicial;
   });
 
-  // Persistencia de posición del botón
   const [buttonPos, setButtonPos] = useState(() => {
     const saved = localStorage.getItem(LS_BOTONPOS_KEY);
     if (saved) {
       try {
         const pos = JSON.parse(saved);
         if (typeof pos.x === "number" && typeof pos.y === "number") return pos;
-      } catch { }
+      } catch {}
     }
     return { x: 16, y: 92 };
   });
 
-  // Referencias para el menú y el botón
   const dragging = useRef(false);
   const lastPos = useRef({ x: 0, y: 0 });
   const moved = useRef(false);
   const menuRef = useRef(null);
   const buttonRef = useRef(null);
   const iconMoved = useRef(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(LS_CATEGORIAS_KEY, JSON.stringify(categorias));
@@ -81,7 +79,6 @@ const SidebarCategoriasLogeado = () => {
     localStorage.setItem(LS_BOTONPOS_KEY, JSON.stringify(buttonPos));
   }, [buttonPos]);
 
-  // Cierre automático del menú al dar click/tap fuera
   useEffect(() => {
     if (!open) return;
     const handleClickOutside = (e) => {
@@ -104,9 +101,34 @@ const SidebarCategoriasLogeado = () => {
 
   if (!autenticado) return null;
 
+  // Animación rebote (sin framer-motion)
+  function animateTo(target) {
+    let frame = 0;
+    const totalFrames = 14;
+    const start = { ...buttonPos };
+    function easeOutCubic(t) {
+      return 1 - Math.pow(1 - t, 3);
+    }
+    function animate() {
+      frame++;
+      const t = frame / totalFrames;
+      const eased = easeOutCubic(t);
+      const nextX = start.x + (target.x - start.x) * eased;
+      const nextY = start.y + (target.y - start.y) * eased;
+      setButtonPos({ x: nextX, y: nextY });
+      if (frame < totalFrames) {
+        requestAnimationFrame(animate);
+      } else {
+        setButtonPos(target);
+      }
+    }
+    animate();
+  }
+
   // ---- DRAG BOTÓN FLOTANTE ----
   const handlePointerDown = (e) => {
     dragging.current = true;
+    setIsDragging(true);
     moved.current = false;
     document.body.style.userSelect = "none";
     document.body.style.touchAction = "none";
@@ -140,16 +162,29 @@ const SidebarCategoriasLogeado = () => {
 
   const handlePointerUp = () => {
     dragging.current = false;
+    setIsDragging(false);
     document.body.style.userSelect = "";
     document.body.style.touchAction = "";
     window.removeEventListener("mousemove", handlePointerMove);
     window.removeEventListener("mouseup", handlePointerUp);
     window.removeEventListener("touchmove", handlePointerMove);
     window.removeEventListener("touchend", handlePointerUp);
+
+    // --- REBOTE AL SOLTAR ---
+    let { x, y } = buttonPos;
+    let rebote = false;
+
+    if (x < 0) { x = 0; rebote = true; }
+    if (y < 0) { y = 0; rebote = true; }
+    if (x > window.innerWidth - BOTON_WIDTH) { x = window.innerWidth - BOTON_WIDTH; rebote = true; }
+    if (y > window.innerHeight - BOTON_HEIGHT) { y = window.innerHeight - BOTON_HEIGHT; rebote = true; }
+
+    if (rebote) {
+      animateTo({ x, y });
+    }
   };
   // ---- FIN DRAG BOTÓN FLOTANTE ----
 
-  // Drag & drop handler para las categorías
   const handleDragEnd = (result) => {
     if (!result.destination) return;
     const reordered = Array.from(categorias);
@@ -161,30 +196,29 @@ const SidebarCategoriasLogeado = () => {
   return (
     <>
       {/* Botón hamburguesa flotante y movible */}
-      <button
+      <div
         ref={buttonRef}
-        className="
-          fixed z-[51] md:hidden
-          w-12 h-12 rounded-full bg-white/90 shadow-lg flex items-center justify-center
-          border border-blue-100
-          transition-all active:scale-90 select-none touch-none
-        "
+        className="fixed z-[51] md:hidden w-14 h-14 rounded-full bg-white/90 shadow-lg flex items-center justify-center border border-blue-100 active:scale-90 select-none touch-none"
         style={{
           left: `${buttonPos.x}px`,
           top: `${buttonPos.y}px`,
-          boxShadow: "0 3px 14px 0 rgba(60,130,220,0.13)",
-          cursor: dragging.current ? "grabbing" : "grab",
+          boxShadow: isDragging
+            ? "0 6px 30px 0 rgba(55,120,240,0.23), 0 0 0 9px rgba(55,120,255,0.07)"
+            : "0 3px 14px 0 rgba(60,130,220,0.13)",
+          cursor: isDragging ? "grabbing" : "grab",
           touchAction: "none",
+          transition: isDragging ? "none" : "box-shadow 0.22s cubic-bezier(.4,1.7,.6,.99)",
         }}
         onPointerDown={handlePointerDown}
         onTouchStart={handlePointerDown}
         onClick={() => {
-          if (!moved.current) setOpen((prev) => !prev);
+          // Solo abrir si NO se está arrastrando
+          if (!isDragging && !moved.current) setOpen((prev) => !prev);
         }}
         aria-label="Abrir menú categorías"
       >
-        <FaBars size={22} className="text-blue-700" />
-      </button>
+        <FaBars size={28} className="text-blue-700" />
+      </div>
 
       {/* Sidebar animado, pegado debajo del botón y alineado */}
       <AnimatePresence>
@@ -234,7 +268,6 @@ const SidebarCategoriasLogeado = () => {
                               ${snapshot.isDragging ? "scale-105 shadow-xl z-20" : ""}
                               rounded-xl p-1 w-full
                             `}
-                            // --- Click/drag separation para iconos internos
                             onMouseDown={() => { iconMoved.current = false; }}
                             onTouchStart={() => { iconMoved.current = false; }}
                             onMouseMove={() => { iconMoved.current = true; }}
