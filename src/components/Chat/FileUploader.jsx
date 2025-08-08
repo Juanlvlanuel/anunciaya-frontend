@@ -1,18 +1,24 @@
+// src/components/Chat/FileUploader.jsx
 import { useState } from "react";
 import { uploadFile } from "../../services/api";
 
-export default function FileUploader({ onUploaded }) {
+export default function FileUploader({ onUploaded, multiple = false }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   async function onChange(e) {
-    const f = e.target.files?.[0];
-    if (!f) return;
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
     setLoading(true);
     setError("");
     try {
-      const data = await uploadFile(f);
-      onUploaded?.(data);
+      const results = [];
+      for (const f of files) {
+        const data = await uploadFile(f);
+        results.push(data);
+      }
+      onUploaded?.(multiple ? results : results[0]);
     } catch (err) {
       setError("No se pudo subir el archivo");
     } finally {
@@ -27,8 +33,10 @@ export default function FileUploader({ onUploaded }) {
         Adjuntar
         <input
           type="file"
-          accept="image/jpeg,image/png,image/webp"
+          accept="image/*"
+          capture="environment"
           className="hidden"
+          multiple={multiple}
           onChange={onChange}
         />
       </label>

@@ -5,6 +5,9 @@ import { AuthContext } from "../context/AuthContext";
 import SplashScreen from "../components/SplashScreen";
 import PanelAdministrativo from "../layouts/PanelAdministrativo";
 
+// 🔵 estilos twemoji (añadido)
+import "../styles/chat-twemoji.css";
+
 // Páginas públicas MODERNAS (solo las válidas)
 import HomeSelector from "../components/HomeSelector";
 import Rifas from "./Rifas";
@@ -51,13 +54,11 @@ function App() {
     return () => document.removeEventListener("keydown", manejarRetroceso);
   }, []);
 
-  // Mostrar splash screen mientras carga autenticación
   if (cargando) return <SplashScreen />;
 
   return (
     <>
       <Routes location={location} key={location.pathname}>
-        {/* Layout principal del sitio público */}
         <Route path="/">
           <Route
             index
@@ -77,7 +78,6 @@ function App() {
           />
         </Route>
 
-        {/* Otras rutas públicas con layouts separados */}
         <Route path="/promociones" element={<Promociones />} />
         <Route path="/empleos" element={<Empleos />} />
         <Route path="/marketplace" element={<Marketplace />} />
@@ -85,18 +85,14 @@ function App() {
         <Route path="/regala-o-dona" element={<RegalaODona />} />
         <Route path="/rifas" element={<Rifas />} />
 
-        {/* Ruta del dashboard (logueado) */}
         <Route path="/dashboard" element={<Dashboard />} />
 
-        {/* Panel administrativo */}
         <Route path="/admin" element={<LoginAdmin />} />
         <Route path="/admin/PanelAdministrativo" element={<PanelAdministrativo />}>
           <Route path="carousel" element={<CarouselPage />} />
         </Route>
 
-        {/* 🔵 Ruta de callback para Google Login */}
         <Route path="/auth/google/callback" element={<GoogleCallback />} />
-
       </Routes>
 
       {typeof window !== "undefined" && (

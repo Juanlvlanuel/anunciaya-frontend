@@ -8,49 +8,22 @@ import {
   FaBars,
   FaTags,
   FaSignOutAlt,
-  FaComments, // <-- nuevo icono para Chat
+  FaComments,
 } from "react-icons/fa";
+import { AnimatePresence } from "framer-motion";
 import MobileMenuDrawer from "../HomeMobile/MobileMenuDrawer";
 import SearchPopup from "../SearchPopup";
 import { AuthContext } from "../../context/AuthContext";
-import ChatPanel from "../Chat/ChatPanel"; // <-- Ajusta ruta según tu estructura
+import ChatPanel from "../Chat/ChatPanel";
 
 const navItems = [
-  {
-    label: "Inicio",
-    icon: <FaHome size={28} />,
-    action: "home",
-  },
-  {
-    label: "Mi Cuenta",
-    icon: <FaUser size={28} />,
-    action: "cuenta",
-  },
-  {
-    label: "Buscar",
-    icon: <FaSearch size={28} />,
-    action: "buscar",
-  },
-  {
-    label: "Chat",
-    icon: <FaComments size={28} />,
-    action: "chat",
-  },
-  {
-    label: "Mis Compras",
-    icon: <FaTags size={28} />,
-    action: "compras",
-  },
-  {
-    label: "Salir",
-    icon: <FaSignOutAlt size={28} />,
-    action: "salir",
-  },
-  {
-    label: "Menú",
-    icon: <FaBars size={28} />,
-    action: "menu",
-  },
+  { label: "Inicio", icon: <FaHome size={28} />, action: "home" },
+  { label: "Mi Cuenta", icon: <FaUser size={28} />, action: "cuenta" },
+  { label: "Buscar", icon: <FaSearch size={28} />, action: "buscar" },
+  { label: "Chat", icon: <FaComments size={28} />, action: "chat" },
+  { label: "Mis Compras", icon: <FaTags size={28} />, action: "compras" },
+  { label: "Salir", icon: <FaSignOutAlt size={28} />, action: "salir" },
+  { label: "Menú", icon: <FaBars size={28} />, action: "menu" },
 ];
 
 const MobileBottomNav = () => {
@@ -104,13 +77,8 @@ const MobileBottomNav = () => {
             key={label}
             onClick={() => handleNavClick(action)}
             className="
-              flex flex-col items-center
-              font-medium
-              transition-all duration-200
-              hover:scale-110 focus:scale-110
-              px-1
-              outline-none
-              group
+              flex flex-col items-center font-medium transition-all duration-200
+              hover:scale-110 focus:scale-110 px-1 outline-none group
             "
             type="button"
           >
@@ -125,22 +93,10 @@ const MobileBottomNav = () => {
       <MobileMenuDrawer isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
       <SearchPopup isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
 
-      {chatOpen && (
-        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-lg w-full max-w-lg">
-            <div className="flex justify-between items-center border-b p-3">
-              <h2 className="font-semibold text-lg">Chat</h2>
-              <button
-                onClick={() => setChatOpen(false)}
-                className="px-2 py-1 rounded-md border hover:bg-gray-100"
-              >
-                Cerrar
-              </button>
-            </div>
-            <ChatPanel />
-          </div>
-        </div>
-      )}
+      {/* Chat: controlado aquí, animación en el propio ChatPanel */}
+      <AnimatePresence>
+        {chatOpen && <ChatPanel onClose={() => setChatOpen(false)} />}
+      </AnimatePresence>
     </>
   );
 };
