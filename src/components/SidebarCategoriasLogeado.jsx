@@ -23,13 +23,13 @@ const categoriasInicial = [
 ];
 
 const sidebarVariants = {
-  closed: { x: -110, opacity: 0.8 },
+  closed: { x: 0, opacity: 0, transition: { duration: 0.18 } }, // <- Ya no se mueve a la izquierda
   open: { x: 0, opacity: 1, transition: { type: "spring", stiffness: 320, damping: 24 } },
 };
 
-const BOTON_WIDTH = 48;  // w-11 = 44px
-const BOTON_HEIGHT = 48; // h-11 = 44px
-const MENU_WIDTH = 60;   // w-[52px]
+const BOTON_WIDTH = 48;
+const BOTON_HEIGHT = 48;
+const MENU_WIDTH = 60;
 
 const LS_CATEGORIAS_KEY = "anunciaya_menu_categorias";
 const LS_BOTONPOS_KEY = "anunciaya_menu_btnpos";
@@ -39,7 +39,7 @@ const SidebarCategoriasLogeado = () => {
   const { autenticado } = useContext(AuthContext);
   const [open, setOpen] = useState(false);
 
-  // Estado de categorías con persistencia local
+  // Persistencia de categorías
   const [categorias, setCategorias] = useState(() => {
     const saved = localStorage.getItem(LS_CATEGORIAS_KEY);
     if (saved) {
@@ -48,24 +48,30 @@ const SidebarCategoriasLogeado = () => {
         if (Array.isArray(parsed) && parsed.every(cat => cat.id && cat.label && cat.icon && cat.to)) {
           return parsed;
         }
-      } catch {}
+      } catch { }
     }
     return categoriasInicial;
   });
 
-  // Estado para posición del botón hamburguesa con persistencia local
+  // Persistencia de posición del botón
   const [buttonPos, setButtonPos] = useState(() => {
     const saved = localStorage.getItem(LS_BOTONPOS_KEY);
     if (saved) {
       try {
         const pos = JSON.parse(saved);
         if (typeof pos.x === "number" && typeof pos.y === "number") return pos;
-      } catch {}
+      } catch { }
     }
     return { x: 16, y: 92 };
   });
+
+  // Referencias para el menú y el botón
   const dragging = useRef(false);
   const lastPos = useRef({ x: 0, y: 0 });
+  const moved = useRef(false);
+  const menuRef = useRef(null);
+  const buttonRef = useRef(null);
+  const iconMoved = useRef(false);
 
   useEffect(() => {
     localStorage.setItem(LS_CATEGORIAS_KEY, JSON.stringify(categorias));
@@ -75,42 +81,71 @@ const SidebarCategoriasLogeado = () => {
     localStorage.setItem(LS_BOTONPOS_KEY, JSON.stringify(buttonPos));
   }, [buttonPos]);
 
+  // Cierre automático del menú al dar click/tap fuera
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (e) => {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(e.target) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(e.target)
+      ) {
+        setOpen(false);
+      }
+    };
+    window.addEventListener("mousedown", handleClickOutside);
+    window.addEventListener("touchstart", handleClickOutside);
+    return () => {
+      window.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [open]);
+
   if (!autenticado) return null;
 
   // ---- DRAG BOTÓN FLOTANTE ----
   const handlePointerDown = (e) => {
     dragging.current = true;
-    lastPos.current = {
-      x: e.type === "touchstart" ? e.touches[0].clientX : e.clientX,
-      y: e.type === "touchstart" ? e.touches[0].clientY : e.clientY,
-    };
-    document.addEventListener("mousemove", handlePointerMove);
-    document.addEventListener("mouseup", handlePointerUp);
-    document.addEventListener("touchmove", handlePointerMove);
-    document.addEventListener("touchend", handlePointerUp);
+    moved.current = false;
+    document.body.style.userSelect = "none";
+    document.body.style.touchAction = "none";
+    const evt = e.touches ? e.touches[0] : e;
+    lastPos.current = { x: evt.clientX, y: evt.clientY };
+    window.addEventListener("mousemove", handlePointerMove);
+    window.addEventListener("mouseup", handlePointerUp);
+    window.addEventListener("touchmove", handlePointerMove, { passive: false });
+    window.addEventListener("touchend", handlePointerUp);
   };
+
   const handlePointerMove = (e) => {
     if (!dragging.current) return;
-    const clientX = e.type === "touchmove" ? e.touches[0].clientX : e.clientX;
-    const clientY = e.type === "touchmove" ? e.touches[0].clientY : e.clientY;
+    e.preventDefault?.();
+    const evt = e.touches ? e.touches[0] : e;
+    const deltaX = evt.clientX - lastPos.current.x;
+    const deltaY = evt.clientY - lastPos.current.y;
+    if (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) moved.current = true;
     setButtonPos((prev) => {
-      let newX = prev.x + (clientX - lastPos.current.x);
-      let newY = prev.y + (clientY - lastPos.current.y);
-      // Limita para que no se salga del viewport
+      let newX = prev.x + deltaX;
+      let newY = prev.y + deltaY;
+      // LÍMITES
       if (newX < 0) newX = 0;
       if (newY < 0) newY = 0;
       if (newX > window.innerWidth - BOTON_WIDTH) newX = window.innerWidth - BOTON_WIDTH;
       if (newY > window.innerHeight - BOTON_HEIGHT) newY = window.innerHeight - BOTON_HEIGHT;
       return { x: newX, y: newY };
     });
-    lastPos.current = { x: clientX, y: clientY };
+    lastPos.current = { x: evt.clientX, y: evt.clientY };
   };
+
   const handlePointerUp = () => {
     dragging.current = false;
-    document.removeEventListener("mousemove", handlePointerMove);
-    document.removeEventListener("mouseup", handlePointerUp);
-    document.removeEventListener("touchmove", handlePointerMove);
-    document.removeEventListener("touchend", handlePointerUp);
+    document.body.style.userSelect = "";
+    document.body.style.touchAction = "";
+    window.removeEventListener("mousemove", handlePointerMove);
+    window.removeEventListener("mouseup", handlePointerUp);
+    window.removeEventListener("touchmove", handlePointerMove);
+    window.removeEventListener("touchend", handlePointerUp);
   };
   // ---- FIN DRAG BOTÓN FLOTANTE ----
 
@@ -127,9 +162,10 @@ const SidebarCategoriasLogeado = () => {
     <>
       {/* Botón hamburguesa flotante y movible */}
       <button
+        ref={buttonRef}
         className="
           fixed z-[51] md:hidden
-          w-11 h-11 rounded-full bg-white/90 shadow-lg flex items-center justify-center
+          w-12 h-12 rounded-full bg-white/90 shadow-lg flex items-center justify-center
           border border-blue-100
           transition-all active:scale-90 select-none touch-none
         "
@@ -137,12 +173,14 @@ const SidebarCategoriasLogeado = () => {
           left: `${buttonPos.x}px`,
           top: `${buttonPos.y}px`,
           boxShadow: "0 3px 14px 0 rgba(60,130,220,0.13)",
-          cursor: "grab",
+          cursor: dragging.current ? "grabbing" : "grab",
           touchAction: "none",
         }}
         onPointerDown={handlePointerDown}
         onTouchStart={handlePointerDown}
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={() => {
+          if (!moved.current) setOpen((prev) => !prev);
+        }}
         aria-label="Abrir menú categorías"
       >
         <FaBars size={22} className="text-blue-700" />
@@ -152,6 +190,7 @@ const SidebarCategoriasLogeado = () => {
       <AnimatePresence>
         {open && (
           <motion.div
+            ref={menuRef}
             className="
               fixed z-50
               flex flex-col gap-3
@@ -195,9 +234,16 @@ const SidebarCategoriasLogeado = () => {
                               ${snapshot.isDragging ? "scale-105 shadow-xl z-20" : ""}
                               rounded-xl p-1 w-full
                             `}
+                            // --- Click/drag separation para iconos internos
+                            onMouseDown={() => { iconMoved.current = false; }}
+                            onTouchStart={() => { iconMoved.current = false; }}
+                            onMouseMove={() => { iconMoved.current = true; }}
+                            onTouchMove={() => { iconMoved.current = true; }}
                             onClick={() => {
-                              navigate(to);
-                              setOpen(false);
+                              if (!iconMoved.current) {
+                                navigate(to);
+                                setOpen(false);
+                              }
                             }}
                             tabIndex={0}
                           >
