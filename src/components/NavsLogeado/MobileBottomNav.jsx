@@ -8,10 +8,12 @@ import {
   FaBars,
   FaTags,
   FaSignOutAlt,
+  FaComments, // <-- nuevo icono para Chat
 } from "react-icons/fa";
 import MobileMenuDrawer from "../HomeMobile/MobileMenuDrawer";
 import SearchPopup from "../SearchPopup";
 import { AuthContext } from "../../context/AuthContext";
+import ChatPanel from "../Chat/ChatPanel"; // <-- Ajusta ruta según tu estructura
 
 const navItems = [
   {
@@ -28,6 +30,11 @@ const navItems = [
     label: "Buscar",
     icon: <FaSearch size={28} />,
     action: "buscar",
+  },
+  {
+    label: "Chat",
+    icon: <FaComments size={28} />,
+    action: "chat",
   },
   {
     label: "Mis Compras",
@@ -52,6 +59,7 @@ const MobileBottomNav = () => {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
 
   const handleNavClick = (action) => {
     switch (action) {
@@ -63,6 +71,9 @@ const MobileBottomNav = () => {
         break;
       case "buscar":
         setSearchOpen(true);
+        break;
+      case "chat":
+        setChatOpen(true);
         break;
       case "compras":
         navigate("/compras");
@@ -101,21 +112,35 @@ const MobileBottomNav = () => {
               outline-none
               group
             "
-            tabIndex={0}
             type="button"
           >
             <span className="transition-transform duration-200 mb-[2px] flex items-center justify-center">
               {icon}
             </span>
-            <span className="text-[12px] leading-3 mt-1">
-              {label}
-            </span>
+            <span className="text-[12px] leading-3 mt-1">{label}</span>
           </button>
         ))}
       </nav>
 
       <MobileMenuDrawer isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
       <SearchPopup isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
+
+      {chatOpen && (
+        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-lg w-full max-w-lg">
+            <div className="flex justify-between items-center border-b p-3">
+              <h2 className="font-semibold text-lg">Chat</h2>
+              <button
+                onClick={() => setChatOpen(false)}
+                className="px-2 py-1 rounded-md border hover:bg-gray-100"
+              >
+                Cerrar
+              </button>
+            </div>
+            <ChatPanel />
+          </div>
+        </div>
+      )}
     </>
   );
 };

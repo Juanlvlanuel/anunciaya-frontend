@@ -9,26 +9,26 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { UbiProvider } from "./context/UbiContext";
 
-
-// ⬇️ Google Auth
+// Google Auth
 import { GoogleOAuthProvider } from '@react-oauth/google';
 const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-console.log("✅ Client ID cargado:", clientId);
 
-// ✅ Componente principal
+// ⬇️⬇️ AÑADE ESTO
+import ChatProvider from './context/ChatContext'; // ruta exacta a tu ChatContext.jsx
+const USER_ID = import.meta.env.VITE_TEST_USER_ID; // usa tu _id real de Mongo
+// ⬆️⬆️
+
 const Root = () => {
-  // 🔵 Cargar SDK de Facebook solo una vez
   useEffect(() => {
     if (!window.FB) {
       window.fbAsyncInit = function () {
         window.FB.init({
-          appId: '731153359708977', // ← Reemplaza con tu App ID real
+          appId: '731153359708977',
           cookie: true,
           xfbml: true,
           version: 'v19.0',
         });
       };
-
       const script = document.createElement('script');
       script.src = 'https://connect.facebook.net/es_ES/sdk.js';
       script.async = true;
@@ -40,19 +40,23 @@ const Root = () => {
   return (
     <GoogleOAuthProvider clientId={clientId}>
       <AuthProvider>
-        <UbiProvider> {/* ✅ Envuelve la App con el contexto de ubicación */}
-          <BrowserRouter>
-            <App />
-            <ToastContainer
-              position="top-center"
-              autoClose={3000}
-              hideProgressBar={true}
-              newestOnTop={true}
-              closeOnClick
-              pauseOnHover
-              theme="colored"
-            />
-          </BrowserRouter>
+        <UbiProvider>
+          {/* ⬇️⬇️ ENVUELVE LA APP CON ChatProvider */}
+          <ChatProvider currentUserId={USER_ID}>
+            <BrowserRouter>
+              <App />
+              <ToastContainer
+                position="top-center"
+                autoClose={3000}
+                hideProgressBar={true}
+                newestOnTop={true}
+                closeOnClick
+                pauseOnHover
+                theme="colored"
+              />
+            </BrowserRouter>
+          </ChatProvider>
+          {/* ⬆️⬆️ */}
         </UbiProvider>
       </AuthProvider>
     </GoogleOAuthProvider>

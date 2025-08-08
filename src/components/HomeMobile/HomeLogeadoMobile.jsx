@@ -5,6 +5,10 @@ import MobileBottomNav from "../NavsLogeado/MobileBottomNav";
 import { AuthContext } from "../../context/AuthContext";
 import { motion } from "framer-motion";
 
+// NUEVO
+import SeccionNegociosLocales from "../SeccionNegociosLocales";
+import SeccionServicios from "../SeccionServicios";
+
 function getSaludo() {
   const hora = new Date().getHours();
   if (hora < 12) return "¡Buenos días!";
@@ -16,7 +20,6 @@ function getPrimerosNombres(usuario) {
   if (!usuario) return "Usuario";
   const nombreCompleto = usuario?.nickname || usuario?.nombre || "Usuario";
   const nombres = nombreCompleto.trim().split(" ");
-  // Retorna los dos primeros nombres si hay, o solo el primero si no hay segundo
   return nombres.length > 1 ? `${nombres[0]} ${nombres[1]}` : nombres[0];
 }
 
@@ -26,20 +29,14 @@ const saludoVariants = {
     opacity: 1,
     y: 0,
     scale: 1,
-    transition: {
-      type: "spring",
-      stiffness: 80,
-      damping: 16,
-      duration: 0.7,
-      delay: 0.1,
-    },
+    transition: { type: "spring", stiffness: 80, damping: 16, duration: 0.7, delay: 0.1 },
   },
 };
 
 const HomeLogeadoMobile = () => {
   const { usuario, autenticado, cargando } = useContext(AuthContext);
 
-  if (cargando) return null;  // Evita renderizar hasta que cargue
+  if (cargando) return null;
   if (!autenticado) return null;
 
   const primerosNombres = getPrimerosNombres(usuario);
@@ -53,13 +50,11 @@ const HomeLogeadoMobile = () => {
         overflow-x-hidden
       "
     >
-      {/* Overlay degradado arriba */}
+      {/* Overlays */}
       <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-b from-black/30 to-transparent z-10 pointer-events-none" />
-
-      {/* Overlay degradado abajo */}
       <div className="absolute bottom-0 left-0 w-full h-28 bg-gradient-to-t from-black/30 to-transparent z-10 pointer-events-none" />
 
-      {/* Header SOLO LOGO */}
+      {/* Header */}
       <div className="relative z-20">
         <HeaderLogeadoMobile />
       </div>
@@ -67,18 +62,19 @@ const HomeLogeadoMobile = () => {
       {/* Sidebar vertical retráctil */}
       <SidebarCategoriasLogeado />
 
-      {/* Main central, saludo pro y nombre (dos primeros) */}
+      {/* Main */}
       <main className="flex-1 flex flex-col items-center justify-start relative z-10 pt-3 pb-32 px-6">
+        {/* Tarjeta de saludo */}
         <motion.div
           className="
             w-full max-w-xs mx-auto
             bg-white/95 rounded-2xl shadow-xl
-            py-6 px-4 mb-3 flex flex-col items-center
+            py-6 px-4 mb-4 flex flex-col items-center
             border border-blue-100
-            "
+          "
           style={{ marginTop: "4px" }}
           variants={saludoVariants}
-          initial={false}  // no ocultar al inicio para evitar parpadeo
+          initial={false}
           animate="visible"
         >
           <motion.span
@@ -107,6 +103,12 @@ const HomeLogeadoMobile = () => {
             Explora negocios, promociones y más en tu ciudad.
           </motion.span>
         </motion.div>
+
+        {/* === NUEVAS SECCIONES (debajo del saludo) === */}
+        <div className="w-full max-w-3xl space-y-8">
+          <SeccionNegociosLocales titulo="Negocios Locales" color="#2364ef" />
+          <SeccionServicios titulo="Servicios" color="#2364ef" />
+        </div>
       </main>
 
       {/* Bottom Navigation fijo */}

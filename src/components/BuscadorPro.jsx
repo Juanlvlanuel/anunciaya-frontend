@@ -1,3 +1,4 @@
+// BuscadorPro.jsx
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -11,6 +12,10 @@ const TABS = [
   { key: "donativos", label: "Regala o Dona" },
   { key: "empleos", label: "Empleos" },
 ];
+
+// Tamaño unificado para botones
+const BTN_H = 40; // px
+const GAP_Y_CLASS = "gap-0.5"; // ajusta aquí el interlineado (0 | 0.5 | 1 | 1.5 ...)
 
 export default function BuscadorGlobalPro({
   onBuscar,
@@ -29,7 +34,7 @@ export default function BuscadorGlobalPro({
   const resultsRef = useRef(null);
   const dropdownRef = useRef(null);
 
-  // Simulación/fetch de resultados (conecta tu API real aquí)
+  // DEMO: simula resultados (conecta tu API real aquí)
   const buscarDatos = async (q, tipo) => {
     setLocalLoading(true);
     setTimeout(() => {
@@ -46,15 +51,12 @@ export default function BuscadorGlobalPro({
       let filtered = demoData.filter(item =>
         item.nombre.toLowerCase().includes(q.toLowerCase())
       );
-      if (tipo !== "todos") {
-        filtered = filtered.filter(item => item.tipo === tipo);
-      }
+      if (tipo !== "todos") filtered = filtered.filter(item => item.tipo === tipo);
       setLocalResultados(filtered);
       setLocalLoading(false);
     }, 700);
   };
 
-  // Acciones
   const buscarConfirmado = () => {
     if (query.trim()) {
       buscarDatos(query.trim(), tab);
@@ -62,18 +64,20 @@ export default function BuscadorGlobalPro({
       if (onBuscar) onBuscar(query.trim(), tab);
     }
   };
+
   const clearInput = () => {
     setQuery("");
     setShowResults(false);
     setLocalResultados([]);
     if (onBuscar) onBuscar("", tab);
-    if (inputRef.current) inputRef.current.focus();
+    inputRef.current?.focus();
   };
+
   const handleKeyDown = (e) => {
     if (e.key === "Enter") buscarConfirmado();
   };
 
-  // UX: Cierra resultados al hacer click fuera
+  // Cerrar resultados al click fuera
   useEffect(() => {
     if (!showResults) return;
     const handleClickOutside = (event) => {
@@ -91,7 +95,7 @@ export default function BuscadorGlobalPro({
     return () => document.removeEventListener("mousedown", handleClickOutside, true);
   }, [showResults, onBuscar, tab]);
 
-  // UX: Cierra dropdown al hacer click fuera
+  // Cerrar dropdown al click fuera
   useEffect(() => {
     if (!showDropdown) return;
     const handleClickOutside = (event) => {
@@ -103,21 +107,17 @@ export default function BuscadorGlobalPro({
     return () => document.removeEventListener("mousedown", handleClickOutside, true);
   }, [showDropdown]);
 
-  // Al cambiar de tab, limpia resultados previos
+  // Limpiar al cambiar tab
   useEffect(() => {
     setLocalResultados([]);
     setQuery("");
     setShowResults(false);
   }, [tab]);
 
-  // Placeholder dinámico
-  const getPlaceholder = () => (
-    tab === "todos"
-      ? "Busca en toda la app..."
-      : `Busca en ${TABS.find(t => t.key === tab)?.label || ""}`
-  );
+  const getPlaceholder = () =>
+    tab === "todos" ? "Busca en toda la app..." : `Busca en ${TABS.find(t => t.key === tab)?.label || ""}`;
 
-  // Framer Motion variants para stagger animación uno por uno (entrada y salida invertida)
+  // Animaciones
   const menuVariants = {
     open: { height: "auto", y: 0, transition: { when: "beforeChildren", staggerChildren: 0.07 } },
     closed: { height: 0, y: -20, transition: { when: "afterChildren" } },
@@ -135,104 +135,100 @@ export default function BuscadorGlobalPro({
 
   return (
     <div className="sticky top-[80px] z-40 flex justify-center w-full">
-      <div className="relative w-full max-w-[420px]">
-        {/* Dropdown + Input */}
-        <div className="flex items-center gap-1 mb-0">
-          {/* Dropdown menú compacto */}
+      {/* Responsive: más ancho en desktop para el buscador */}
+      <div className="relative w-full max-w-[480px] md:max-w-[760px]">
+        <div className="flex items-center gap-1.5 md:gap-2">
+          {/* Dropdown + botón */}
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setShowDropdown(v => !v)}
-              className="flex items-center gap-2 px-4 py-2 rounded-2xl leading-[1.05] bg-gradient-to-tr from-[#2364ef] via-[#4bb0fa] to-[#82cfff] text-white font-semibold text-base shadow-lg border border-[#2364ef50] hover:brightness-105 transition-all duration-150"
-              style={{ minWidth: 130, height: 40 }}
+              className="relative z-40 flex items-center gap-2 rounded-2xl leading-[1.05] 
+                         bg-gradient-to-tr from-[#2364ef] via-[#4bb0fa] to-[#82cfff]
+                         text-white font-semibold text-base shadow-lg border border-[#2364ef50]
+                         hover:brightness-105 transition-all duration-150
+                         w-[130px] md:w-[176px]"
+              style={{ height: BTN_H, paddingLeft: 14, paddingRight: 14 }}
               type="button"
+              aria-haspopup="menu"
+              aria-expanded={showDropdown}
             >
               {TABS.find(t => t.key === tab)?.label || "Todos"}
               <motion.svg
-                width="20"
-                height="20"
-                fill="none"
-                viewBox="0 0 24 24"
-                initial={false}
-                animate={{ rotate: showDropdown ? 180 : 0 }}
-                transition={{ duration: 0.22, type: "spring" }}
+                width="18" height="18" fill="none" viewBox="0 0 24 24"
+                initial={false} animate={{ rotate: showDropdown ? 180 : 0 }} transition={{ duration: 0.22, type: "spring" }}
               >
-                <path d="M7 10l5 5 5-5" stroke="white" strokeWidth="2.2" strokeLinecap="round" />
+                <path d="M7 10l5 5 5-5" stroke="white" strokeWidth="2.1" strokeLinecap="round" />
               </motion.svg>
             </button>
 
-            <div className="relative">
-              {/* OVERLAY */}
-              <AnimatePresence>
-                {showDropdown && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.16 }}
-                    className="fixed inset-0 bg-black/10 z-20"
-                    style={{ backdropFilter: "blur(2px)" }}
-                    onClick={() => setShowDropdown(false)}
-                  />
-                )}
-              </AnimatePresence>
+            {/* Overlay que NO tapa el botón */}
+            <AnimatePresence>
+              {showDropdown && (
+                <motion.div
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  transition={{ duration: 0.16 }}
+                  className="fixed inset-0 bg-black/10 z-20 pointer-events-auto"
+                  style={{ backdropFilter: "blur(2px)" }}
+                  onClick={() => setShowDropdown(false)}
+                />
+              )}
+            </AnimatePresence>
 
-              {/* DROPDOWN */}
-              <AnimatePresence>
-                {showDropdown && (
-                  <motion.div
-                    key="dropdown"
-                    variants={menuVariants}
-                    initial="closed"
-                    animate="open"
-                    exit="closed"
-                    className="absolute left-0 top-full z-30 mt-2 w-[130px] bg-transparent pointer-events-none"
-                    style={{ boxShadow: "none" }}
-                  >
-                    <div className="flex flex-col gap-0.5 pointer-events-auto">
-                      {TABS.map((t, idx) => (
-                        <motion.button
-                          key={t.key}
-                          custom={idx}
-                          variants={optionVariants}
-                          initial="closed"
-                          animate="open"
-                          exit="closed"
-                          onClick={() => {
-                            setTab(t.key);
-                            setShowDropdown(false);
-                          }}
-                         className={`
-  block w-full text-left px-4 py-1.5 text-base font-bold transition-all rounded-xl shadow border
-  bg-gradient-to-r from-[#eaf2fd] to-[#d4e8fd] text-[#164ba0] border-[#b3d2fa] leading-[1.15]
-  hover:bg-gradient-to-r hover:from-[#2364ef] hover:to-[#4bb0fa] hover:text-white
-  active:bg-gradient-to-r active:from-[#2364ef] active:to-[#4bb0fa] active:text-white
-  ${tab === t.key
-    ? "ring-2 ring-[#2364ef77] bg-gradient-to-r from-[#b8dbff] to-[#e0ecfa] text-[#2364ef] font-extrabold"
-    : ""
-  }
-`}
-                          style={{
-                            boxShadow: "0 4px 18px 0 #2364ef0d",
-                          }}
-                          type="button"
-                        >
-                          {t.label}
-                        </motion.button>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-              {/* ... lo demás igual */}
-            </div>
-
+            {/* Lista desplegable */}
+            <AnimatePresence>
+              {showDropdown && (
+                <motion.div
+                  key="dropdown"
+                  variants={menuVariants}
+                  initial="closed"
+                  animate="open"
+                  exit="closed"
+                  className="absolute left-0 top-full z-30 mt-1 bg-transparent pointer-events-none"
+                >
+                  <div className={`flex flex-col ${GAP_Y_CLASS} pointer-events-auto`}>
+                    {TABS.map((t, idx) => (
+                      <motion.button
+                        key={t.key}
+                        custom={idx}
+                        variants={optionVariants}
+                        initial="closed"
+                        animate="open"
+                        exit="closed"
+                        onClick={() => {
+                          setTab(t.key);
+                          setShowDropdown(false);
+                        }}
+                        className="
+                          w-[130px] md:w-[176px] 
+                          flex items-center justify-between
+                          rounded-xl shadow border transition-all
+                          bg-gradient-to-r from-[#eaf2fd] to-[#d4e8fd]
+                          text-[#164ba0] border-[#b3d2fa] leading-[1.15]
+                          hover:from-[#2364ef] hover:to-[#4bb0fa] hover:text-white
+                          active:from-[#2364ef] active:to-[#4bb0fa] active:text-white
+                        "
+                        style={{ height: BTN_H, padding: "0 14px", boxShadow: "0 4px 18px 0 #2364ef0d" }}
+                        type="button"
+                      >
+                        <span className="text-[15px] font-semibold">{t.label}</span>
+                      </motion.button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
-          {/* Input búsqueda */}
+
+          {/* Input de búsqueda más ancho */}
           <div className="flex-grow">
-            <div className="flex items-center rounded-2xl bg-white shadow-lg border border-[#e5e7eb] px-3" style={{ minHeight: 40 }}>
+            <div
+              className="flex items-center rounded-2xl bg-white shadow-lg border border-[#e5e7eb] px-3"
+              style={{ minHeight: BTN_H }}
+            >
               <input
                 ref={inputRef}
-                className="w-full bg-white outline-none border-none text-base py-2 placeholder:text-[#2364ef98] text-[#2364ef] font-medium"
+                className="w-full bg-white outline-none border-none text-base py-2
+                           placeholder:text-[#2364ef98] text-[#2364ef] font-medium"
                 type="search"
                 placeholder={getPlaceholder()}
                 value={query}
@@ -240,7 +236,8 @@ export default function BuscadorGlobalPro({
                 onKeyDown={handleKeyDown}
                 onFocus={() => localResultados.length > 0 && setShowResults(true)}
                 autoComplete="off"
-                style={{ height: 30 }} // <-- AQUÍ controlas el alto exacto en pixeles
+                style={{ height: BTN_H - 10 }}
+                aria-label="Buscar en AnunciaYA"
               />
               {query && !localLoading && (
                 <button
@@ -251,34 +248,14 @@ export default function BuscadorGlobalPro({
                   tabIndex={-1}
                 >
                   <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <path
-                      d="M6 6l8 8M6 14L14 6"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                    />
+                    <path d="M6 6l8 8M6 14L14 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                   </svg>
                 </button>
               )}
-              <button
-                className="ml-1"
-                aria-label="Buscar"
-                type="button"
-                onClick={buscarConfirmado}
-                tabIndex={-1}
-              >
+              <button className="ml-1" aria-label="Buscar" type="button" onClick={buscarConfirmado} tabIndex={-1}>
                 {localLoading ? (
                   <svg className="animate-spin" width="20" height="20" viewBox="0 0 24 24" fill="none">
-                    <circle
-                      cx="12"
-                      cy="12"
-                      r="9"
-                      stroke="#2364ef"
-                      strokeWidth="3"
-                      strokeDasharray="45 60"
-                      strokeLinecap="round"
-                      opacity={0.45}
-                    />
+                    <circle cx="12" cy="12" r="9" stroke="#2364ef" strokeWidth="3" strokeDasharray="45 60" strokeLinecap="round" opacity="0.45" />
                   </svg>
                 ) : (
                   <svg width="20" height="20" fill="none" stroke="#2364ef" strokeWidth="2.2" viewBox="0 0 24 24">
@@ -290,7 +267,8 @@ export default function BuscadorGlobalPro({
             </div>
           </div>
         </div>
-        {/* RESULTADOS */}
+
+        {/* Resultados */}
         <AnimatePresence>
           {showResults && (
             <motion.div
@@ -306,24 +284,20 @@ export default function BuscadorGlobalPro({
                   <div className="text-[#2364ef] text-lg font-semibold px-6 py-8 text-center">
                     Buscando...
                   </div>
+                ) : localResultados.length === 0 ? (
+                  <div className="text-[#2364efbb] px-6 py-8 text-center select-none">
+                    No se encontraron resultados.
+                  </div>
                 ) : (
-                  <>
-                    {localResultados.length === 0 ? (
-                      <div className="text-[#2364efbb] px-6 py-8 text-center select-none">
-                        No se encontraron resultados.
-                      </div>
-                    ) : (
-                      localResultados.map((res) => (
-                        <div
-                          key={res.id}
-                          className="flex items-center justify-between py-2 px-2 hover:bg-[#f6f8fa] rounded-2xl transition cursor-pointer"
-                        >
-                          <span className="font-bold text-lg text-[#0C1424]">{res.nombre}</span>
-                          <span className="text-[#2364ef] ml-4 text-sm">{res.categoria}</span>
-                        </div>
-                      ))
-                    )}
-                  </>
+                  localResultados.map((res) => (
+                    <div
+                      key={res.id}
+                      className="flex items-center justify-between py-2 px-2 hover:bg-[#f6f8fa] rounded-2xl transition cursor-pointer"
+                    >
+                      <span className="font-bold text-lg text-[#0C1424]">{res.nombre}</span>
+                      <span className="text-[#2364ef] ml-4 text-sm">{res.categoria}</span>
+                    </div>
+                  ))
                 )}
               </div>
             </motion.div>
