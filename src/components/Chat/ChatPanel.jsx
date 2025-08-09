@@ -1,3 +1,4 @@
+// ChatPanel.jsx (corregido)
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { FaMoon, FaSun, FaImage, FaLink, FaTrash, FaPalette, FaSearch } from "react-icons/fa";
@@ -20,7 +21,6 @@ export default function ChatPanel({ onClose }) {
   const { chats, activeChatId, currentUserId, setActiveChatId, loadChats, loadMessages } = useChat();
   const boxRef = useRef(null);
 
-  // ===== Responsive =====
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth < 768 : true
   );
@@ -32,12 +32,10 @@ export default function ChatPanel({ onClose }) {
   }, []);
 
   const handleClose = () => {
-    setActiveChatId(null);   // limpiar selección
+    setActiveChatId(null);
     onClose?.();
   };
 
-
-  // ===== Cierre y bloqueo scroll =====
   useEffect(() => {
     const onDocClick = (e) => {
       if (!boxRef.current) return;
@@ -55,7 +53,6 @@ export default function ChatPanel({ onClose }) {
     };
   }, [onClose]);
 
-  // ===== Chat activo / partner =====
   const currentChat = useMemo(
     () => chats.find((c) => c._id === activeChatId),
     [chats, activeChatId]
@@ -76,7 +73,6 @@ export default function ChatPanel({ onClose }) {
     return currentChat.partner || null;
   }, [currentChat, currentUserId]);
 
-  // ===== Tema / Fondo =====
   const [theme, setTheme] = useState(() => localStorage.getItem("chatTheme") || "light");
   const [bgUrl, setBgUrl] = useState(() => {
     const data = localStorage.getItem("chatBgDataUrl");
@@ -117,14 +113,15 @@ export default function ChatPanel({ onClose }) {
   }, []);
 
   const runSearch = async (text) => {
-    if (!text.trim()) {
+    const cleanText = text.trim();
+    if (!cleanText) {
       setResul([]);
       setShowResults(false);
       return;
     }
     try {
       setLoadingSearch(true);
-      const users = await searchUsers(text, { limit: 10, exclude: currentUserId });
+      const users = await searchUsers(cleanText, { limit: 10, exclude: currentUserId });
       setResul(users);
       setShowResults(true);
     } catch {
@@ -142,7 +139,6 @@ export default function ChatPanel({ onClose }) {
     debounceRef.current = setTimeout(() => runSearch(v), 300);
   };
 
-  // Reutiliza un chat existente si ya hay conversación con ese usuario
   const findExistingWith = (userId) => {
     const me = String(currentUserId);
     const target = String(userId);
@@ -161,17 +157,20 @@ export default function ChatPanel({ onClose }) {
       const token = localStorage.getItem("token") || "";
       if (!currentUserId || !user?._id) throw new Error("IDs de usuarios no válidos");
 
-      // crea/obtiene el 1:1
-      const chat = await ensurePrivado(currentUserId, user._id, null, token);
+      const chat = await ensurePrivado(
+        currentUserId, // usuarioAId
+        user._id,      // usuarioBId
+        null,
+        token
+      );
 
-      // fija el activo ANTES de refrescar y cargar
+      // Si el chat no existe en la lista actual, lo agregamos al contexto antes de seleccionarlo
+      if (!chats.some(c => c._id === chat._id)) {
+        chats.push(chat);
+      }
+
       setActiveChatId(chat._id);
-
-      // refresca lista y mensajes del nuevo chat
-      await loadChats();
-      await loadMessages(chat._id);
-
-      // cierra resultados y, en móvil, cambia a la conversación
+      await loadMessages(chat._id); // cargamos mensajes sin recargar la lista completa
       setShowResults(false);
       if (isMobile) setShowListMobile(false);
     } catch (e) {
@@ -179,6 +178,8 @@ export default function ChatPanel({ onClose }) {
       alert(e?.message || "No se pudo abrir el chat.");
     }
   };
+
+
 
   // ===== Fondo: subir/URL/presets =====
   const fileRef = useRef(null);
@@ -321,7 +322,7 @@ export default function ChatPanel({ onClose }) {
                 <button
                   type="button"
                   className="ml-auto p-2 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-700 transition"
-                  onClick={() => onClose?.()}
+                  onClick={handleClose}
                   aria-label="Cerrar chat"
                   title="Cerrar"
                 >
@@ -445,7 +446,10 @@ export default function ChatPanel({ onClose }) {
                 <button
                   type="button"
                   className="md:hidden mr-1 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-700 transition"
-                  onClick={() => setShowListMobile(true)}
+                  onClick={() => {
+                    setActiveChatId(null);
+                    setShowListMobile(true);
+                  }}
                   aria-label="Volver a chats"
                   title="Volver"
                 >
@@ -543,7 +547,7 @@ export default function ChatPanel({ onClose }) {
                 <button
                   type="button"
                   className="ml-1 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-700 transition"
-                  onClick={() => onClose?.()}
+                  onClick={handleClose}
                   aria-label="Cerrar chat"
                   title="Cerrar"
                 >
@@ -573,7 +577,6 @@ function Avatar({ nickname = "", fotoPerfil }) {
     .slice(0, 2)
     .join("")
     .toUpperCase();
-
   if (fotoPerfil) {
     const src = fotoPerfil.startsWith("http") ? fotoPerfil : `${API_BASE}${fotoPerfil}`;
     return (

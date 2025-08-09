@@ -85,7 +85,10 @@ export default function ChatList({ onSelectChat }) {
   const favorites = filtered.filter(getFav);
   const others = filtered.filter((c) => !getFav(c));
 
-  const selectChat = (id) => { setActiveChatId(id); onSelectChat?.(); };
+  const selectChat = (id) => {
+    setActiveChatId(id);
+    onSelectChat?.();   // <-- NO usar onClose aquí
+  };
   const prefetched = useRef(new Set());
   const prefetch = (id) => {
     if (!id || prefetched.current.has(id)) return;

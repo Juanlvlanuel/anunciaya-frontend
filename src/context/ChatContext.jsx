@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
 import { io } from "socket.io-client";
 import { API_BASE, getJSON } from "../services/api";
+import { AuthContext } from "./AuthContext";
 
 const ChatContext = createContext(null);
 export const useChat = () => useContext(ChatContext);
@@ -17,11 +18,13 @@ function playBeep() {
     g.connect(ctx.destination);
     o.start();
     setTimeout(() => { o.stop(); ctx.close(); }, 140);
-  } catch { }
+  } catch {}
 }
-function vibrate() { if ("vibrate" in navigator) navigator.vibrate([60]); }
+function vibrate(){ if("vibrate" in navigator) navigator.vibrate([60]); }
 
-export default function ChatProvider({ currentUserId, children }) {
+export default function ChatProvider({ children }) {
+  const { usuario } = useContext(AuthContext);
+
   const [socket, setSocket] = useState(null);
   const [chats, setChats] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
@@ -29,25 +32,25 @@ export default function ChatProvider({ currentUserId, children }) {
   const [typingMap, setTypingMap] = useState({});
   const [statusMap, setStatusMap] = useState({});
 
-  // 🆔 id efectivo del usuario
+  // ID real del usuario logueado
   const me = useMemo(() => {
-    if (currentUserId) return String(currentUserId);
+    if (usuario?._id) return String(usuario._id);
     try {
       const u = JSON.parse(localStorage.getItem("usuario") || "{}");
       if (u && u._id) return String(u._id);
-    } catch { }
+    } catch {}
     return (
       String(localStorage.getItem("uid") || "") ||
       String(localStorage.getItem("userId") || "")
     );
-  }, [currentUserId]);
+  }, [usuario]);
 
-  // === Socket + presencia ===
+  // Socket + presencia
   useEffect(() => {
     if (!me) return;
     const s = io(API_BASE, {
       path: "/socket.io",
-      transports: ["websocket", "polling"],
+      transports: ["websocket","polling"],
       withCredentials: false,
       reconnection: true,
       reconnectionAttempts: 10,
@@ -78,18 +81,18 @@ export default function ChatProvider({ currentUserId, children }) {
     return () => s.disconnect();
   }, [me]);
 
-  // Heartbeat de actividad
+  // Heartbeat
   useEffect(() => {
     if (!socket) return;
     let lastSent = 0;
-    const MIN_INTERVAL = 15000;
+    const MIN = 15000;
     const handler = () => {
       const now = Date.now();
-      if (now - lastSent < MIN_INTERVAL) return;
+      if (now - lastSent < MIN) return;
       lastSent = now;
       socket.emit("user:activity");
     };
-    const evs = ["mousemove", "keydown", "scroll", "click", "touchstart", "focus"];
+    const evs = ["mousemove","keydown","scroll","click","touchstart","focus"];
     evs.forEach((e) => window.addEventListener(e, handler, { passive: true }));
     const vis = () => { if (document.visibilityState === "visible") handler(); };
     document.addEventListener("visibilitychange", vis);
@@ -100,19 +103,16 @@ export default function ChatProvider({ currentUserId, children }) {
     };
   }, [socket]);
 
-  // === Cargar chats (sin auto‑seleccionar por defecto)
-  const loadChats = useCallback(async ({ autoSelect = false } = {}) => {
+  // Cargar chats — NO toca activeChatId
+  const loadChats = useCallback(async () => {
     const token = localStorage.getItem("token") || "";
     const data = await getJSON(`/api/chat`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    const list = Array.isArray(data) ? data : [];
-    setChats(list);
-    // Si ya hay activo, respétalo; si no, cae al primero
-    setActiveChatId((prev) => prev ?? (list[0]?._id || null));
-  }, [activeChatId]);
+    setChats(Array.isArray(data) ? data : []);
+  }, []);
 
-  // === Cargar mensajes
+  // Cargar mensajes
   const loadMessages = useCallback(async (chatId) => {
     if (!chatId) return;
     const token = localStorage.getItem("token") || "";
@@ -122,19 +122,12 @@ export default function ChatProvider({ currentUserId, children }) {
     setMessages((m) => ({ ...m, [chatId]: Array.isArray(data) ? data : [] }));
   }, []);
 
-  // Envío
   function sendMessage({ chatId, emisorId, texto, archivos = [] }) {
     const sender = emisorId || me;
     const tempId = `tmp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const optimistic = {
-      _id: tempId,
-      chat: chatId,
-      emisor: sender,
-      texto,
-      archivos,
-      createdAt: new Date().toISOString(),
-      _temp: true,
-      _failed: false,
+      _id: tempId, chat: chatId, emisor: sender, texto, archivos,
+      createdAt: new Date().toISOString(), _temp: true, _failed: false,
     };
     setMessages((m) => ({ ...m, [chatId]: [...(m[chatId] || []), optimistic] }));
     socket?.emit("chat:send", { chatId, emisorId: sender, texto, archivos }, (ack) => {
@@ -152,22 +145,19 @@ export default function ChatProvider({ currentUserId, children }) {
     socket?.emit("chat:typing", { chatId, usuarioId: me, typing: !!typing });
   }
 
-  const value = useMemo(
-    () => ({
-      currentUserId: me,
-      chats,
-      activeChatId,
-      setActiveChatId,
-      loadChats,
-      messages,
-      loadMessages,
-      sendMessage,
-      typingMap,
-      setTyping,
-      statusMap,
-    }),
-    [me, chats, activeChatId, messages, typingMap, statusMap, loadChats, loadMessages]
-  );
+  const value = useMemo(() => ({
+    currentUserId: me,
+    chats,
+    activeChatId,
+    setActiveChatId,   // ✅ nombre correcto
+    loadChats,
+    messages,
+    loadMessages,
+    sendMessage,
+    typingMap,
+    setTyping,
+    statusMap,
+  }), [me, chats, activeChatId, messages, typingMap, statusMap, loadChats, loadMessages]);
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
 }

@@ -52,13 +52,11 @@ export const chatAPI = {
   deleteForMe: (chatId, token) =>
     del(`/api/chat/${chatId}/me`, { Authorization: `Bearer ${token}` }),
 
-  // Legacy (POST/DELETE) — se mantiene por compatibilidad
   toggleFavorite: (chatId, add, token) =>
     add
       ? postJSON(`/api/chat/${chatId}/favorite`, {}, { Authorization: `Bearer ${token}` })
       : del(`/api/chat/${chatId}/favorite`, { Authorization: `Bearer ${token}` }),
 
-  // Nuevo toggle con PATCH /chats/:chatId/favorite
   toggleFavoritePatch: (chatId, token) =>
     patch(`/api/chat/${chatId}/favorite`, { Authorization: `Bearer ${token}` }),
 
@@ -72,11 +70,16 @@ export const chatAPI = {
 
 /* ==== Usuarios ==== */
 export function searchUsers(query, { limit = 10, exclude } = {}) {
+  // Limpieza y normalización
+  const clean = (query || "").trim().toLowerCase();
+  if (!clean) return Promise.resolve([]);
+
   const qs = new URLSearchParams({
-    q: query,
+    q: clean,
     limit: String(limit),
     ...(exclude ? { exclude } : {}),
   });
+
   return getJSON(`/api/usuarios/search?${qs.toString()}`);
 }
 

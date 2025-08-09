@@ -1,17 +1,26 @@
 // src/components/ToolsSidebar.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, ChevronRight, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 
 /**
- * ToolsSidebar — barra lateral con tarjetas + drag vertical con topes reales
+ * ToolsSidebar (portal a <body>)
+ * - Sin botón visible.
+ * - Abrir: swipe desde el borde izquierdo (>= 48px).
+ * - Cerrar: swipe izquierda sobre el panel o tap/click fuera.
+ * - Fijo al centro vertical de la pantalla (sin drag).
  */
 
 const LS_KEY = "anunciaya.tools.favorites.v4";
-const LS_POS_KEY = "anunciaya.tools.sidebarTop.v3"; // bump para forzar recalculo
 const MAX_FAVORITES = 5;
 
-/* ==== ICONOS (igual que antes) ==== */
+// Gestos
+const SWIPE_EDGE = 24;        // px desde el borde izquierdo
+const SWIPE_OPEN_DIST = 48;   // desplazamiento mínimo a la derecha para abrir
+const SWIPE_CLOSE_DIST = -48; // desplazamiento mínimo a la izquierda para cerrar
+
+/* ------------ ICONOS (svg) ------------ */
 const IconWrap = ({ children }) => (
   <span className="inline-flex h-12 w-12 items-center justify-center">{children}</span>
 );
@@ -128,17 +137,12 @@ const ICONS = {
     <IconWrap>
       <svg viewBox="0 0 24 24" className="h-7 w-7">
         <path d="M12 8.5A3.5 3.5 0 1112 15.5 3.5 3.5 0 0112 8.5z" fill="#6B7280" />
-        <path
-          d="M4 13l1.2 2.1 2.3-.4 1.3 2-1.4 1.9L9 20l.5 2h5l.5-2 1.6-1.4-1.4-1.9 1.3-2 2.3.4L20 13l-2-.8v-2.4l2-.8-1.2-2.1-2.3.4-1.3-2L15 3h-6l-.5 1.9-1.3 2-2.3-.4L3 7.5l2 .8V11.7z"
-          fill="#9CA3AF"
-          opacity=".6"
-        />
+        <path d="M4 13l1.2 2.1 2.3-.4 1.3 2-1.4 1.9L9 20l.5 2h5l.5-2 1.6-1.4-1.4-1.9 1.3-2 2.3.4L20 13l-2-.8v-2.4l2-.8-1.2-2.1-2.3.4-1.3-2L15 3h-6l-.5 1.9-1.3 2-2.3-.4L3 7.5l2 .8V11.7z" fill="#9CA3AF" opacity=".6" />
       </svg>
     </IconWrap>
   ),
 };
 
-/* ==== Catálogo ==== */
 const ALL_TOOLS = [
   { id: "search", label: "Buscador" },
   { id: "map", label: "Mapa" },
@@ -154,110 +158,104 @@ const ALL_TOOLS = [
   { id: "settings", label: "Ajustes" },
 ];
 
-/* ==== Hooks ==== */
+/* ------------ Utils ------------ */
 function useFavorites() {
   const [favorites, setFavorites] = useState(() => {
-    try {
-      const raw = localStorage.getItem(LS_KEY);
-      if (raw) return JSON.parse(raw);
-    } catch {}
+    try { const raw = localStorage.getItem(LS_KEY); if (raw) return JSON.parse(raw); } catch {}
     return ["search", "map", "chat", "calendar", "calc"];
   });
-  useEffect(() => {
-    try {
-      localStorage.setItem(LS_KEY, JSON.stringify(favorites));
-    } catch {}
-  }, [favorites]);
+  useEffect(() => { try { localStorage.setItem(LS_KEY, JSON.stringify(favorites)); } catch {} }, [favorites]);
   return { favorites, setFavorites };
 }
 
 function useLongPress(callback, { delay = 600 } = {}) {
-  const timer = useRef(null);
-  const start = () => {
-    clearTimeout(timer.current);
-    timer.current = setTimeout(callback, delay);
-  };
-  const clear = () => clearTimeout(timer.current);
+  const t = useRef(null);
+  const start = () => { clearTimeout(t.current); t.current = setTimeout(callback, delay); };
+  const clear = () => clearTimeout(t.current);
   return {
-    onMouseDown: start,
-    onMouseUp: clear,
-    onMouseLeave: clear,
-    onTouchStart: start,
-    onTouchEnd: clear,
-    onTouchMove: clear,
-    onContextMenu: (e) => {
-      e.preventDefault();
-      callback();
-    },
+    onMouseDown: start, onMouseUp: clear, onMouseLeave: clear,
+    onTouchStart: start, onTouchEnd: clear, onTouchMove: clear,
+    onContextMenu: (e) => { e.preventDefault(); callback(); },
   };
 }
 
-/* ==== Componente ==== */
-export default function ToolsSidebar({ onLaunch }) {
+/* ------------ Gestos (swipe abrir/cerrar) ------------ */
+function useGlobalSwipe({ onOpen, onClose }) {
+  useEffect(() => {
+    const start = { x: 0, y: 0, active: false, overPanel: false };
+
+    const onTouchStart = (e) => {
+      const t = e.touches && e.touches[0];
+      if (!t) return;
+      start.x = t.clientX;
+      start.y = t.clientY;
+      start.active = start.x <= SWIPE_EDGE; // solo si tocó el borde izq
+      const target = e.target;
+      start.overPanel = !!(target && target.closest && target.closest("[data-tools-panel]"));
+    };
+
+    const onTouchEnd = (e) => {
+      const t = e.changedTouches && e.changedTouches[0];
+      if (!t) return;
+      const dx = t.clientX - start.x;
+
+      // cerrar si swipe izquierda sobre el panel
+      if (start.overPanel && dx <= SWIPE_CLOSE_DIST) {
+        onClose && onClose();
+        return;
+      }
+      // abrir si empezó en el borde y arrastró a la derecha suficiente
+      if (start.active && dx >= SWIPE_OPEN_DIST) {
+        onOpen && onOpen();
+        return;
+      }
+    };
+
+    document.addEventListener("touchstart", onTouchStart, { passive: true });
+    document.addEventListener("touchend", onTouchEnd, { passive: true });
+
+    return () => {
+      document.removeEventListener("touchstart", onTouchStart);
+      document.removeEventListener("touchend", onTouchEnd);
+    };
+  }, [onOpen, onClose]);
+}
+
+/* ------------ UI (portal) ------------ */
+function SidebarUI({ onLaunch }) {
   const { favorites, setFavorites } = useFavorites();
   const [open, setOpen] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  // --- posición vertical con topes reales
-  const tabRef = useRef(null);
-  const [top, setTop] = useState(() => {
-    const saved = Number(localStorage.getItem(LS_POS_KEY));
-    return Number.isFinite(saved) ? saved : Math.round(window.innerHeight * 0.35);
-  });
-  const [dragCons, setDragCons] = useState({ top: 0, bottom: 0 }); // constraints relativos (se calculan en dragStart)
-  const startTopRef = useRef(top);
-
-  const clampToViewport = (nextTop) => {
-    const tabH = tabRef.current?.offsetHeight ?? 56;
-    const minTop = 8;
-    const maxTop = Math.max(minTop, window.innerHeight - tabH - 8);
-    return Math.min(Math.max(nextTop, minTop), maxTop);
-  };
-
-  // Ajuste en scroll/resize (móvil)
-  useEffect(() => {
-    const update = () => setTop((t) => clampToViewport(t));
-    let raf = 0;
-    const onScrollOrResize = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(update);
-    };
-    window.addEventListener("resize", onScrollOrResize, { passive: true });
-    window.addEventListener("scroll", onScrollOrResize, { passive: true });
-    update();
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener("resize", onScrollOrResize);
-      window.removeEventListener("scroll", onScrollOrResize);
-    };
-  }, []);
-
-  // favoritos visibles
   const favoriteTools = useMemo(
     () => favorites.map((id) => ALL_TOOLS.find((t) => t.id === id)).filter(Boolean),
     [favorites]
   );
 
-  const toggleFavorite = (id) => {
-    setFavorites((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : prev.length < MAX_FAVORITES ? [...prev, id] : prev
-    );
-  };
-  const removeFavorite = (id) => setFavorites((prev) => prev.filter((x) => x !== id));
+  // gestos globales
+  useGlobalSwipe({
+    onOpen: () => setOpen(true),
+    onClose: () => setOpen(false),
+  });
 
-  // cerrar panel con click fuera
+  // tap/click fuera para cerrar
   const panelRef = useRef(null);
   useEffect(() => {
-    function onDocClick(e) {
+    const onDocDown = (e) => {
       if (!open) return;
-      if (panelRef.current && !panelRef.current.contains(e.target)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
+      const el = panelRef.current;
+      if (el && !el.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDocDown);
+    document.addEventListener("touchstart", onDocDown, { passive: true });
+    return () => {
+      document.removeEventListener("mousedown", onDocDown);
+      document.removeEventListener("touchstart", onDocDown);
+    };
   }, [open]);
 
-  // salir de edición si click fuera
+  // salir de edición si clic fuera del botón eliminar
   useEffect(() => {
     const onDocClick = (e) => {
       if (!editTarget) return;
@@ -268,65 +266,41 @@ export default function ToolsSidebar({ onLaunch }) {
     return () => document.removeEventListener("click", onDocClick);
   }, [editTarget]);
 
-  return (
-    <div className="fixed left-0 z-40 select-none" style={{ top: Math.round(top) }}>
-      {/* Pestaña (drag vertical con topes) */}
-      <motion.button
-        ref={tabRef}
-        drag="y"
-        dragConstraints={dragCons}
-        dragElastic={0}
-        dragMomentum={false}
-        onDragStart={() => {
-          // preparar constraints relativos al inicio del drag
-          const tabH = tabRef.current?.offsetHeight ?? 56;
-          const minTop = 8;
-          const maxTop = Math.max(minTop, window.innerHeight - tabH - 8);
-          startTopRef.current = top;
-          setDragCons({ top: minTop - top, bottom: maxTop - top });
-        }}
-        onDrag={(e, info) => {
-          // usar desplazamiento relativo desde que empezó el drag (offset.y)
-          const next = clampToViewport(startTopRef.current + info.offset.y);
-          setTop(next);
-        }}
-        onDragEnd={() => {
-          const clamped = clampToViewport(top);
-          setTop(clamped);
-          localStorage.setItem(LS_POS_KEY, String(clamped));
-        }}
-        onClick={() => setOpen((v) => !v)}
-        aria-label={open ? "Cerrar herramientas" : "Abrir herramientas"}
-        className="rounded-r-2xl shadow-md bg-white/90 backdrop-blur border border-slate-200 px-2 py-4 hover:bg-white transition touch-none"
-      >
-        <ChevronRight className={`h-6 w-6 transition ${open ? "rotate-180" : ""}`} />
-      </motion.button>
+  const toggleFavorite = (id) => {
+    setFavorites((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : prev.length < MAX_FAVORITES ? [...prev, id] : prev
+    );
+  };
+  const removeFavorite = (id) => setFavorites((prev) => prev.filter((x) => x !== id));
 
-      {/* Panel */}
+  return (
+    <div className="fixed left-0 top-1/2 -translate-y-1/2 z-[1000] select-none pointer-events-none">
+      {/* NO hay pestaña/botón; solo panel cuando está abierto */}
+
       <AnimatePresence>
         {open && (
           <motion.div
             key="panel"
             ref={panelRef}
+            data-tools-panel
             initial={{ x: -16, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: -16, opacity: 0 }}
             transition={{ type: "spring", stiffness: 260, damping: 24 }}
-            className="mt-2 rounded-3xl shadow-xl bg-white/95 backdrop-blur border border-slate-200 pl-4 pr-3 py-3 w-[260px]"
+            className="pointer-events-auto ml-0 mt-2 rounded-3xl shadow-xl bg-white/95 backdrop-blur border border-slate-200 pl-4 pr-3 py-3 w-[260px]"
           >
             <div className="grid grid-cols-2 gap-3">
               {favoriteTools.map((tool) => (
                 <ToolCard
                   key={tool.id}
                   tool={tool}
-                  onClick={() => onLaunch?.(tool)}
+                  onClick={() => onLaunch && onLaunch(tool)}
                   onRemove={() => removeFavorite(tool.id)}
                   editTarget={editTarget}
                   setEditTarget={setEditTarget}
                 />
               ))}
-
-              {/* Botón + */}
+              {/* botón + */}
               <button
                 onClick={() => setPickerOpen(true)}
                 className="group flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-300 hover:border-slate-400 hover:bg-slate-50 active:scale-[0.98] transition p-3"
@@ -348,7 +322,7 @@ export default function ToolsSidebar({ onLaunch }) {
       <AnimatePresence>
         {pickerOpen && (
           <motion.div
-            className="fixed inset-0 z-[41] grid place-items-center bg-black/30"
+            className="fixed inset-0 z-[1001] grid place-items-center bg-black/30"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -413,19 +387,18 @@ export default function ToolsSidebar({ onLaunch }) {
   );
 }
 
-/* ==== Tarjeta ==== */
+/* ------------ Tarjeta ------------ */
 function ToolCard({ tool, onClick, onRemove, editTarget, setEditTarget }) {
   const Icon = ICONS[tool.id] || ICONS.search;
   const isEditing = editTarget === tool.id;
   const lp = useLongPress(() => setEditTarget(tool.id));
-
   return (
     <div className="relative">
       <button
         {...lp}
         onClick={() => {
           if (isEditing) return;
-          onClick?.(tool);
+          onClick && onClick(tool);
         }}
         className="group w-full"
       >
@@ -445,7 +418,7 @@ function ToolCard({ tool, onClick, onRemove, editTarget, setEditTarget }) {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.8, opacity: 0 }}
             onClick={() => {
-              onRemove?.();
+              onRemove && onRemove();
               setEditTarget(null);
             }}
             className="absolute -right-2 -top-2 inline-flex items-center gap-1 rounded-full bg-red-600 text-white px-2 py-1 text-xs shadow-md"
@@ -457,4 +430,10 @@ function ToolCard({ tool, onClick, onRemove, editTarget, setEditTarget }) {
       </AnimatePresence>
     </div>
   );
+}
+
+/* ------------ Export (portal) ------------ */
+export default function ToolsSidebar(props) {
+  if (typeof document === "undefined") return null;
+  return createPortal(<SidebarUI {...props} />, document.body);
 }
