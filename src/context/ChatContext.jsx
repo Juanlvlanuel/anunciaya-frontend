@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
 import { io } from "socket.io-client";
 import { API_BASE, getJSON } from "../services/api";
 
@@ -13,9 +13,11 @@ function playBeep() {
     o.type = "sine";
     o.frequency.value = 880;
     g.gain.value = 0.04;
-    o.connect(g); g.connect(ctx.destination);
-    o.start(); setTimeout(() => { o.stop(); ctx.close(); }, 140);
-  } catch {}
+    o.connect(g);
+    g.connect(ctx.destination);
+    o.start();
+    setTimeout(() => { o.stop(); ctx.close(); }, 140);
+  } catch { }
 }
 function vibrate() { if ("vibrate" in navigator) navigator.vibrate([60]); }
 
@@ -25,15 +27,24 @@ export default function ChatProvider({ currentUserId, children }) {
   const [activeChatId, setActiveChatId] = useState(null);
   const [messages, setMessages] = useState({});
   const [typingMap, setTypingMap] = useState({});
-  const [statusMap, setStatusMap] = useState({}); // userId -> 'online'|'away'|'offline'
+  const [statusMap, setStatusMap] = useState({});
 
-  const soundsEnabled = true;
-  const vibrationEnabled = true;
+  // 🆔 id efectivo del usuario
+  const me = useMemo(() => {
+    if (currentUserId) return String(currentUserId);
+    try {
+      const u = JSON.parse(localStorage.getItem("usuario") || "{}");
+      if (u && u._id) return String(u._id);
+    } catch { }
+    return (
+      String(localStorage.getItem("uid") || "") ||
+      String(localStorage.getItem("userId") || "")
+    );
+  }, [currentUserId]);
 
-  // === Socket setup + presencia ===
+  // === Socket + presencia ===
   useEffect(() => {
-    if (!currentUserId) return;
-
+    if (!me) return;
     const s = io(API_BASE, {
       path: "/socket.io",
       transports: ["websocket", "polling"],
@@ -45,111 +56,105 @@ export default function ChatProvider({ currentUserId, children }) {
     });
 
     s.on("connect", () => {
-      s.emit("join", { usuarioId: currentUserId });
+      s.emit("join", { usuarioId: me });
       s.emit("user:status:request");
     });
 
-    // Snapshot inicial de estados
-    s.on("user:status:snapshot", (snapshot) => {
-      setStatusMap(snapshot || {});
-    });
+    s.on("user:status:snapshot", (snapshot) => setStatusMap(snapshot || {}));
+    s.on("user:status", ({ userId, status }) =>
+      setStatusMap((m) => ({ ...m, [userId]: status }))
+    );
 
-    // Actualizaciones incrementales
-    s.on("user:status", ({ userId, status }) => {
-      setStatusMap((m) => ({ ...m, [userId]: status }));
-    });
-
-    // Mensajería
     s.on("chat:newMessage", ({ chatId, mensaje }) => {
       setMessages((m) => ({ ...m, [chatId]: [...(m[chatId] || []), mensaje] }));
-      if (soundsEnabled) playBeep();
-      if (vibrationEnabled) vibrate();
+      playBeep(); vibrate();
     });
 
     s.on("chat:typing", ({ chatId, usuarioId, typing }) => {
       setTypingMap((t) => ({ ...t, [chatId]: typing ? usuarioId : null }));
     });
 
-    // Reducir ruido
-    s.io.on("error", () => {});
-    s.io.on("reconnect_error", () => {});
-    s.io.on("reconnect_failed", () => {});
-
     setSocket(s);
     return () => s.disconnect();
-  }, [currentUserId]);
+  }, [me]);
 
-  // Heartbeat de actividad del usuario (envío cada 15s como máximo)
+  // Heartbeat de actividad
   useEffect(() => {
     if (!socket) return;
     let lastSent = 0;
     const MIN_INTERVAL = 15000;
-
     const handler = () => {
       const now = Date.now();
       if (now - lastSent < MIN_INTERVAL) return;
       lastSent = now;
       socket.emit("user:activity");
     };
-
-    // Eventos que cuentan como actividad
     const evs = ["mousemove", "keydown", "scroll", "click", "touchstart", "focus"];
     evs.forEach((e) => window.addEventListener(e, handler, { passive: true }));
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") handler();
-    });
-
-    // primer ping al montar
+    const vis = () => { if (document.visibilityState === "visible") handler(); };
+    document.addEventListener("visibilitychange", vis);
     handler();
-
     return () => {
       evs.forEach((e) => window.removeEventListener(e, handler));
-      document.removeEventListener("visibilitychange", handler);
+      document.removeEventListener("visibilitychange", vis);
     };
   }, [socket]);
 
-  async function loadChats() {
-    const data = await getJSON(`/api/chat/${currentUserId}`);
-    setChats(data);
-    if (!activeChatId && data[0]?._id) setActiveChatId(data[0]._id);
-  }
+  // === Cargar chats (sin auto‑seleccionar por defecto)
+  const loadChats = useCallback(async ({ autoSelect = false } = {}) => {
+    const token = localStorage.getItem("token") || "";
+    const data = await getJSON(`/api/chat`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const list = Array.isArray(data) ? data : [];
+    setChats(list);
+    // Si ya hay activo, respétalo; si no, cae al primero
+    setActiveChatId((prev) => prev ?? (list[0]?._id || null));
+  }, [activeChatId]);
 
-  async function loadMessages(chatId) {
-    const data = await getJSON(`/api/chat/mensajes/${chatId}`);
-    setMessages((m) => ({ ...m, [chatId]: data }));
-  }
+  // === Cargar mensajes
+  const loadMessages = useCallback(async (chatId) => {
+    if (!chatId) return;
+    const token = localStorage.getItem("token") || "";
+    const data = await getJSON(`/api/chat/${chatId}/mensajes`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    setMessages((m) => ({ ...m, [chatId]: Array.isArray(data) ? data : [] }));
+  }, []);
 
-  // Envío optimista
+  // Envío
   function sendMessage({ chatId, emisorId, texto, archivos = [] }) {
+    const sender = emisorId || me;
     const tempId = `tmp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const optimistic = {
-      _id: tempId, chat: chatId, emisor: emisorId, texto, archivos,
-      createdAt: new Date().toISOString(), _temp: true, _failed: false,
+      _id: tempId,
+      chat: chatId,
+      emisor: sender,
+      texto,
+      archivos,
+      createdAt: new Date().toISOString(),
+      _temp: true,
+      _failed: false,
     };
-
     setMessages((m) => ({ ...m, [chatId]: [...(m[chatId] || []), optimistic] }));
-
-    socket?.emit("chat:send", { chatId, emisorId, texto, archivos }, (ack) => {
+    socket?.emit("chat:send", { chatId, emisorId: sender, texto, archivos }, (ack) => {
       setMessages((m) => {
         const list = (m[chatId] || []).slice();
         const i = list.findIndex((x) => x._id === tempId);
         if (i === -1) return m;
-
-        if (ack?.ok) list[i] = ack.mensaje;
-        else list[i] = { ...list[i], _temp: false, _failed: true };
-
+        list[i] = ack?.ok ? ack.mensaje : { ...list[i], _temp: false, _failed: true };
         return { ...m, [chatId]: list };
       });
     });
   }
 
   function setTyping(chatId, typing) {
-    socket?.emit("chat:typing", { chatId, usuarioId: currentUserId, typing: !!typing });
+    socket?.emit("chat:typing", { chatId, usuarioId: me, typing: !!typing });
   }
 
   const value = useMemo(
     () => ({
-      currentUserId,
+      currentUserId: me,
       chats,
       activeChatId,
       setActiveChatId,
@@ -161,7 +166,7 @@ export default function ChatProvider({ currentUserId, children }) {
       setTyping,
       statusMap,
     }),
-    [currentUserId, chats, activeChatId, messages, typingMap, statusMap]
+    [me, chats, activeChatId, messages, typingMap, statusMap, loadChats, loadMessages]
   );
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

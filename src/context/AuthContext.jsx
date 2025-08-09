@@ -1,5 +1,6 @@
 import { createContext, useState, useEffect } from "react";
 import axios from "axios";
+import { API_BASE } from "../services/api"; // 👈 unificado
 
 const AuthContext = createContext();
 
@@ -16,7 +17,6 @@ const AuthProvider = ({ children }) => {
   useEffect(() => {
     const token = localStorage.getItem("token");
     const usuarioGuardado = localStorage.getItem("usuario");
-
     if (token && usuarioGuardado) {
       setUsuario(JSON.parse(usuarioGuardado));
       setAutenticado(true);
@@ -45,45 +45,28 @@ const AuthProvider = ({ children }) => {
   };
 
   // LOGIN
-  const login = async ({ correo, contraseña, tipo }) => {
+  const login = async ({ correo, contraseña }) => {
     limpiarEstadoTemporal();
-    if (!tipo) throw new Error("Tipo de cuenta no especificado");
-    const API_URL = import.meta.env.VITE_API_URL;
-    try {
-      const res = await axios.post(
-        `${API_URL}/api/usuarios/login`,
-        { correo, contraseña }
-      );
-      iniciarSesion(res.data.token, res.data.usuario);
-    } catch (error) {
-      throw error;
-    }
+    const res = await axios.post(`${API_BASE}/api/usuarios/login`, { correo, contraseña });
+    iniciarSesion(res.data.token, res.data.usuario);
   };
 
   // REGISTRO
   const registrar = async ({ nombre, correo, contraseña, nickname }) => {
     const tipo = localStorage.getItem("tipoCuentaIntentada") || "usuario";
-    const API_URL = import.meta.env.VITE_API_URL;
-    const res = await axios.post(
-      `${API_URL}/api/usuarios/registro`,
-      { nombre, correo, contraseña, nickname, tipo }
-    );
+    const perfilRaw = localStorage.getItem("perfilCuentaIntentada");
+    const perfil = Number.isFinite(Number(perfilRaw)) ? Number(perfilRaw) : 1;
+    const res = await axios.post(`${API_BASE}/api/usuarios/registro`, {
+      nombre, correo, contraseña, nickname, tipo, perfil,
+    });
     limpiarEstadoTemporal();
     return res.data;
   };
 
   return (
-    <AuthContext.Provider
-      value={{
-        autenticado,
-        usuario,
-        iniciarSesion,
-        cerrarSesion,
-        cargando,
-        login,
-        registrar,
-      }}
-    >
+    <AuthContext.Provider value={{
+      autenticado, usuario, iniciarSesion, cerrarSesion, cargando, login, registrar,
+    }}>
       {children}
     </AuthContext.Provider>
   );

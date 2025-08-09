@@ -1,9 +1,10 @@
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState, useRef, useEffect } from "react";
 import { API_BASE } from "../../services/api";
 import EmojiText from "./EmojiText";
 import { useChat } from "../../context/ChatContext";
 
-// --- utils ---
+/* Normaliza distintos formatos de archivo desde backend
+   y prioriza thumbUrl para carga rápida de imágenes */
 function normalizeFile(f) {
   if (!f) return null;
   const asString = typeof f === "string" ? f : null;
@@ -33,16 +34,13 @@ function normalizeFile(f) {
 
 function formatTime(ts) {
   try {
-    return new Date(ts || Date.now()).toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    return new Date(ts || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   } catch {
     return "";
   }
 }
 
-/** Detecta mensajes SOLO de emojis (incluye banderas, ZWJ, keycaps, tonos) */
+/** Detecta mensajes SOLO de emojis (sin texto) para mostrarlos grandes sin burbuja */
 function isEmojiOnly(str = "") {
   if (!str) return false;
   const reBase =
@@ -64,56 +62,61 @@ function countEmojis(str = "") {
   return m ? m.length : 0;
 }
 
-// --- component ---
-export function Message({ msg }) {
+export function Message({ msg, pinned = false, onTogglePin }) {
   const { currentUserId } = useChat();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
 
+  useEffect(() => {
+    const onDoc = (e) => {
+      if (!menuRef.current) return;
+      if (!menuRef.current.contains(e.target)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  // Resolve emisor robustamente (id puede venir en varios campos)
   const emisorId = String(
     msg?.mine === true
       ? currentUserId
       : (msg?.emisor && (msg.emisor._id || msg.emisor?.id || msg.emisor)) ||
-          msg?.emisorId ||
-          msg?.from ||
-          msg?.usuarioId ||
-          msg?.userId ||
-          ""
+          msg?.emisorId || msg?.from || msg?.usuarioId || msg?.userId || ""
   );
 
-  const isMine =
-    msg?.mine === true ||
-    (currentUserId != null && String(currentUserId) === emisorId);
+  const isMine = msg?.mine === true || (currentUserId != null && String(currentUserId) === emisorId);
 
+  // Adjuntos normalizados
   const files = useMemo(() => {
     const arr = Array.isArray(msg?.archivos) ? msg.archivos : [];
     return arr.map(normalizeFile).filter(Boolean);
   }, [msg?.archivos]);
 
+  // Texto + emoji-only
   const text = typeof msg?.texto === "string" ? msg.texto : "";
   const emojiOnly = text ? isEmojiOnly(text) : false;
   const emojiCount = emojiOnly ? countEmojis(text) : 0;
   const showEmojiNoBubble = emojiOnly && emojiCount >= 1;
 
+  // Estilos de burbuja (sin romper palabras en vertical)
   const bubbleBase =
     "inline-block max-w-[78%] min-w-0 whitespace-pre-line break-normal rounded-2xl px-3 py-2 leading-snug";
   const bubbleMine = "bg-[#2364ef] text-white rounded-br-md";
   const bubbleIn = "bg-gray-100 text-gray-900 rounded-bl-md";
 
+  const pinLabel = pinned ? "Desfijar" : "Fijar";
+
   return (
     <div
-      className={`w-full mb-3 flex ${
-        isMine ? "justify-end" : "justify-start"
-      } min-w-0 overflow-x-hidden`}   // ⬅️ bloquea desbordes horizontales por mensaje
+      className={`w-full mb-3 flex ${isMine ? "justify-end" : "justify-start"} min-w-0 overflow-x-hidden`}
+      role="listitem"
+      aria-label="Mensaje"
     >
-      <div
-        className={`min-w-0 max-w-full flex flex-col ${
-          isMine ? "items-end" : "items-start"
-        }`}
-      >
+      <div className={`min-w-0 max-w-full flex flex-col ${isMine ? "items-end" : "items-start"}`}>
         {/* Texto / Emojis */}
         {text ? (
           showEmojiNoBubble ? (
             <div className="inline-block max-w-[78%] emoji-text text-3xl leading-tight">
-              {/* ⬆️ inline-block + max-w para que no genere desplazamiento lateral */}
               <EmojiText text={text} />
             </div>
           ) : (
@@ -163,13 +166,47 @@ export function Message({ msg }) {
           </div>
         )}
 
-        {/* Hora */}
+        {/* Hora + acciones */}
         <div
           className={`mt-1 text-[11px] opacity-60 ${
             isMine ? "text-right" : "text-left"
-          }`}
+          } flex items-center gap-2`}
         >
-          {formatTime(msg?.createdAt)}
+          <span>{formatTime(msg?.createdAt)}</span>
+
+          {/* Indicador si está fijado */}
+          {pinned && <span title="Mensaje fijado">⭐</span>}
+
+          {/* Menú de mensaje */}
+          <div className="relative" ref={menuRef}>
+            <button
+              className="ml-1 px-2 py-1 rounded-md border text-[11px] hover:bg-gray-50"
+              onClick={() => setMenuOpen((s) => !s)}
+              title="Opciones"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen ? "true" : "false"}
+            >
+              ⋯
+            </button>
+            {menuOpen && (
+              <div
+                className="absolute mt-1 right-0 z-20 bg-white border rounded-md shadow-lg min-w-[160px] text-sm overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+                role="menu"
+              >
+                <button
+                  className="w-full text-left px-3 py-2 hover:bg-gray-50"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onTogglePin?.(msg._id, !pinned);
+                  }}
+                  role="menuitem"
+                >
+                  {pinLabel} mensaje
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

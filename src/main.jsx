@@ -13,10 +13,12 @@ import { UbiProvider } from "./context/UbiContext";
 import { GoogleOAuthProvider } from '@react-oauth/google';
 const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
-// ⬇️⬇️ AÑADE ESTO
-import ChatProvider from './context/ChatContext'; // ruta exacta a tu ChatContext.jsx
-const USER_ID = import.meta.env.VITE_TEST_USER_ID; // usa tu _id real de Mongo
-// ⬆️⬆️
+// Chat Context
+import ChatProvider from './context/ChatContext';
+const USER_ID = import.meta.env.VITE_TEST_USER_ID;
+
+// 🔵 Barra lateral de herramientas (siempre visible)
+import ToolsSidebar from './components/ToolsSidebar';
 
 const Root = () => {
   useEffect(() => {
@@ -41,9 +43,10 @@ const Root = () => {
     <GoogleOAuthProvider clientId={clientId}>
       <AuthProvider>
         <UbiProvider>
-          {/* ⬇️⬇️ ENVUELVE LA APP CON ChatProvider */}
           <ChatProvider currentUserId={USER_ID}>
             <BrowserRouter>
+              {/* 🔵 Siempre presente en toda la app */}
+              <ToolsSidebar onLaunch={(tool) => console.log('Abrir herramienta:', tool.id)} />
               <App />
               <ToastContainer
                 position="top-center"
@@ -56,7 +59,6 @@ const Root = () => {
               />
             </BrowserRouter>
           </ChatProvider>
-          {/* ⬆️⬆️ */}
         </UbiProvider>
       </AuthProvider>
     </GoogleOAuthProvider>
