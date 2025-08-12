@@ -7,6 +7,8 @@ import PanelAdministrativo from "../layouts/PanelAdministrativo";
 
 // 🔵 estilos twemoji (añadido)
 import "../styles/chat-twemoji.css";
+// 🔵 Barra de herramientas (SIEMPRE montada)
+import ToolsSidebar from "../components/ToolsSidebar";
 
 // Páginas públicas MODERNAS (solo las válidas)
 import HomeSelector from "../components/HomeSelector";
@@ -94,6 +96,9 @@ function App() {
 
         <Route path="/auth/google/callback" element={<GoogleCallback />} />
       </Routes>
+
+      {/* 🧰 Barra de herramientas global */}
+      <ToolsSidebar />
 
       {typeof window !== "undefined" && (
         <LoginModal

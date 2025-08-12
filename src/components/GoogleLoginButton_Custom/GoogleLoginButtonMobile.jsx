@@ -1,8 +1,10 @@
+// GoogleLoginButtonMobile.jsx (corregido)
 import React, { useContext } from "react";
 import { GoogleLogin } from "@react-oauth/google";
 import axios from "axios";
 import Swal from "sweetalert2";
 import { AuthContext } from "../../context/AuthContext";
+import { API_BASE } from "../../services/api"; // ✅ usar base centralizada
 
 const limpiarEstadoTemporal = () => {
   localStorage.removeItem("tipoCuentaIntentada");
@@ -31,19 +33,18 @@ const GoogleLoginButtonMobile = ({
         if (perfil && perfil.perfil) body.perfil = perfil.perfil;
       }
 
-      const API_URL = import.meta.env.VITE_API_URL;
-      const res = await axios.post(`${API_URL}/api/usuarios/google`, body);
+      // ✅ ahora siempre usa API_BASE
+      const res = await axios.post(`${API_BASE}/api/usuarios/google`, body);
 
       if (res.status === 200 && res.data?.token) {
         localStorage.setItem("token", res.data.token);
         if (res.data?.usuario) {
           localStorage.setItem("usuario", JSON.stringify(res.data.usuario));
         }
-        
+
         const partes = res.data.usuario?.nombre?.split(" ") || [];
         const nombreMostrado = partes.slice(0, 2).join(" ") || "Usuario";
 
-        // SVG palomita minimalista (puedes cambiar color/tamaño si quieres)
         const checkSVG = `
 <svg width="54" height="54" fill="none" xmlns="http://www.w3.org/2000/svg">
   <circle cx="27" cy="27" r="27" fill="%23e6faf0"/>
@@ -52,7 +53,7 @@ const GoogleLoginButtonMobile = ({
 `;
 
         Swal.fire({
-          icon: undefined, // Sin icono de SweetAlert2
+          icon: undefined,
           html: `
     <div style="display:flex; flex-direction:column; align-items:center; margin-top:-60px;">
       <div style="margin-bottom:12px;">${checkSVG}</div>
@@ -95,11 +96,6 @@ const GoogleLoginButtonMobile = ({
           }
         });
 
-
-
-
-
-
         iniciarSesion(res.data.token, res.data.usuario);
         limpiarEstadoTemporal();
         if (onClose) onClose();
@@ -123,53 +119,40 @@ const GoogleLoginButtonMobile = ({
         mensaje.toLowerCase().includes("registrada") ||
         mensaje.toLowerCase().includes("existe")
       ) {
-        let icono = "info";
-        let titulo = "Cuenta ya Existente";
-        if (
-          mensaje.toLowerCase().includes("no existe ninguna cuenta registrada")
-        ) {
-          icono = "info";
-          titulo = "Cuenta ya Existente";
-        }
         Swal.fire({
-          icon: icono,
-          title: titulo,
+          icon: "info",
+          title: "Cuenta ya Existente",
           text: mensaje,
-          customClass: {
-            popup: "rounded-md"
-          }
+          customClass: { popup: "rounded-md" }
         });
-
       } else {
         Swal.fire({
           icon: "info",
           title: "Cuenta ya Existente",
           text: mensaje,
-          customClass: {
-            popup: "rounded-md"
-          }
+          customClass: { popup: "rounded-md" }
         });
       }
     }
   };
 
   return (
-    <GoogleLogin
-      onSuccess={handleSuccess}
-      onError={() => {
-        limpiarEstadoTemporal();
-        Swal.fire({
-          icon: "error",
-          title: "Google Login",
-          text: "No se pudo conectar con Google.",
-          customClass: {
-            popup: "rounded-3xl"
-          }
-        });
-      }}
-      ux_mode="popup"
-      width="100%"
-    />
+    <div style={{ width: "100%", display: "grid" }}>
+      <GoogleLogin
+        onSuccess={handleSuccess}
+        onError={() => {
+          limpiarEstadoTemporal();
+          Swal.fire({
+            icon: "error",
+            title: "Google Login",
+            text: "No se pudo conectar con Google.",
+            customClass: { popup: "rounded-3xl" }
+          });
+        }}
+        ux_mode="popup"
+        // ❌ width eliminado para evitar warning; controlado por el contenedor
+      />
+    </div>
   );
 };
 

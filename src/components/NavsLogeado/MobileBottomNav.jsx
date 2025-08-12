@@ -14,7 +14,7 @@ import { AnimatePresence } from "framer-motion";
 import MobileMenuDrawer from "../HomeMobile/MobileMenuDrawer";
 import SearchPopup from "../SearchPopup";
 import { AuthContext } from "../../context/AuthContext";
-import ChatPanel from "../Chat/ChatPanel";
+import ChatPanel from "../Chat/ChatPanel/ChatPanel";
 
 const navItems = [
   { label: "Inicio", icon: <FaHome size={28} />, action: "home" },

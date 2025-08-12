@@ -1,9 +1,3 @@
-// services/api-1.js (patched)
-// Basado en tu archivo original. Cambios mínimos:
-// 1) _json ahora adjunta automáticamente Authorization: Bearer <token> si no viene en headers.
-// 2) Mantiene API_BASE y helpers igual que tu versión.
-// 3) No cambia endpoints (usa /favorite, NO /_favorite).
-
 // services/api.js
 // ✅ Preferir backend local en desarrollo (localhost o IP de la LAN).
 //    - Respeta VITE_API_BASE si está definida.
@@ -56,24 +50,11 @@ async function _json(path, opts = {}) {
       ? {}
       : { "Content-Type": "application/json" };
 
-  // Mezcla de headers
-  const incoming = opts.headers || {};
-  const headers = { ...baseHeaders, ...incoming };
-
-  // Auto-attach token si falta Authorization
-  try {
-    const hasAuth = Object.keys(headers).some((k) => k.toLowerCase() === "authorization");
-    if (!hasAuth && typeof localStorage !== "undefined") {
-      const token = localStorage.getItem("token");
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-    }
-  } catch {}
-
   const url = `${API_BASE}${path}`;
   const res = await fetch(url, {
     method,
     ...opts,
-    headers,
+    headers: { ...baseHeaders, ...(opts.headers || {}) },
   });
 
   if (!res.ok) {

@@ -1,29 +1,37 @@
-// src/components/ToolsSidebar.jsx
+// src/components/ToolsSidebar.jsx (FAB + BottomSheet) — no estorba el chat
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Trash2 } from "lucide-react";
+import { X, Grid2X2, ChevronDown } from "lucide-react";
 
 /**
- * ToolsSidebar (portal a <body>)
- * - Sin botón visible.
- * - Abrir: swipe desde el borde izquierdo (>= 48px).
- * - Cerrar: swipe izquierda sobre el panel o tap/click fuera.
- * - Fijo al centro vertical de la pantalla (sin drag).
+ * Nuevo patrón:
+ * - Botón flotante (FAB) en esquina inferior derecha
+ * - Al tocar, abre un Bottom Sheet (ancho completo) con una grilla de herramientas
+ * - Cierra al deslizar hacia abajo, al tocar fuera o con el botón X
+ * - No requiere gestos laterales → no interfiere con scroll/gestos del chat
  */
 
-const LS_KEY = "anunciaya.tools.favorites.v4";
-const MAX_FAVORITES = 5;
+const ALL_TOOLS = [
+  { id: "search", label: "Buscador" },
+  { id: "map", label: "Mapa" },
+  { id: "favorites", label: "Favoritos" },
+  { id: "notifs", label: "Notificaciones" },
+  { id: "chat", label: "Chat" },
+  { id: "calendar", label: "Calendario" },
+  { id: "calc", label: "Calculadora" },
+  { id: "publish", label: "Publicar" },
+  { id: "stats", label: "Estadísticas" },
+  { id: "share", label: "Compartir" },
+  { id: "imgsearch", label: "Búsqueda por imagen" },
+  { id: "settings", label: "Ajustes" },
+];
 
-// Gestos
-const SWIPE_EDGE = 24;        // px desde el borde izquierdo
-const SWIPE_OPEN_DIST = 48;   // desplazamiento mínimo a la derecha para abrir
-const SWIPE_CLOSE_DIST = -48; // desplazamiento mínimo a la izquierda para cerrar
-
-/* ------------ ICONOS (svg) ------------ */
+/* ---------- ICONOS (SVG compactos, mismos del diseño anterior) ---------- */
 const IconWrap = ({ children }) => (
-  <span className="inline-flex h-12 w-12 items-center justify-center">{children}</span>
+  <span className="inline-flex h-11 w-11 items-center justify-center">{children}</span>
 );
+
 const ICONS = {
   search: () => (
     <IconWrap>
@@ -66,9 +74,9 @@ const ICONS = {
     <IconWrap>
       <svg viewBox="0 0 24 24" className="h-7 w-7">
         <path d="M4 5h16a2 2 0 012 2v6a2 2 0 01-2 2H11l-4.5 3V15H4a2 2 0 01-2-2V7a2 2 0 012-2z" fill="#2D9CDB" />
-        <circle cx="9" cy="10" r="1.3" fill="#fff" />
-        <circle cx="12" cy="10" r="1.3" fill="#fff" />
-        <circle cx="15" cy="10" r="1.3" fill="#fff" />
+        <circle cx="9" cy="10" r="1.2" fill="#fff" />
+        <circle cx="12" cy="10" r="1.2" fill="#fff" />
+        <circle cx="15" cy="10" r="1.2" fill="#fff" />
       </svg>
     </IconWrap>
   ),
@@ -107,9 +115,9 @@ const ICONS = {
   share: () => (
     <IconWrap>
       <svg viewBox="0 0 24 24" className="h-7 w-7">
-        <circle cx="6" cy="12" r="2.3" fill="#111827" />
-        <circle cx="18" cy="6.5" r="2.3" fill="#111827" />
-        <circle cx="18" cy="17.5" r="2.3" fill="#111827" />
+        <circle cx="6" cy="12" r="2.2" fill="#111827" />
+        <circle cx="18" cy="6.5" r="2.2" fill="#111827" />
+        <circle cx="18" cy="17.5" r="2.2" fill="#111827" />
         <path d="M7.8 11.3l8.1-4.2M7.8 12.7l8.1 4.2" stroke="#111827" strokeWidth="2" fill="none" strokeLinecap="round" />
       </svg>
     </IconWrap>
@@ -143,297 +151,106 @@ const ICONS = {
   ),
 };
 
-const ALL_TOOLS = [
-  { id: "search", label: "Buscador" },
-  { id: "map", label: "Mapa" },
-  { id: "favorites", label: "Favoritos" },
-  { id: "notifs", label: "Notificaciones" },
-  { id: "chat", label: "Chat" },
-  { id: "calendar", label: "Calendario" },
-  { id: "calc", label: "Calculadora" },
-  { id: "publish", label: "Publicar" },
-  { id: "stats", label: "Estadísticas" },
-  { id: "share", label: "Compartir" },
-  { id: "imgsearch", label: "Búsqueda por imagen" },
-  { id: "settings", label: "Ajustes" },
-];
+/* ---------- Bottom Sheet ---------- */
+function BottomSheet({ open, onClose, onLaunch }) {
+  const sheetRef = useRef(null);
 
-/* ------------ Utils ------------ */
-function useFavorites() {
-  const [favorites, setFavorites] = useState(() => {
-    try { const raw = localStorage.getItem(LS_KEY); if (raw) return JSON.parse(raw); } catch {}
-    return ["search", "map", "chat", "calendar", "calc"];
-  });
-  useEffect(() => { try { localStorage.setItem(LS_KEY, JSON.stringify(favorites)); } catch {} }, [favorites]);
-  return { favorites, setFavorites };
-}
-
-function useLongPress(callback, { delay = 600 } = {}) {
-  const t = useRef(null);
-  const start = () => { clearTimeout(t.current); t.current = setTimeout(callback, delay); };
-  const clear = () => clearTimeout(t.current);
-  return {
-    onMouseDown: start, onMouseUp: clear, onMouseLeave: clear,
-    onTouchStart: start, onTouchEnd: clear, onTouchMove: clear,
-    onContextMenu: (e) => { e.preventDefault(); callback(); },
-  };
-}
-
-/* ------------ Gestos (swipe abrir/cerrar) ------------ */
-function useGlobalSwipe({ onOpen, onClose }) {
+  // Cerrar al tocar overlay
   useEffect(() => {
-    const start = { x: 0, y: 0, active: false, overPanel: false };
-
-    const onTouchStart = (e) => {
-      const t = e.touches && e.touches[0];
-      if (!t) return;
-      start.x = t.clientX;
-      start.y = t.clientY;
-      start.active = start.x <= SWIPE_EDGE; // solo si tocó el borde izq
-      const target = e.target;
-      start.overPanel = !!(target && target.closest && target.closest("[data-tools-panel]"));
-    };
-
-    const onTouchEnd = (e) => {
-      const t = e.changedTouches && e.changedTouches[0];
-      if (!t) return;
-      const dx = t.clientX - start.x;
-
-      // cerrar si swipe izquierda sobre el panel
-      if (start.overPanel && dx <= SWIPE_CLOSE_DIST) {
-        onClose && onClose();
-        return;
-      }
-      // abrir si empezó en el borde y arrastró a la derecha suficiente
-      if (start.active && dx >= SWIPE_OPEN_DIST) {
-        onOpen && onOpen();
-        return;
-      }
-    };
-
-    document.addEventListener("touchstart", onTouchStart, { passive: true });
-    document.addEventListener("touchend", onTouchEnd, { passive: true });
-
-    return () => {
-      document.removeEventListener("touchstart", onTouchStart);
-      document.removeEventListener("touchend", onTouchEnd);
-    };
-  }, [onOpen, onClose]);
-}
-
-/* ------------ UI (portal) ------------ */
-function SidebarUI({ onLaunch }) {
-  const { favorites, setFavorites } = useFavorites();
-  const [open, setOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState(null);
-  const [pickerOpen, setPickerOpen] = useState(false);
-
-  const favoriteTools = useMemo(
-    () => favorites.map((id) => ALL_TOOLS.find((t) => t.id === id)).filter(Boolean),
-    [favorites]
-  );
-
-  // gestos globales
-  useGlobalSwipe({
-    onOpen: () => setOpen(true),
-    onClose: () => setOpen(false),
-  });
-
-  // tap/click fuera para cerrar
-  const panelRef = useRef(null);
-  useEffect(() => {
-    const onDocDown = (e) => {
+    const onDown = (e) => {
       if (!open) return;
-      const el = panelRef.current;
-      if (el && !el.contains(e.target)) setOpen(false);
+      const panel = sheetRef.current;
+      if (panel && !panel.contains(e.target)) onClose?.();
     };
-    document.addEventListener("mousedown", onDocDown);
-    document.addEventListener("touchstart", onDocDown, { passive: true });
-    return () => {
-      document.removeEventListener("mousedown", onDocDown);
-      document.removeEventListener("touchstart", onDocDown);
-    };
-  }, [open]);
+    document.addEventListener("pointerdown", onDown, { passive: true });
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [open, onClose]);
 
-  // salir de edición si clic fuera del botón eliminar
-  useEffect(() => {
-    const onDocClick = (e) => {
-      if (!editTarget) return;
-      const btn = document.getElementById("delbtn-" + editTarget);
-      if (btn && !btn.contains(e.target)) setEditTarget(null);
-    };
-    document.addEventListener("click", onDocClick);
-    return () => document.removeEventListener("click", onDocClick);
-  }, [editTarget]);
+  return createPortal(
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          className="fixed inset-0 z-[2147483646] flex items-end"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          <div className="absolute inset-0 bg-black/35" />
 
-  const toggleFavorite = (id) => {
-    setFavorites((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : prev.length < MAX_FAVORITES ? [...prev, id] : prev
-    );
-  };
-  const removeFavorite = (id) => setFavorites((prev) => prev.filter((x) => x !== id));
-
-  return (
-    <div className="fixed left-0 top-1/2 -translate-y-1/2 z-[1000] select-none pointer-events-none">
-      {/* NO hay pestaña/botón; solo panel cuando está abierto */}
-
-      <AnimatePresence>
-        {open && (
           <motion.div
-            key="panel"
-            ref={panelRef}
-            data-tools-panel
-            initial={{ x: -16, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: -16, opacity: 0 }}
+            ref={sheetRef}
+            initial={{ y: 24 }}
+            animate={{ y: 0 }}
+            exit={{ y: 24 }}
             transition={{ type: "spring", stiffness: 260, damping: 24 }}
-            className="pointer-events-auto ml-0 mt-2 rounded-3xl shadow-xl bg-white/95 backdrop-blur border border-slate-200 pl-4 pr-3 py-3 w-[260px]"
+            className="relative w-full rounded-t-3xl bg-white dark:bg-zinc-900 border-t border-slate-200 dark:border-zinc-700 p-3 pb-5"
+            drag="y"
+            dragConstraints={{ top: 0, bottom: 0 }}
+            onDragEnd={(_, info) => { if (info.offset.y > 50) onClose?.(); }}
           >
-            <div className="grid grid-cols-2 gap-3">
-              {favoriteTools.map((tool) => (
-                <ToolCard
-                  key={tool.id}
-                  tool={tool}
-                  onClick={() => onLaunch && onLaunch(tool)}
-                  onRemove={() => removeFavorite(tool.id)}
-                  editTarget={editTarget}
-                  setEditTarget={setEditTarget}
-                />
-              ))}
-              {/* botón + */}
+            <div className="mx-auto mb-2 h-1 w-12 rounded-full bg-slate-300/70" />
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-2">
+                <Grid2X2 className="h-4 w-4" />
+                <div className="text-sm font-semibold">Herramientas</div>
+              </div>
               <button
-                onClick={() => setPickerOpen(true)}
-                className="group flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-300 hover:border-slate-400 hover:bg-slate-50 active:scale-[0.98] transition p-3"
+                onClick={onClose}
+                className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-2 py-1 hover:bg-slate-50 dark:bg-zinc-800 dark:border-zinc-700"
+                title="Cerrar"
               >
-                <span className="inline-flex h-12 w-12 items-center justify-center">
-                  <Plus className="h-5 w-5" />
-                </span>
-                <div className="text-[11px] leading-4 text-center">
-                  Agregar herramienta
-                  <div className="text-[10px] text-slate-500">Máx {MAX_FAVORITES}</div>
-                </div>
+                <X className="h-4 w-4" />
               </button>
             </div>
+
+            {/* Grid responsiva */}
+            <div className="mt-3 grid grid-cols-3 sm:grid-cols-4 gap-2">
+              {ALL_TOOLS.map((t) => {
+                const Icon = ICONS[t.id] || ICONS.search;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => onLaunch?.(t)}
+                    className="group h-[84px] rounded-2xl border border-slate-200 dark:border-zinc-700 bg-white/90 dark:bg-zinc-800/80 hover:bg-slate-50 dark:hover:bg-zinc-700/80 flex flex-col items-center justify-center gap-2 transition active:scale-[0.99]"
+                    title={t.label}
+                  >
+                    <span className="group-hover:scale-110 transition-transform"><Icon /></span>
+                    <span className="text-[12px] text-slate-700 dark:text-slate-200">{t.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Picker */}
-      <AnimatePresence>
-        {pickerOpen && (
-          <motion.div
-            className="fixed inset-0 z-[1001] grid place-items-center bg-black/30"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => {
-              setPickerOpen(false);
-              setOpen(true);
-            }}
-          >
-            <motion.div
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 20, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 260, damping: 24 }}
-              onClick={(e) => e.stopPropagation()}
-              className="mx-4 w-full max-w-md rounded-2xl bg-white p-4 shadow-2xl border border-slate-200"
-            >
-              <div className="mb-2 text-lg font-semibold">Añadir herramientas</div>
-              <div className="mb-3 text-xs text-slate-500">
-                Selecciona para fijar en la barra (hasta {MAX_FAVORITES}).
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                {ALL_TOOLS.map((t) => {
-                  const selected = favorites.includes(t.id);
-                  const disabled = !selected && favorites.length >= MAX_FAVORITES;
-                  const Icon = ICONS[t.id] || ICONS.search;
-                  return (
-                    <button
-                      key={t.id}
-                      disabled={disabled}
-                      onClick={() => toggleFavorite(t.id)}
-                      className={`group flex flex-col items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-left transition ${
-                        selected
-                          ? "bg-blue-50 border-blue-200"
-                          : disabled
-                          ? "opacity-50 cursor-not-allowed border-slate-200"
-                          : "hover:bg-slate-50 border-slate-200"
-                      }`}
-                    >
-                      <span className="group-hover:scale-110 transition-transform">
-                        <Icon />
-                      </span>
-                      <span className="text-[12px] leading-4 text-center">{t.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="mt-4 flex justify-end">
-                <button
-                  onClick={() => setPickerOpen(false)}
-                  className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50"
-                >
-                  Listo
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body
   );
 }
 
-/* ------------ Tarjeta ------------ */
-function ToolCard({ tool, onClick, onRemove, editTarget, setEditTarget }) {
-  const Icon = ICONS[tool.id] || ICONS.search;
-  const isEditing = editTarget === tool.id;
-  const lp = useLongPress(() => setEditTarget(tool.id));
-  return (
-    <div className="relative">
+/* ---------- FAB ---------- */
+export default function ToolsSidebar({ onLaunch }) {
+  const [open, setOpen] = useState(false);
+
+  // Altura segura sobre input del chat
+  const bottomOffset = 88; // px aprox; ajusta según tu input/footer
+
+  return createPortal(
+    <>
+      {/* FAB */}
       <button
-        {...lp}
-        onClick={() => {
-          if (isEditing) return;
-          onClick && onClick(tool);
-        }}
-        className="group w-full"
+        onClick={() => setOpen(true)}
+        className="fixed right-4 z-[2147483647] rounded-full shadow-lg border border-slate-200 bg-white/95 backdrop-blur active:scale-95 transition"
+        style={{ bottom: bottomOffset, width: 56, height: 56 }}
+        title="Herramientas"
       >
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm transition transform-gpu group-hover:shadow-md group-hover:bg-blue-50/40 group-hover:scale-[1.03]">
-          <div className="transition-transform group-hover:scale-110">
-            <Icon />
-          </div>
-          <div className="mt-1 text-[12px] leading-4 text-slate-800 text-center">{tool.label}</div>
-        </div>
+        <ChevronDown className={`mx-auto h-5 w-5`} />
+        <div className="text-[10px] leading-3 mt-0.5">Tools</div>
       </button>
 
-      <AnimatePresence>
-        {isEditing && (
-          <motion.button
-            id={`delbtn-${tool.id}`}
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.8, opacity: 0 }}
-            onClick={() => {
-              onRemove && onRemove();
-              setEditTarget(null);
-            }}
-            className="absolute -right-2 -top-2 inline-flex items-center gap-1 rounded-full bg-red-600 text-white px-2 py-1 text-xs shadow-md"
-            title="Eliminar de favoritos"
-          >
-            <Trash2 className="h-3.5 w-3.5" /> Eliminar
-          </motion.button>
-        )}
-      </AnimatePresence>
-    </div>
+      {/* Bottom Sheet */}
+      <BottomSheet open={open} onClose={() => setOpen(false)} onLaunch={onLaunch} />
+    </>,
+    document.body
   );
-}
-
-/* ------------ Export (portal) ------------ */
-export default function ToolsSidebar(props) {
-  if (typeof document === "undefined") return null;
-  return createPortal(<SidebarUI {...props} />, document.body);
 }

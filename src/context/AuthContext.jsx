@@ -13,6 +13,7 @@ const AuthProvider = ({ children }) => {
   const [autenticado, setAutenticado] = useState(false);
   const [usuario, setUsuario] = useState(null);
   const [cargando, setCargando] = useState(true);
+  const [mounted, setMounted] = useState(false); // ⬅️ nuevo estado
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -25,6 +26,7 @@ const AuthProvider = ({ children }) => {
       setUsuario(null);
     }
     setCargando(false);
+    setMounted(true); // ⬅️ marcamos montado después del primer render
   }, []);
 
   const iniciarSesion = (token, usuarioRecibido) => {
@@ -62,6 +64,9 @@ const AuthProvider = ({ children }) => {
     limpiarEstadoTemporal();
     return res.data;
   };
+
+  // Evita renderizar Providers/hijos antes de montar
+  if (!mounted) return null;
 
   return (
     <AuthContext.Provider value={{

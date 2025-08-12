@@ -1,4 +1,3 @@
-// vite.config.js
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react-swc';
 
@@ -8,7 +7,10 @@ export default defineConfig({
     host: 'localhost',
     port: 5173,
     strictPort: true,
-    watch: { usePolling: false }
+    watch: { usePolling: false },
+    hmr: {
+      overlay: false // ⬅️ evita que el overlay interrumpa en errores de desarrollo
+    }
   },
   optimizeDeps: {
     include: [
