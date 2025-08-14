@@ -5,8 +5,12 @@ import { API_BASE } from "../services/api"; // 👈 unificado
 const AuthContext = createContext();
 
 const limpiarEstadoTemporal = () => {
-  localStorage.removeItem("tipoCuentaIntentada");
-  localStorage.removeItem("perfilCuentaIntentada");
+  try {
+    localStorage.removeItem("tipoCuentaIntentada");
+    localStorage.removeItem("perfilCuentaIntentada");
+    localStorage.removeItem("tipoCuentaRegistro");
+    localStorage.removeItem("perfilCuentaRegistro");
+  } catch {}
 };
 
 const AuthProvider = ({ children }) => {
@@ -49,15 +53,57 @@ const AuthProvider = ({ children }) => {
   // LOGIN
   const login = async ({ correo, contraseña }) => {
     limpiarEstadoTemporal();
-    const res = await axios.post(`${API_BASE}/api/usuarios/login`, { correo, contraseña });
-    iniciarSesion(res.data.token, res.data.usuario);
+    try {
+      const res = await axios.post(`${API_BASE}/api/usuarios/login`, { correo, contraseña });
+      iniciarSesion(res.data.token, res.data.usuario);
+    } catch (err) {
+      const status = err?.response?.status;
+      const backendMsg = err?.response?.data?.mensaje;
+
+      if (status === 429) {
+        const retryAfter = err?.response?.headers?.["retry-after"];
+        const espera = retryAfter ? `${retryAfter} segundos` : "unos minutos";
+        throw new Error(`Demasiados intentos. Por seguridad debes esperar ${espera} antes de volver a intentar.`);
+      }
+
+      // Mensajes específicos:
+      if (status === 404) {
+        throw new Error(backendMsg || "No existe una cuenta con este correo. Regístrate para continuar.");
+      }
+      if (status === 401) {
+        throw new Error(backendMsg || "Contraseña incorrecta. Inténtalo de nuevo.");
+      }
+      if (backendMsg) throw new Error(backendMsg);
+
+      if (status === 400) {
+        throw new Error("Faltan credenciales");
+      }
+      throw new Error("No se pudo conectar con el servidor. Inténtalo de nuevo más tarde.");
+    }
   };
 
   // REGISTRO
   const registrar = async ({ nombre, correo, contraseña, nickname }) => {
-    const tipo = localStorage.getItem("tipoCuentaIntentada") || "usuario";
-    const perfilRaw = localStorage.getItem("perfilCuentaIntentada");
-    const perfil = Number.isFinite(Number(perfilRaw)) ? Number(perfilRaw) : 1;
+    let tipo = null;
+    let perfilValor = null;
+    try {
+      tipo = localStorage.getItem("tipoCuentaRegistro") || localStorage.getItem("tipoCuentaIntentada") || null;
+      const perfilCrudo = localStorage.getItem("perfilCuentaRegistro") || localStorage.getItem("perfilCuentaIntentada") || null;
+      if (perfilCrudo) {
+        try {
+          const parsed = JSON.parse(perfilCrudo);
+          perfilValor = parsed?.perfil ?? parsed;
+        } catch {
+          perfilValor = perfilCrudo;
+        }
+      }
+    } catch {}
+    let perfil = perfilValor;
+    if (typeof perfil === "string" && /^\d+$/.test(perfil)) perfil = Number(perfil);
+    if (perfil && typeof perfil === "object" && "perfil" in perfil) perfil = perfil.perfil;
+    if (perfil == null) perfil = 1;
+    if (!tipo) tipo = "usuario";
+
     const res = await axios.post(`${API_BASE}/api/usuarios/registro`, {
       nombre, correo, contraseña, nickname, tipo, perfil,
     });
@@ -65,7 +111,6 @@ const AuthProvider = ({ children }) => {
     return res.data;
   };
 
-  // Evita renderizar Providers/hijos antes de montar
   if (!mounted) return null;
 
   return (

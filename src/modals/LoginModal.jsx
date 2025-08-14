@@ -1,4 +1,4 @@
-// ✅ src/components/LoginModal.jsx (MODAL SOLO LOGIN, AJUSTE LEFT 65PX EN DESKTOP)
+// ✅ src/components/LoginModal.jsx (limpia inputs al abrir/cerrar)
 import React, { useState, useContext, useEffect } from "react";
 import { FaTimes, FaEye, FaEyeSlash } from "react-icons/fa";
 import Swal from "sweetalert2";
@@ -24,50 +24,49 @@ const LoginModal = ({ isOpen, onClose }) => {
   const [contraseña, setContraseña] = useState("");
   const [mostrarPassword, setMostrarPassword] = useState(false);
 
-  const { guardarUsuarioAutenticado, iniciarSesion } = useContext(AuthContext);
+  const { login } = useContext(AuthContext);
   const navigate = useNavigate();
 
+  const resetForm = () => {
+    setCorreo("");
+    setContraseña("");
+    setMostrarPassword(false);
+  };
+
   useEffect(() => {
-    if (isOpen) limpiarEstadoTemporal();
+    if (isOpen) {
+      limpiarEstadoTemporal();
+      // Asegura que al abrir el modal el formulario esté limpio
+      resetForm();
+    } else {
+      // También al cerrar (cuando isOpen pasa a false) limpia los campos
+      resetForm();
+    }
     return () => limpiarEstadoTemporal();
   }, [isOpen]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/usuarios/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ correo, contraseña }),
+      await login({ correo, contraseña }); // 👈 centralizado (usa API_BASE adentro)
+      limpiarEstadoTemporal();
+      resetForm();
+      onClose && onClose();
+      Swal.fire({
+        icon: "success",
+        title: "¡Bienvenido!",
+        text: "Sesión iniciada correctamente",
+        confirmButtonColor: "#0073CF",
       });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        iniciarSesion(data.token, data.usuario);
-        limpiarEstadoTemporal();
-        onClose();
-        Swal.fire({
-          icon: "success",
-          title: "¡Bienvenido!",
-          text: "Sesión iniciada correctamente",
-          confirmButtonColor: "#0073CF",
-        });
-      } else {
-        Swal.fire({
-          icon: "error",
-          title: "Error",
-          text: data.mensaje || "Credenciales inválidas",
-          confirmButtonColor: "#A40E0E",
-        });
-      }
     } catch (error) {
-      console.error("❌ Error al iniciar sesión:", error);
+      const mensaje =
+        error?.response?.data?.mensaje ||
+        error?.message ||
+        "Credenciales inválidas";
       Swal.fire({
         icon: "error",
-        title: "Error de servidor",
-        text: "Intenta más tarde",
+        title: "Error",
+        text: mensaje,
         confirmButtonColor: "#A40E0E",
       });
     }
@@ -100,7 +99,6 @@ const LoginModal = ({ isOpen, onClose }) => {
           const data = await res.json();
 
           if (res.ok) {
-            guardarUsuarioAutenticado(data.token, data.usuario);
             Swal.fire({
               icon: "success",
               title: `¡Bienvenido, ${data.usuario.nickname}!`,
@@ -108,7 +106,8 @@ const LoginModal = ({ isOpen, onClose }) => {
               confirmButtonColor: "#0073CF",
             });
             limpiarEstadoTemporal();
-            onClose();
+            resetForm();
+            onClose && onClose();
             navigate("/");
           } else {
             Swal.fire({
@@ -149,7 +148,7 @@ const LoginModal = ({ isOpen, onClose }) => {
             fixed inset-0 bg-black bg-opacity-50 z-50 px-1 flex items-start justify-center pt-6 sm:pt-0 sm:items-center
             lg:justify-start
           "
-          onClick={() => { limpiarEstadoTemporal(); onClose(); }}
+          onClick={() => { limpiarEstadoTemporal(); resetForm(); onClose && onClose(); }}
           variants={overlayVariants}
           initial="hidden"
           animate="visible"
@@ -173,7 +172,7 @@ const LoginModal = ({ isOpen, onClose }) => {
           >
             {/* Botón cerrar */}
             <button
-              onClick={() => { limpiarEstadoTemporal(); onClose(); }}
+              onClick={() => { limpiarEstadoTemporal(); resetForm(); onClose && onClose(); }}
               className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 bg-gray-100 rounded-full p-2 transition"
               aria-label="Cerrar"
             >
@@ -188,7 +187,7 @@ const LoginModal = ({ isOpen, onClose }) => {
             <form onSubmit={handleSubmit}>
               <input
                 type="text"
-                placeholder="Correo Electrónico o Usuario"
+                placeholder="Correo electrónico"
                 value={correo}
                 onChange={(e) => setCorreo(e.target.value)}
                 className="w-full border border-gray-300 rounded-xl px-4 py-3 mb-2 text-base focus:outline-none focus:ring-2 focus:ring-blue-400"
@@ -221,7 +220,7 @@ const LoginModal = ({ isOpen, onClose }) => {
             </form>
             <div className="my-3 border-t border-gray-200" />
             <div className="flex flex-col gap-2">
-              <GoogleLoginButton modo="login" onClose={() => { limpiarEstadoTemporal(); onClose(); }} />
+              <GoogleLoginButton modo="login" onClose={() => { limpiarEstadoTemporal(); resetForm(); onClose && onClose(); }} />
               <button
                 onClick={handleFacebookLogin}
                 className="relative flex items-center justify-center bg-white border border-gray-300 text-gray-900 text-base py-3 px-4 rounded-xl hover:bg-gray-100 transition w-full"

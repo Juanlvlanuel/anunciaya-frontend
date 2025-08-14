@@ -1,4 +1,5 @@
-// GoogleLoginButtonDesktop.jsx (sincronizado con Mobile)
+// GoogleLoginButtonDesktop-2.jsx (nonce-enabled)
+// Basado en tu GoogleLoginButtonDesktop.jsx actual.
 import React, { useContext } from "react";
 import { GoogleLogin } from "@react-oauth/google";
 import axios from "axios";
@@ -11,6 +12,43 @@ const limpiarEstadoTemporal = () => {
   localStorage.removeItem("perfilCuentaIntentada");
 };
 
+// Obtiene tipo/perfil desde props o desde localStorage (respaldo)
+const obtenerTipoYPerfil = (propTipo, propPerfil) => {
+  let t = propTipo;
+  let p = propPerfil;
+  try {
+    if (!t) {
+      t =
+        localStorage.getItem("tipoCuentaRegistro") ||
+        localStorage.getItem("tipoCuentaIntentada") ||
+        null;
+    }
+    if (!p) {
+      const crudo =
+        localStorage.getItem("perfilCuentaRegistro") ||
+        localStorage.getItem("perfilCuentaIntentada") ||
+        null;
+      if (crudo) {
+        try {
+          const parsed = JSON.parse(crudo);
+          p = parsed;
+        } catch {
+          p = { perfil: crudo };
+        }
+      }
+    }
+  } catch {}
+  if (p && typeof p === "string") p = { perfil: p };
+  return { tipo: t, perfil: p };
+};
+
+// === nonce aleatorio por intento (anti-replay/CSRF) ===
+const genNonce = () => {
+  const bytes = new Uint8Array(16);
+  window.crypto.getRandomValues(bytes);
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
+};
+
 const GoogleLoginButtonDesktop = ({
   onClose,
   onRegistroExitoso,
@@ -19,10 +57,11 @@ const GoogleLoginButtonDesktop = ({
   perfil,
 }) => {
   const { iniciarSesion } = useContext(AuthContext);
+  const nonce = genNonce();
 
   const handleSuccess = async (credentialResponse) => {
     try {
-      limpiarEstadoTemporal();
+      const { tipo: tipoEfectivo, perfil: perfilEfectivo } = obtenerTipoYPerfil(tipo, perfil);
 
       const { credential } = credentialResponse || {};
       if (!credential) {
@@ -31,8 +70,9 @@ const GoogleLoginButtonDesktop = ({
 
       const body = {
         credential,
-        ...(modo === "registro" && tipo ? { tipo } : {}),
-        ...(modo === "registro" && perfil?.perfil ? { perfil: perfil.perfil } : {}),
+        nonce, // << enviar el mismo nonce que se pasó al componente Google
+        ...(modo === "registro" && tipoEfectivo ? { tipo: tipoEfectivo } : {}),
+        ...(modo === "registro" && perfilEfectivo?.perfil ? { perfil: perfilEfectivo.perfil } : {}),
       };
 
       const res = await axios.post(`${API_BASE}/api/usuarios/google`, body);
@@ -45,7 +85,6 @@ const GoogleLoginButtonDesktop = ({
 
         const partes = res.data.usuario?.nombre?.split(" ") || [];
         const nombreMostrado = partes.slice(0, 2).join(" ") || "Usuario";
-
         const checkSVG = `
 <svg width="54" height="54" fill="none" xmlns="http://www.w3.org/2000/svg">
   <circle cx="27" cy="27" r="27" fill="%23e6faf0"/>
@@ -121,7 +160,7 @@ const GoogleLoginButtonDesktop = ({
         icon: "info",
         title:
           mensaje.toLowerCase().includes("registrada") ||
-          mensaje.toLowerCase().includes("existe")
+            mensaje.toLowerCase().includes("existe")
             ? "Cuenta ya existente"
             : "Aviso",
         text: mensaje,
@@ -144,7 +183,7 @@ const GoogleLoginButtonDesktop = ({
           });
         }}
         ux_mode="popup"
-        // sin width="100%"; el contenedor maneja el ancho
+        nonce={nonce} // << importante: pasar nonce al componente
       />
     </div>
   );

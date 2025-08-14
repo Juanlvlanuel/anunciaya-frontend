@@ -1,4 +1,5 @@
-// GoogleLoginButtonMobile.jsx (corregido)
+// GoogleLoginButtonMobile-2.jsx (nonce-enabled)
+// Basado en tu GoogleLoginButtonMobile.jsx actual.
 import React, { useContext } from "react";
 import { GoogleLogin } from "@react-oauth/google";
 import axios from "axios";
@@ -11,6 +12,43 @@ const limpiarEstadoTemporal = () => {
   localStorage.removeItem("perfilCuentaIntentada");
 };
 
+// Obtiene tipo/perfil desde props o desde localStorage (respaldo)
+const obtenerTipoYPerfil = (propTipo, propPerfil) => {
+  let t = propTipo;
+  let p = propPerfil;
+  try {
+    if (!t) {
+      t =
+        localStorage.getItem("tipoCuentaRegistro") ||
+        localStorage.getItem("tipoCuentaIntentada") ||
+        null;
+    }
+    if (!p) {
+      const crudo =
+        localStorage.getItem("perfilCuentaRegistro") ||
+        localStorage.getItem("perfilCuentaIntentada") ||
+        null;
+      if (crudo) {
+        try {
+          const parsed = JSON.parse(crudo);
+          p = parsed;
+        } catch {
+          p = { perfil: crudo };
+        }
+      }
+    }
+  } catch { }
+  if (p && typeof p === "string") p = { perfil: p };
+  return { tipo: t, perfil: p };
+};
+
+// nonce por intento
+const genNonce = () => {
+  const bytes = new Uint8Array(16);
+  window.crypto.getRandomValues(bytes);
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
+};
+
 const GoogleLoginButtonMobile = ({
   onClose,
   onRegistroExitoso,
@@ -19,21 +57,23 @@ const GoogleLoginButtonMobile = ({
   perfil,
 }) => {
   const { iniciarSesion } = useContext(AuthContext);
+  const nonce = genNonce();
 
   const handleSuccess = async (credentialResponse) => {
     try {
-      limpiarEstadoTemporal();
+      const { tipo: tipoEfectivo, perfil: perfilEfectivo } = obtenerTipoYPerfil(tipo, perfil);
 
-      const { credential } = credentialResponse;
-      let body = { credential };
+      const { credential } = credentialResponse || {};
+      if (!credential) {
+        throw new Error("No se recibió la credencial de Google.");
+      }
+      let body = { credential, nonce };
 
       // 🔵 SOLO manda tipo/perfil en modo REGISTRO
       if (modo === "registro") {
-        if (tipo) body.tipo = tipo;
-        if (perfil && perfil.perfil) body.perfil = perfil.perfil;
+        if (tipoEfectivo) body.tipo = tipoEfectivo;
+        if (perfilEfectivo && perfilEfectivo.perfil) body.perfil = perfilEfectivo.perfil;
       }
-
-      // ✅ ahora siempre usa API_BASE
       const res = await axios.post(`${API_BASE}/api/usuarios/google`, body);
 
       if (res.status === 200 && res.data?.token) {
@@ -113,22 +153,22 @@ const GoogleLoginButtonMobile = ({
       }
 
     } catch (err) {
-      const mensaje = err?.response?.data?.mensaje || "Error con autenticación Google";
+      const mensaje = err?.response?.data?.mensaje || err?.message || "Error con autenticación Google";
       limpiarEstadoTemporal();
       if (
-        mensaje.toLowerCase().includes("registrada") ||
-        mensaje.toLowerCase().includes("existe")
+        typeof mensaje === "string" &&
+        (mensaje.toLowerCase().includes("registrada") || mensaje.toLowerCase().includes("existe"))
       ) {
         Swal.fire({
           icon: "info",
-          title: "Cuenta ya Existente",
+          title: "Cuenta ya existente",
           text: mensaje,
           customClass: { popup: "rounded-md" }
         });
       } else {
         Swal.fire({
-          icon: "info",
-          title: "Cuenta ya Existente",
+          icon: "error",
+          title: "Google Login",
           text: mensaje,
           customClass: { popup: "rounded-md" }
         });
@@ -150,7 +190,7 @@ const GoogleLoginButtonMobile = ({
           });
         }}
         ux_mode="popup"
-        // ❌ width eliminado para evitar warning; controlado por el contenedor
+        nonce={nonce} // << pasar el nonce al componente
       />
     </div>
   );

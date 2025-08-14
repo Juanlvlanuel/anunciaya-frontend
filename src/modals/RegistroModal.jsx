@@ -1,16 +1,61 @@
-// ✅ src/modals/RegistroModal.jsx (MÓVIL CENTRADO Y PROPORCIONES MEJORADAS)
+// ✅ src/modals/RegistroModal.jsx (MÓVIL CENTRADO Y PROPORCIONES MEJORADAS) — corregido con limpieza de inputs
 import React, { useState, useEffect, useContext } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FaTimes, FaEye, FaEyeSlash } from "react-icons/fa";
 import Swal from "sweetalert2";
 import axios from "axios";
+import { API_BASE } from "../services/api";
 import GoogleLoginButton from "../components/GoogleLoginButton_Custom";
 import FacebookLoginButton from "../components/FacebookLoginButton";
 import { AuthContext } from "../context/AuthContext";
 
+// Limpia posibles llaves usadas en intentos previos
 const limpiarEstadoTemporal = () => {
-  localStorage.removeItem("tipoCuentaIntentada");
-  localStorage.removeItem("perfilCuentaIntentada");
+  try {
+    localStorage.removeItem("tipoCuentaRegistro");
+    localStorage.removeItem("perfilCuentaRegistro");
+    localStorage.removeItem("tipoCuentaIntentada");
+    localStorage.removeItem("perfilCuentaIntentada");
+  } catch {}
+};
+
+// Obtiene tipo/perfil desde props o desde localStorage (compat)
+const obtenerTipoYPerfil = (propTipo, propPerfil) => {
+  let t = propTipo;
+  let p = propPerfil;
+
+  // Si no vienen por props, intentar recuperar del storage (claves actuales y legacy)
+  try {
+    if (!t) {
+      t =
+        localStorage.getItem("tipoCuentaRegistro") ||
+        localStorage.getItem("tipoCuentaIntentada") ||
+        null;
+    }
+    if (!p) {
+      const crudo =
+        localStorage.getItem("perfilCuentaRegistro") ||
+        localStorage.getItem("perfilCuentaIntentada") ||
+        null;
+
+      if (crudo) {
+        // Puede ser JSON con { perfil: 'x', ... } o un string directamente
+        try {
+          const parsed = JSON.parse(crudo);
+          p = parsed;
+        } catch {
+          p = { perfil: crudo };
+        }
+      }
+    }
+  } catch {}
+
+  // Normalizar: asegurar que p tenga .perfil
+  if (p && typeof p === "string") {
+    p = { perfil: p };
+  }
+
+  return { tipo: t, perfil: p };
 };
 
 const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => {
@@ -21,29 +66,51 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
 
   const { iniciarSesion } = useContext(AuthContext);
 
+  const resetForm = () => {
+    setNombre("");
+    setCorreo("");
+    setPassword("");
+    setMostrarPassword(false);
+  };
+
+  // Al abrir/cerrar, limpiar inputs (pero no borres tipo/perfil del storage; sirven de respaldo)
   useEffect(() => {
     if (isOpen) {
-      limpiarEstadoTemporal();
-      setNombre("");
-      setCorreo("");
-      setPassword("");
+      resetForm();
+    } else {
+      // También al cerrar, por si el estado persiste en memoria
+      resetForm();
     }
-    return () => limpiarEstadoTemporal();
     // eslint-disable-next-line
   }, [isOpen]);
 
   const handleClose = () => {
+    // Limpia al cerrar manualmente
     limpiarEstadoTemporal();
-    setNombre("");
-    setCorreo("");
-    setPassword("");
+    resetForm();
     if (onClose) onClose();
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!nombre || !correo || !password || !tipo || !perfil || !perfil.perfil) {
+    const { tipo: tipoEfectivo, perfil: perfilEfectivo } = obtenerTipoYPerfil(
+      tipo,
+      perfil
+    );
+
+    const nombreOk = (nombre || "").trim();
+    const correoOk = (correo || "").trim();
+    const passOk = (password || "").trim();
+
+    if (
+      !nombreOk ||
+      !correoOk ||
+      !passOk ||
+      !tipoEfectivo ||
+      !perfilEfectivo ||
+      !perfilEfectivo.perfil
+    ) {
       Swal.fire({
         icon: "warning",
         title: "Datos incompletos",
@@ -54,16 +121,15 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
 
     try {
       const res = await axios.post(
-  `${import.meta.env.VITE_API_URL}/api/usuarios/registro`,
-  {
-    nombre,
-    correo,
-    contraseña: password,
-    tipo,
-    perfil: perfil.perfil,
-  }
-);
-
+        `${API_BASE}/api/usuarios/registro`,
+        {
+          nombre: nombreOk,
+          correo: correoOk,
+          contraseña: passOk,
+          tipo: tipoEfectivo,
+          perfil: perfilEfectivo.perfil,
+        }
+      );
 
       if (res.status === 200 && res.data?.token && res.data?.usuario) {
         iniciarSesion(res.data.token, res.data.usuario);
@@ -74,19 +140,19 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
           text: "Tu cuenta ha sido registrada y ya iniciaste sesión.",
         });
 
+        // Limpia al terminar correctamente
         limpiarEstadoTemporal();
-        setNombre("");
-        setCorreo("");
-        setPassword("");
+        resetForm();
         if (onClose) onClose();
         if (onRegistroExitoso) onRegistroExitoso();
       }
     } catch (err) {
-      const mensaje = err?.response?.data?.mensaje || "Error desconocido";
-      limpiarEstadoTemporal();
+      const mensaje = err?.response?.data?.mensaje || err?.message || "Error desconocido";
+      // ⚠️ Ya no limpiamos tipo/perfil aquí para permitir reintento inmediato
       if (
-        mensaje.toLowerCase().includes("registrado") ||
-        mensaje.toLowerCase().includes("existe")
+        typeof mensaje === "string" &&
+        (mensaje.toLowerCase().includes("registrado") ||
+          mensaje.toLowerCase().includes("existe"))
       ) {
         Swal.fire({
           icon: "info",
@@ -102,6 +168,12 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
       }
     }
   };
+
+  // Para los botones sociales, también pasar tipo/perfil efectivos
+  const { tipo: tipoEfectivoBtn, perfil: perfilEfectivoBtn } = obtenerTipoYPerfil(
+    tipo,
+    perfil
+  );
 
   return (
     <AnimatePresence>
@@ -200,8 +272,8 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
                 onClose={handleClose}
                 onRegistroExitoso={onRegistroExitoso}
                 modo="registro"
-                tipo={tipo}
-                perfil={perfil}
+                tipo={tipoEfectivoBtn}
+                perfil={perfilEfectivoBtn}
               />
               <FacebookLoginButton />
             </div>

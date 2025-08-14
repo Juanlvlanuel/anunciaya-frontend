@@ -45,65 +45,67 @@ const SeleccionPerfilModal = ({
   tipoCuenta: tipoCuentaProp = null,
   onSeleccionarPerfil,
 }) => {
+  // Determinar tipo de cuenta usando prop o storage actualizado
   const tipoCuenta =
-    tipoCuentaProp || localStorage.getItem("tipoCuentaIntentada") || "usuario";
+    tipoCuentaProp ||
+    localStorage.getItem("tipoCuentaRegistro") ||
+    "usuario";
 
+  // Limpia claves viejas al cerrar
   const handleClose = () => {
-    localStorage.removeItem("tipoCuentaIntentada");
+    try {
+      localStorage.removeItem("tipoCuentaIntentada");
+      localStorage.removeItem("perfilCuentaIntentada");
+    } catch {}
     onClose && onClose();
   };
 
+  // Guardar perfil seleccionado como objeto en storage
   const handleSeleccion = (perfilObj) => {
-    localStorage.removeItem("tipoCuentaIntentada");
+    try {
+      localStorage.setItem("perfilCuentaRegistro", JSON.stringify({ perfil: perfilObj.perfil }));
+    } catch {}
     if (onSeleccionarPerfil) onSeleccionarPerfil(perfilObj);
+    onClose?.();
   };
 
   useEffect(() => {
     return () => {
-      localStorage.removeItem("tipoCuentaIntentada");
+      try {
+        localStorage.removeItem("tipoCuentaIntentada");
+        localStorage.removeItem("perfilCuentaIntentada");
+      } catch {}
     };
   }, []);
 
   const perfiles = perfilesPorTipo[tipoCuenta] || [];
 
   // ===== CLASES POR VISTA =====
-  // Base móvil
   const modalMobileBase =
     "w-[calc(100vw-60px)] mx-[30px] pt-3 pb-2 px-2 rounded-2xl";
-
-  // Solo móvil: usuario (2 cards) se queda igual; comerciante (3 cards) baja un poco
   const modalMobileUsuario = `${modalMobileBase} mt-[-250px] sm:mt-0`;
   const modalMobileComerciante = `${modalMobileBase} mt-[-83px] sm:mt-0`;
-
-  // Selección condicional (¡esta variable es la que se usa abajo!)
   const modalMobile =
     tipoCuenta === "comerciante" ? modalMobileComerciante : modalMobileUsuario;
-
-  // Desktop
   const modalDesktop = "sm:w-[450px] sm:h-[460px] sm:rounded-3xl sm:p-8 lg:ml-[70px] lg:-mb-[55px]";
 
-  // GRID DE CARDS
   const gridMobile = "flex flex-col items-center gap-3";
   const gridDesktop =
     perfiles.length === 2
       ? "sm:grid sm:grid-cols-2 sm:gap-4 sm:justify-items-center sm:w-full"
       : "sm:grid sm:grid-cols-3 sm:gap-6 sm:justify-items-center sm:w-full";
 
-  // TARJETA AZUL
   const cardMobile = "w-[82%] min-h-[70px] py-2 px-2 mx-auto";
   const cardDesktop =
     perfiles.length === 2
       ? "sm:w-full sm:max-w-[220px] sm:min-h-[200px] sm:py-6"
       : "sm:w-full sm:max-w-[210px] sm:min-h-[200px] sm:py-6";
 
-  // BOTÓN ELEGIR
   const btnMobile = "w-auto mx-auto px-4 py-2";
   const btnDesktop = "sm:w-full sm:px-3 sm:py-2";
 
-  // TEXTO CARD
   const textoCard = "text-center leading-tight text-[15px] sm:text-[16px]";
 
-  // Animaciones
   const containerVariants = {
     hidden: {},
     visible: { transition: { staggerChildren: 0.17 } },
