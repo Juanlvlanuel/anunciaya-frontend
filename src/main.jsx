@@ -17,6 +17,8 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 
 // Env
 const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+console.log("GOOGLE_CLIENT_ID en PROD =>", clientId);
+
 const USER_ID = import.meta.env.VITE_TEST_USER_ID;
 
 const Root = () => {
