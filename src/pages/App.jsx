@@ -8,7 +8,7 @@ import PanelAdministrativo from "../layouts/PanelAdministrativo";
 // 🔵 estilos twemoji (añadido)
 import "../styles/chat-twemoji.css";
 // 🔵 Barra de herramientas (SIEMPRE montada)
-import ToolsSidebar from "../components/ToolsSidebar";
+import { Tools } from "../components/Tools";
 
 // Páginas públicas MODERNAS (solo las válidas)
 import HomeSelector from "../components/HomeSelector";
@@ -98,7 +98,7 @@ function App() {
       </Routes>
 
       {/* 🧰 Barra de herramientas global */}
-      <ToolsSidebar />
+      <Tools />
 
       {typeof window !== "undefined" && (
         <LoginModal

@@ -1,4 +1,7 @@
-// ✅ src/modals/RegistroModal.jsx (MÓVIL CENTRADO Y PROPORCIONES MEJORADAS) — corregido con limpieza de inputs
+// ✅ src/modals/RegistroModal-1.jsx
+// Cambios: acepta 201 además de 200 y muestra `mensaje` del backend en errores 409.
+// Mantiene diseño y flujo original.
+
 import React, { useState, useEffect, useContext } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FaTimes, FaEye, FaEyeSlash } from "react-icons/fa";
@@ -24,7 +27,6 @@ const obtenerTipoYPerfil = (propTipo, propPerfil) => {
   let t = propTipo;
   let p = propPerfil;
 
-  // Si no vienen por props, intentar recuperar del storage (claves actuales y legacy)
   try {
     if (!t) {
       t =
@@ -39,7 +41,6 @@ const obtenerTipoYPerfil = (propTipo, propPerfil) => {
         null;
 
       if (crudo) {
-        // Puede ser JSON con { perfil: 'x', ... } o un string directamente
         try {
           const parsed = JSON.parse(crudo);
           p = parsed;
@@ -50,7 +51,6 @@ const obtenerTipoYPerfil = (propTipo, propPerfil) => {
     }
   } catch {}
 
-  // Normalizar: asegurar que p tenga .perfil
   if (p && typeof p === "string") {
     p = { perfil: p };
   }
@@ -73,19 +73,16 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
     setMostrarPassword(false);
   };
 
-  // Al abrir/cerrar, limpiar inputs (pero no borres tipo/perfil del storage; sirven de respaldo)
   useEffect(() => {
     if (isOpen) {
       resetForm();
     } else {
-      // También al cerrar, por si el estado persiste en memoria
       resetForm();
     }
     // eslint-disable-next-line
   }, [isOpen]);
 
   const handleClose = () => {
-    // Limpia al cerrar manualmente
     limpiarEstadoTemporal();
     resetForm();
     if (onClose) onClose();
@@ -128,10 +125,19 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
           contraseña: passOk,
           tipo: tipoEfectivo,
           perfil: perfilEfectivo.perfil,
+        },
+        {
+          withCredentials: true,
+          headers: { "Content-Type": "application/json" },
         }
       );
 
-      if (res.status === 200 && res.data?.token && res.data?.usuario) {
+      const ok =
+        (res.status === 200 || res.status === 201) &&
+        res.data?.token &&
+        res.data?.usuario;
+
+      if (ok) {
         iniciarSesion(res.data.token, res.data.usuario);
 
         await Swal.fire({
@@ -140,36 +146,45 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
           text: "Tu cuenta ha sido registrada y ya iniciaste sesión.",
         });
 
-        // Limpia al terminar correctamente
         limpiarEstadoTemporal();
         resetForm();
         if (onClose) onClose();
         if (onRegistroExitoso) onRegistroExitoso();
+        return;
       }
+
+      // Fallback por si algún proxy altera el status pero envía token
+      if (res.data?.token && res.data?.usuario) {
+        iniciarSesion(res.data.token, res.data.usuario);
+        limpiarEstadoTemporal();
+        resetForm();
+        if (onClose) onClose();
+        if (onRegistroExitoso) onRegistroExitoso();
+        return;
+      }
+
+      Swal.fire({
+        icon: "warning",
+        title: "Error en el registro",
+        text: "No se recibió respuesta válida del servidor.",
+      });
     } catch (err) {
-      const mensaje = err?.response?.data?.mensaje || err?.message || "Error desconocido";
-      // ⚠️ Ya no limpiamos tipo/perfil aquí para permitir reintento inmediato
-      if (
-        typeof mensaje === "string" &&
-        (mensaje.toLowerCase().includes("registrado") ||
-          mensaje.toLowerCase().includes("existe"))
-      ) {
-        Swal.fire({
-          icon: "info",
-          title: "Esta cuenta ya Existe",
-          text: mensaje,
-        });
-      } else {
-        Swal.fire({
-          icon: "warning",
-          title: "Error en el registro",
-          text: mensaje,
-        });
-      }
+      const data = err?.response?.data || {};
+      const mensaje =
+        data?.mensaje ||
+        data?.error?.mensaje ||
+        data?.error?.message ||
+        err?.message ||
+        "Error desconocido";
+
+      Swal.fire({
+        icon: "warning",
+        title: "Error en el registro",
+        text: String(mensaje),
+      });
     }
   };
 
-  // Para los botones sociales, también pasar tipo/perfil efectivos
   const { tipo: tipoEfectivoBtn, perfil: perfilEfectivoBtn } = obtenerTipoYPerfil(
     tipo,
     perfil
@@ -191,7 +206,7 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
     px-5 py-7 relative flex flex-col justify-center gap-4
     sm:w-[420px] sm:px-8 sm:mx-0
     mx-auto  lg:-ml-[1360px] lg:-mb-[55px]
-    mt-[-130px] sm:mt-0   /* ← ajusta este número a tu gusto */
+    mt-[-130px] sm:mt-0
   "
             initial={{ y: 50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -200,9 +215,6 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
             onClick={(e) => e.stopPropagation()}
             style={{ boxShadow: "0 6px 32px 0 rgba(16,30,54,0.15)" }}
           >
-
-
-            {/* Botón cerrar */}
             <button
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 bg-gray-100 rounded-full p-2 transition"
               onClick={handleClose}

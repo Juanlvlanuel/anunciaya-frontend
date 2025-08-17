@@ -22,14 +22,14 @@ const ALL_TEMPLATES = [
   { id: "empleo-vacante", group: "Empleos", label: "Vacante", icon: bolsaIcon, to: "/publicar?cat=empleos&type=vacante" },
 ];
 
-function byGroup(list){
+function byGroup(list) {
   return list.reduce((acc, t) => {
     (acc[t.group] = acc[t.group] || []).push(t);
     return acc;
   }, {});
 }
 
-export default function TemplatePickerModal({ open, onClose, onSelect, allowed = null }){
+export default function TemplatePickerModal({ open, onClose, onSelect, allowed = null }) {
   const items = Array.isArray(allowed) && allowed.length
     ? ALL_TEMPLATES.filter(t => allowed.includes(t.id))
     : ALL_TEMPLATES;
@@ -51,7 +51,7 @@ export default function TemplatePickerModal({ open, onClose, onSelect, allowed =
             initial={{ y: 24, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 24, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 260, damping: 24 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
             className="relative w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl bg-white/95 backdrop-blur-md border border-slate-200 p-4 max-h-[85vh] overflow-y-auto"
           >
             <div className="text-base font-semibold text-slate-800 mb-2">Elige qué quieres publicar</div>
@@ -67,7 +67,13 @@ export default function TemplatePickerModal({ open, onClose, onSelect, allowed =
                         onClick={() => onSelect?.(t)}
                         className="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-2 hover:bg-slate-50 transition active:scale-[0.99]"
                       >
-                        <img src={t.icon} alt="" className="h-8 w-8 object-contain group-hover:scale-110 transition-transform" />
+                        <img
+                          src={t.icon}
+                          alt=""
+                          className="h-8 w-8 object-contain group-hover:scale-110 transition-transform"
+                          loading="lazy"
+                        />
+
                         <div className="text-sm text-slate-800">{t.label}</div>
                       </button>
                     ))}
