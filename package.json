@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
   "dev": "vite",
-  "build": "vite build",
+  "build": "cross-env ROLLUP_SKIP_NODEJS_NATIVE=1 vite build",
   "preview": "vite preview"
   },
   
