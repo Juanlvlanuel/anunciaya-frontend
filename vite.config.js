@@ -1,10 +1,11 @@
+// vite.config.js
 import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react-swc';
+import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
   server: {
-    host: 'localhost',
+    host: 'localhost',        // o true / '0.0.0.0' si quieres exponer en LAN
     port: 5173,
     strictPort: true,
     watch: { usePolling: false },
@@ -15,22 +16,22 @@ export default defineConfig({
         target: 'http://localhost:5000',
         changeOrigin: true,
         secure: false,
+        // hace que la cookie no traiga Domain=... (necesario en localhost)
         cookieDomainRewrite: '',
-        cookiePathRewrite: {
-          '/api/usuarios/auth/refresh': '/api/usuarios/auth/refresh',
-        },
-        configure: (proxy, options) => {
-          proxy.on('proxyRes', function (proxyRes, req, res) {
-            const key = 'set-cookie';
-            proxyRes.headers[key] = proxyRes.headers[key] && proxyRes.headers[key].map(cookie => {
-              // Fuerza dominio vacío para que se guarde en localhost:5173
-              return cookie.replace(/Domain=[^;]+;?\s*/i, '');
-            });
-          });
-        }
-      }
-    }
+        // fuerza Path=/ en las cookies
+        cookiePathRewrite: '/'
+      },
 
+      // Sólo si en local usas socket.io contra el backend
+      // '/socket.io': {
+      //   target: 'http://localhost:5000',
+      //   ws: true,
+      //   changeOrigin: true,
+      //   secure: false,
+      //   cookieDomainRewrite: '',
+      //   cookiePathRewrite: '/'
+      // }
+    }
   },
   optimizeDeps: {
     include: [
