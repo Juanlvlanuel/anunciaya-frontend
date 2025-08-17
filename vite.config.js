@@ -18,14 +18,14 @@ export default defineConfig({
         cookiePathRewrite: {
           '/api/usuarios/auth/refresh': '/api/usuarios/auth/refresh'
         },
-        configure(proxy) {
+        configure: (proxy) => {
           proxy.on('proxyRes', (proxyRes) => {
             const key = 'set-cookie';
-            if (proxyRes.headers[key]) {
-              proxyRes.headers[key] = proxyRes.headers[key].map((cookie) =>
+            proxyRes.headers[key] =
+              proxyRes.headers[key] &&
+              proxyRes.headers[key].map((cookie) =>
                 cookie.replace(/Domain=[^;]+;?\s*/i, '')
               );
-            }
           });
         }
       }
