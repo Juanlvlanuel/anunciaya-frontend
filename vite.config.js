@@ -1,5 +1,5 @@
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
@@ -16,17 +16,17 @@ export default defineConfig({
         secure: false,
         cookieDomainRewrite: '',
         cookiePathRewrite: {
-          '/api/usuarios/auth/refresh': '/api/usuarios/auth/refresh'
+          '/api/usuarios/auth/refresh': '/api/usuarios/auth/refresh',
         },
         configure: (proxy) => {
           proxy.on('proxyRes', (proxyRes) => {
-            const key = 'set-cookie';
+            const key = 'set-cookie'
             proxyRes.headers[key] =
               proxyRes.headers[key] &&
               proxyRes.headers[key].map((cookie) =>
                 cookie.replace(/Domain=[^;]+;?\s*/i, '')
-              );
-          });
+              )
+          })
         }
       }
     }
@@ -43,4 +43,4 @@ export default defineConfig({
     ]
   },
   css: { devSourcemap: false }
-});
+})
