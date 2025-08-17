@@ -56,10 +56,32 @@ export default function ChatListMobile({ onSelectChat }) {
     return p?.nickname || p?.nombre || chat?.nombre || "Contacto";
   };
 
+  // ---------- SOLO CAMBIO: criterio para ocultar solo chats realmente "vacíos" ----------
+  // Consideramos que HAY mensaje si:
+  //  - ultimoMensaje existe (string no vacío o cualquier objeto)
+  //  - o totalMensajes > 0
+  //  - o mensajes[] tiene elementos
+  // Esto asegura que, si borraste el chat "para mí" y luego llega un mensaje nuevo,
+  // el chat volverá a aparecer aunque el backend aún no rellene 'texto'.
+  const hasAnyMessage = (c) => {
+    if (!c) return false;
+    const um = c?.ultimoMensaje;
+    if (um !== undefined && um !== null) {
+      if (typeof um === "string") return um.trim() !== "";
+      // si es objeto, asumimos que existe un último mensaje (aunque sea emoji/archivo)
+      return true;
+    }
+    if (typeof c?.totalMensajes === "number") return c.totalMensajes > 0;
+    if (Array.isArray(c?.mensajes)) return c.mensajes.length > 0;
+    return false;
+  };
+  // --------------------------------------------------------------------------------------
+
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
-    if (!term) return chats;
-    return chats.filter((c) => {
+    const base = (Array.isArray(chats) ? chats : []).filter(hasAnyMessage);
+    if (!term) return base;
+    return base.filter((c) => {
       const p = getPartner(c);
       const name = (p?.nombre || "").toLowerCase();
       const nick = (p?.nickname || "").toLowerCase();

@@ -8,9 +8,29 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     watch: { usePolling: false },
-    hmr: {
-      overlay: false // ⬅️ evita que el overlay interrumpa en errores de desarrollo
+    hmr: { overlay: false },
+
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false,
+        cookieDomainRewrite: '',
+        cookiePathRewrite: {
+          '/api/usuarios/auth/refresh': '/api/usuarios/auth/refresh',
+        },
+        configure: (proxy, options) => {
+          proxy.on('proxyRes', function (proxyRes, req, res) {
+            const key = 'set-cookie';
+            proxyRes.headers[key] = proxyRes.headers[key] && proxyRes.headers[key].map(cookie => {
+              // Fuerza dominio vacío para que se guarde en localhost:5173
+              return cookie.replace(/Domain=[^;]+;?\s*/i, '');
+            });
+          });
+        }
+      }
     }
+
   },
   optimizeDeps: {
     include: [

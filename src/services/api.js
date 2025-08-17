@@ -48,7 +48,42 @@ if (!resolved) {
 
 export const API_BASE = normalizeBase(resolved);
 
+/* =============== Auto-refresh (single-flight) =============== */
+// Endpoint de refresh absoluto
+const REFRESH_ENDPOINT_PATH = "/api/usuarios/auth/refresh";
+var _refreshingPromise = null;
+
+async function refreshAccessToken() {
+  if (_refreshingPromise) return _refreshingPromise;
+  _refreshingPromise = (async () => {
+    try {
+      const res = await fetch(`${API_BASE}${REFRESH_ENDPOINT_PATH}`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      if (!res.ok) {
+        let msg = "";
+        try { const j = await res.json(); msg = j?.mensaje || j?.error || ""; } catch {}
+        throw new Error(msg || `refresh_failed ${res.status}`);
+      }
+      const data = await res.json().catch(() => ({}));
+      const newToken = data && typeof data.token === "string" ? data.token : null;
+      if (newToken && typeof localStorage !== "undefined") {
+        try { localStorage.setItem("token", newToken); } catch {}
+      }
+      return newToken;
+    } finally {
+      _refreshingPromise = null;
+    }
+  })();
+  return _refreshingPromise;
+}
+
+
 /* =================== Helper JSON =================== */
+
 async function _json(path, opts = {}) {
   const method = (opts.method || "GET").toUpperCase();
   const baseHeaders =
@@ -60,7 +95,7 @@ async function _json(path, opts = {}) {
   const incoming = opts.headers || {};
   const headers = { ...baseHeaders, ...incoming };
 
-  // Auto-attach token si falta Authorization
+  // Adjunta Authorization si falta
   try {
     const hasAuth = Object.keys(headers).some((k) => k.toLowerCase() === "authorization");
     if (!hasAuth && typeof localStorage !== "undefined") {
@@ -70,14 +105,37 @@ async function _json(path, opts = {}) {
   } catch {}
 
   const url = `${API_BASE}${path}`;
-  const res = await fetch(url, {
-    method,
-    ...opts,
-    headers,
-  });
+  const isRefreshCall =
+    String(path).includes(REFRESH_ENDPOINT_PATH) ||
+    String(url).includes(REFRESH_ENDPOINT_PATH);
+
+  const doFetch = async (hdrs) => {
+    const res = await fetch(url, {
+      method,
+      ...opts,
+      headers: hdrs,
+    });
+    return res;
+  };
+
+  // Primer intento
+  let res = await doFetch(headers);
+
+  // Si 401 y no es la ruta de refresh → intentamos refrescar una vez (single-flight)
+  if (res.status === 401 && !isRefreshCall) {
+    try {
+      const newToken = await refreshAccessToken();
+      if (newToken) {
+        const hdrs2 = { ...headers, Authorization: `Bearer ${newToken}` };
+        res = await doFetch(hdrs2);
+      }
+    } catch (e) {
+      // Si el refresh falla, dejamos res como 401 original
+    }
+  }
 
   if (!res.ok) {
-    // Intenta leer JSON de error primero, si no, texto
+    // Devuelve error legible
     let errText = "";
     try {
       const maybeJson = await res.json();
@@ -103,6 +161,7 @@ async function _json(path, opts = {}) {
   }
 }
 
+
 /* =================== HTTP helpers =================== */
 export const getJSON = (p, o = {}) => _json(p, o);
 export const postJSON = (p, b, h = {}) =>
@@ -113,7 +172,7 @@ export const patch = (p, h = {}, b = undefined) => _json(p, { method: "PATCH", h
 /* =================== Chat API =================== */
 export const chatAPI = {
   deleteForMe: (chatId, token) =>
-    del(`/api/chat/${chatId}/me`, { Authorization: `Bearer ${token}` }),
+    del(`/api/chat/${chatId}/me`, {}),
 
   toggleFavorite: (chatId, add, token) =>
     add
@@ -131,7 +190,7 @@ export const chatAPI = {
 
   getPins: (chatId, token) =>
     getJSON(`/api/chat/${chatId}/pins`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: {},
     }),
 
   togglePin: (messageId, add, token) =>
@@ -171,10 +230,10 @@ export function searchUsers(query, { limit = 10, exclude } = {}) {
 }
 
 /* =================== Ensure chat privado =================== */
-export function ensurePrivado(usuarioAId, usuarioBId, anuncioId, token) {
+export function ensurePrivado(usuarioAId, usuarioBId, anuncioId) {
   return postJSON(
     `/api/chat/ensure-privado`,
-    { usuarioAId, usuarioBId, anuncioId },
-    { Authorization: `Bearer ${token}` }
+    { usuarioAId, usuarioBId, anuncioId }
   );
 }
+   

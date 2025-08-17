@@ -1,4 +1,4 @@
-// src/components/Chat/ChatWindow/ChatWindowMobile-1.jsx
+// src/components/Chat/ChatWindow/ChatWindowMobile-4.jsx
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useChat } from "../../../context/ChatContext";
 import MessageMobile from "../Message/MessageMobile";
@@ -9,7 +9,7 @@ function ConfirmModal({ open, title, message, onConfirm, onCancel, confirmText =
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
-      <div className="relative w-[min(420px,92vw)] bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border dark:border-zinc-700 p-5">
+      <div className="relative w-[min(360px,85vw)] bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border dark:border-zinc-700 p-5">
         <div className="text-base font-semibold mb-1">{title}</div>
         <div className="text-sm text-gray-600 dark:text-gray-300 mb-4">{message}</div>
         <div className="flex justify-end gap-2">
@@ -22,29 +22,49 @@ function ConfirmModal({ open, title, message, onConfirm, onCancel, confirmText =
 }
 
 /**
- * ChatWindowMobile-1
- * 
- * Nuevo prop opcional `height` para forzar altura fija e independiente.
- * - Si `height` viene (string o número), usa altura fija y NO crece dentro del padre.
- * - Si no viene, conserva el comportamiento anterior (flex-1/min-h-0).
+ * ChatWindowMobile-4
+ * - Muestra “Escribiendo…” SOLO si escribe el otro usuario.
+ * - Mantiene padding inferior mínimo + scroll-padding-bottom (sin hueco ni parpadeo).
+ * - Auto-scroll robusto.
  */
 export default function ChatWindowMobile({ theme = "light", bgUrl = "", height = null }) {
   const {
     currentUserId,
     activeChatId,
-    chats,
     messages,
     loadMessages,
     typingMap,
     sendMessage,
     editMessageLive,
     deleteMessageLive,
+    chats,
+    blockChat,
+    unblockChat
   } = useChat();
 
   const scrollRef = useRef(null);
   const tailRef = useRef(null);
   const prevLenRef = useRef(0);
-  const [isMobile] = useState(true); // fijo en mobile
+
+
+  // ---- chat activo e indicador de bloqueo
+  const activeChat = useMemo(() => {
+    try { return (chats || []).find(c => String(c?._id) === String(activeChatId)) || null; } catch { return null; }
+  }, [chats, activeChatId]);
+
+  
+const isBlocked = useMemo(() => {
+  const c = activeChat;
+  if (!c) return false;
+  if (typeof c.isBlocked === "boolean") return c.isBlocked;
+  try {
+    const arr = Array.isArray(c.blockedBy) ? c.blockedBy.map(String) : [];
+    return arr.includes(String(currentUserId));
+  } catch { return false; }
+}, [activeChat, currentUserId]);
+
+  // ⬇️ Toggle optimista + confirmación del back
+  
 
   // ---- fijados
   const [pinned, setPinned] = useState([]);
@@ -60,7 +80,7 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
 
   // ---- stick to bottom
   const [isPinnedAtBottom, setIsPinnedAtBottom] = useState(true);
-  const nearBottom = useCallback((t = 120) => {
+  const nearBottom = useCallback((t = 80) => {
     const el = scrollRef.current; if (!el) return true;
     return el.scrollTop + el.clientHeight >= el.scrollHeight - t;
   }, []);
@@ -95,23 +115,6 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [forwardOpen]);
-  const toggleForwardTarget = (chatId) => {
-    setForwardSet((prev) => {
-      const next = new Set(prev);
-      next.has(chatId) ? next.delete(chatId) : next.add(chatId);
-      return next;
-    });
-  };
-  const doForwardNow = () => {
-    if (!forwardOf || forwardSet.size === 0) return;
-    const archivos = Array.isArray(forwardOf.archivos) ? forwardOf.archivos : [];
-    const texto = typeof forwardOf.texto === "string" ? forwardOf.texto : "";
-    for (const cid of forwardSet) {
-      sendMessage({ chatId: cid, emisorId: currentUserId, texto, archivos, forwardOf: { _id: forwardOf._id } });
-    }
-    setForwardOpen(false);
-    setForwardOf(null);
-  };
 
   // ---- reply / pin / delete / edit
   const replyTo = (msg) => { window.dispatchEvent(new CustomEvent("chat:reply", { detail: { message: msg } })); };
@@ -133,7 +136,7 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
       if (!mine) { alert("Solo puedes borrar tus propios mensajes."); return; }
       const token = localStorage.getItem("token");
       await chatAPI.deleteMessage(msg._id, token);
-      try { deleteMessageLive?.(msg._id, () => {}); } catch {}
+      try { deleteMessageLive?.(msg._id, () => { }); } catch { }
       await loadMessages(activeChatId);
       setConfirmDel({ open: false, msg: null });
     } catch (e) { alert(e?.message || "No se pudo borrar el mensaje"); }
@@ -147,7 +150,7 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
       const texto = String(nuevo);
       const token = localStorage.getItem("token");
       await chatAPI.editMessage(msg._id, { texto }, token);
-      try { editMessageLive?.(msg._id, texto, () => {}); } catch {}
+      try { editMessageLive?.(msg._id, texto, () => { }); } catch { }
       await loadMessages(activeChatId);
     } catch (e) { alert(e?.message || "No se pudo editar el mensaje"); }
   };
@@ -175,23 +178,42 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
     return out;
   }, [messages, activeChatId]);
 
-  const typingUser = typingMap[activeChatId];
+  // ---- typing remoto (no yo)
+  const typingValue = typingMap?.[activeChatId];
+  const otherTyping = useMemo(() => {
+    if (!typingValue) return false;
+    if (typeof typingValue === "string" || typeof typingValue === "number") {
+      return String(typingValue) !== String(currentUserId);
+    }
+    if (typeof typingValue === "object") {
+      const uid = typingValue.userId || typingValue.uid || typingValue._id || typingValue.emisorId || typingValue.emisor || typingValue.id;
+      return uid ? String(uid) !== String(currentUserId) : false;
+    }
+    return false;
+  }, [typingValue, currentUserId]);
 
+  // ==== AUTO-SCROLL ROBUSTO ====
   useEffect(() => {
     const prev = prevLenRef.current;
     const curr = list.length;
-    if (curr > prev && isPinnedAtBottom) tailRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    if (curr > prev) {
+      const last = list[curr - 1];
+      const lastIsMine =
+        last &&
+        (String(last?.emisor?._id || last?.emisor || last?.emisorId || "") === String(currentUserId) ||
+          last?.mine === true);
+      if (lastIsMine || isPinnedAtBottom || nearBottom(120)) {
+        tailRef.current?.scrollIntoView({ behavior: prev > 0 ? "smooth" : "auto", block: "end" });
+      }
+    }
     prevLenRef.current = curr;
-  }, [list.length, isPinnedAtBottom]);
-
-  useEffect(() => { if (isPinnedAtBottom) tailRef.current?.scrollIntoView({ behavior: "auto", block: "end" }); }, [typingUser, isPinnedAtBottom]);
+  }, [list, isPinnedAtBottom, nearBottom, currentUserId]);
 
   useEffect(() => {
-    const root = scrollRef.current; if (!root) return;
-    const handler = () => { if (isPinnedAtBottom || nearBottom(160)) tailRef.current?.scrollIntoView({ behavior: "auto", block: "end" }); };
-    root.addEventListener("load", handler, true);
-    return () => root.removeEventListener("load", handler, true);
-  }, [isPinnedAtBottom, nearBottom, list.length]);
+    if (isPinnedAtBottom) {
+      tailRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+    }
+  }, [otherTyping, isPinnedAtBottom]);
 
   const onScroll = useCallback(() => { setPinnedFromScroll(); }, [setPinnedFromScroll]);
   const scrollToBottom = () => tailRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -207,19 +229,27 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
   };
 
   if (!activeChatId) {
-    return <div className={(height ? "" : "flex-1 ") + "grid place-items-center text-sm text-gray-500 dark:text-gray-400"} style={height ? {height} : undefined}>Selecciona un chat</div>;
+    return <div className={(height ? "" : "flex-1 ") + "grid place-items-center text-sm text-gray-500 dark:text-gray-400"} style={height ? { height } : undefined}>Selecciona un chat</div>;
   }
 
   const baseStyle = bgUrl ? { backgroundImage: `url(${bgUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : {};
   const fixedStyle = height ? { ...baseStyle, height } : baseStyle;
   const containerClass = (height ? "" : "flex-1 min-h-0 ") + `overflow-y-auto ${theme === "dark" ? "bg-zinc-900" : "bg-gray-50"} transition-colors`;
 
+  // ====== padding inferior mínimo (sin hueco visible) ======
+  const bottomGapClass = "pb-[max(8px,env(safe-area-inset-bottom))]";
+
   return (
     <div
       ref={scrollRef}
+      data-chat-scroll="true"
       onScroll={onScroll}
       className={containerClass}
-      style={fixedStyle}
+      style={{
+        ...fixedStyle,
+        scrollPaddingBottom: "calc(64px + env(safe-area-inset-bottom))",
+        overflowAnchor: "none"
+      }}
     >
       {pinned.length > 0 && (
         <div className="sticky top-0 z-10 px-3 pt-2 pb-2 backdrop-blur bg-white/70 dark:bg-zinc-900/60 border-b dark:border-zinc-700">
@@ -233,18 +263,36 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
             ))}
           </div>
         </div>
-      )}
+      )} {/* ✅ cierre del bloque de pinned */}
 
-      <div className="px-3 pt-2 pb-[calc(64px+env(safe-area-inset-bottom))] space-y-2">
+      
+{isBlocked && (
+  <div className="sticky top-0 z-10 px-3 py-2 backdrop-blur bg-yellow-50/80 dark:bg-yellow-900/30 border-b border-yellow-200 dark:border-yellow-700">
+    <div className="flex items-center gap-2 text-xs text-yellow-800 dark:text-yellow-200">
+      <div>Has bloqueado este chat. No podrás enviar mensajes ni ver “escribiendo…”.</div>
+    </div>
+  </div>
+)}
+
+      {/* Lista de mensajes */}
+      <div className={`px-3 pt-2 ${bottomGapClass} space-y-2`}>
         {list.map((m, idx) => {
           const id = String(m?._id || `${activeChatId}-${idx}`);
           return (
-            <div key={id} ref={(el) => el && msgRefs.current.set(String(m?._id || id), el)} className="w-full">
+            <div
+              key={id}
+              ref={(el) => el && msgRefs.current.set(String(m?._id || id), el)}
+              className="w-full"
+            >
               <MessageMobile
                 msg={{ ...m, currentUserId }}
                 pinned={pinnedIds.has(String(m?._id))}
                 onTogglePin={onTogglePin}
-                onReply={() => window.dispatchEvent(new CustomEvent("chat:reply", { detail: { message: m } }))}
+                onReply={() =>
+                  window.dispatchEvent(
+                    new CustomEvent("chat:reply", { detail: { message: m } })
+                  )
+                }
                 onForward={(e) => openForwardPanel(m, e)}
                 onDelete={() => askDelete(m)}
                 onEdit={() => onEdit(m)}
@@ -252,7 +300,13 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
             </div>
           );
         })}
-        {typingMap[activeChatId] && <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 px-1">Escribiendo…</div>}
+
+        {otherTyping && (
+          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 px-1">
+            Escribiendo…
+          </div>
+        )}
+
         <div ref={tailRef} />
       </div>
 

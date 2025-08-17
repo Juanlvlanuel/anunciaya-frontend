@@ -1,3 +1,9 @@
+// services/api-1.js (patched)
+// Basado en tu archivo original. Cambios mínimos:
+// 1) _json ahora adjunta automáticamente Authorization: Bearer <token> si no viene en headers.
+// 2) Mantiene API_BASE y helpers igual que tu versión.
+// 3) No cambia endpoints (usa /favorite, NO /_favorite).
+
 // services/api.js
 // ✅ Preferir backend local en desarrollo (localhost o IP de la LAN).
 //    - Respeta VITE_API_BASE si está definida.
@@ -42,7 +48,40 @@ if (!resolved) {
 
 export const API_BASE = normalizeBase(resolved);
 
+/* =============== Auto-refresh (single-flight) =============== */
+// Endpoint de refresh absoluto
+const REFRESH_ENDPOINT_PATH = "/api/usuarios/auth/refresh";
+var _refreshingPromise = null;
+
+async function refreshAccessToken() {
+  if (_refreshingPromise) return _refreshingPromise;
+  _refreshingPromise = (async () => {
+    try {
+      const res = await fetch(`${API_BASE}${REFRESH_ENDPOINT_PATH}`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        let msg = "";
+        try { const j = await res.json(); msg = j?.mensaje || j?.error || ""; } catch {}
+        throw new Error(msg || `refresh_failed ${res.status}`);
+      }
+      const data = await res.json().catch(() => ({}));
+      const newToken = data && typeof data.token === "string" ? data.token : null;
+      if (newToken && typeof localStorage !== "undefined") {
+        try { localStorage.setItem("token", newToken); } catch {}
+      }
+      return newToken;
+    } finally {
+      _refreshingPromise = null;
+    }
+  })();
+  return _refreshingPromise;
+}
+
+
 /* =================== Helper JSON =================== */
+
 async function _json(path, opts = {}) {
   const method = (opts.method || "GET").toUpperCase();
   const baseHeaders =
@@ -50,15 +89,51 @@ async function _json(path, opts = {}) {
       ? {}
       : { "Content-Type": "application/json" };
 
+  // Mezcla de headers
+  const incoming = opts.headers || {};
+  const headers = { ...baseHeaders, ...incoming };
+
+  // Adjunta Authorization si falta
+  try {
+    const hasAuth = Object.keys(headers).some((k) => k.toLowerCase() === "authorization");
+    if (!hasAuth && typeof localStorage !== "undefined") {
+      const token = localStorage.getItem("token");
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+    }
+  } catch {}
+
   const url = `${API_BASE}${path}`;
-  const res = await fetch(url, {
-    method,
-    ...opts,
-    headers: { ...baseHeaders, ...(opts.headers || {}) },
-  });
+  const isRefreshCall =
+    String(path).includes(REFRESH_ENDPOINT_PATH) ||
+    String(url).includes(REFRESH_ENDPOINT_PATH);
+
+  const doFetch = async (hdrs) => {
+    const res = await fetch(url, {
+      method,
+      ...opts,
+      headers: hdrs,
+    });
+    return res;
+  };
+
+  // Primer intento
+  let res = await doFetch(headers);
+
+  // Si 401 y no es la ruta de refresh → intentamos refrescar una vez (single-flight)
+  if (res.status === 401 && !isRefreshCall) {
+    try {
+      const newToken = await refreshAccessToken();
+      if (newToken) {
+        const hdrs2 = { ...headers, Authorization: `Bearer ${newToken}` };
+        res = await doFetch(hdrs2);
+      }
+    } catch (e) {
+      // Si el refresh falla, dejamos res como 401 original
+    }
+  }
 
   if (!res.ok) {
-    // Intenta leer JSON de error primero, si no, texto
+    // Devuelve error legible
     let errText = "";
     try {
       const maybeJson = await res.json();
@@ -84,6 +159,7 @@ async function _json(path, opts = {}) {
   }
 }
 
+
 /* =================== HTTP helpers =================== */
 export const getJSON = (p, o = {}) => _json(p, o);
 export const postJSON = (p, b, h = {}) =>
@@ -94,47 +170,31 @@ export const patch = (p, h = {}, b = undefined) => _json(p, { method: "PATCH", h
 /* =================== Chat API =================== */
 export const chatAPI = {
   deleteForMe: (chatId, token) =>
-    del(`/api/chat/${chatId}/me`, { Authorization: `Bearer ${token}` }),
+    del(`/api/chat/${chatId}/me`),
 
   toggleFavorite: (chatId, add, token) =>
     add
-      ? postJSON(`/api/chat/${chatId}/favorite`, {}, {
-          Authorization: `Bearer ${token}`,
-        })
-      : del(`/api/chat/${chatId}/favorite`, {
-          Authorization: `Bearer ${token}`,
-        }),
+      ? postJSON(`/api/chat/${chatId}/favorite`, {})
+      : del(`/api/chat/${chatId}/favorite`),
 
   toggleFavoritePatch: (chatId, token) =>
-    patch(`/api/chat/${chatId}/favorite`, {
-      Authorization: `Bearer ${token}`,
-    }),
+    patch(`/api/chat/${chatId}/favorite`),
 
   getPins: (chatId, token) =>
-    getJSON(`/api/chat/${chatId}/pins`, {
-      headers: { Authorization: `Bearer ${token}` },
-    }),
+    getJSON(`/api/chat/${chatId}/pins`),
 
   togglePin: (messageId, add, token) =>
     add
-      ? postJSON(`/api/chat/messages/${messageId}/pin`, {}, {
-          Authorization: `Bearer ${token}`,
-        })
-      : del(`/api/chat/messages/${messageId}/pin`, {
-          Authorization: `Bearer ${token}`,
-        }),
+      ? postJSON(`/api/chat/messages/${messageId}/pin`, {})
+      : del(`/api/chat/messages/${messageId}/pin`),
 
   // Editar mensaje
   editMessage: (messageId, body, token) =>
-    patch(`/api/chat/messages/${messageId}`, {
-      Authorization: `Bearer ${token}`,
-    }, body),
+    patch(`/api/chat/messages/${messageId}`, {}, body),
 
   // Borrar mensaje
   deleteMessage: (messageId, token) =>
-    del(`/api/chat/messages/${messageId}`, {
-      Authorization: `Bearer ${token}`,
-    }),
+    del(`/api/chat/messages/${messageId}`),
 };
 
 /* =================== Usuarios =================== */
@@ -155,7 +215,5 @@ export function searchUsers(query, { limit = 10, exclude } = {}) {
 export function ensurePrivado(usuarioAId, usuarioBId, anuncioId, token) {
   return postJSON(
     `/api/chat/ensure-privado`,
-    { usuarioAId, usuarioBId, anuncioId },
-    { Authorization: `Bearer ${token}` }
-  );
+    { usuarioAId, usuarioBId, anuncioId });
 }

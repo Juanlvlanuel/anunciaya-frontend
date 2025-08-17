@@ -1,5 +1,5 @@
 // src/components/Chat/MessageInput/MessageInputMobile.jsx
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FaPaperclip, FaPaperPlane, FaSmile } from "react-icons/fa";
 import { useChat } from "../../../context/ChatContext";
 import EmojiPickerPro from "../EmojiPicker/EmojiPicker";
@@ -8,7 +8,7 @@ import { API_BASE } from "../../../services/api";
 const MAX_SIZE_MB = 10;
 
 export default function MessageInputMobile() {
-  const { currentUserId, activeChatId, sendMessage, setTyping } = useChat();
+  const { currentUserId, activeChatId, sendMessage, setTyping, chats } = useChat();
 
   const [text, setText] = useState("");
   const [uploads, setUploads] = useState([]);
@@ -16,6 +16,17 @@ export default function MessageInputMobile() {
   const [isSending, setIsSending] = useState(false);
   const [showCamera, setShowCamera] = useState(true);
   const [replyTo, setReplyTo] = useState(null);
+
+const isBlocked = useMemo(() => {
+  try {
+    const chat = (chats || []).find(c => String(c?._id) === String(activeChatId));
+    if (!chat) return false;
+    if (typeof chat.isBlocked === "boolean") return chat.isBlocked;
+    const arr = Array.isArray(chat.blockedBy) ? chat.blockedBy.map(String) : [];
+    return arr.includes(String(currentUserId));
+  } catch { return false; }
+}, [chats, activeChatId, currentUserId]);
+
 
   const galleryRef = useRef(null);
   const cameraRef = useRef(null);
@@ -25,7 +36,7 @@ export default function MessageInputMobile() {
 
   const onChange = (e) => {
     setText(e.target.value);
-    if (activeChatId) {
+    if (activeChatId && !isBlocked) {
       setTyping(activeChatId, true);
       clearTimeout(typingTimer.current);
       typingTimer.current = setTimeout(() => setTyping(activeChatId, false), 1200);
@@ -33,7 +44,7 @@ export default function MessageInputMobile() {
   };
 
   const onKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (!isBlocked && e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
@@ -128,6 +139,7 @@ export default function MessageInputMobile() {
   const handleSend = async () => {
     const trimmed = text.trim();
     if (!activeChatId || (!trimmed && uploads.length === 0)) return;
+    if (isBlocked) { alert('Has bloqueado este chat. Desbloquéalo para enviar.'); return; }
     try {
       setIsSending(true);
       const archivos = uploads
@@ -151,6 +163,13 @@ export default function MessageInputMobile() {
 
   return (
     <div className="px-3 pt-2 relative">
+
+{isBlocked && (
+  <div className="mx-2 mb-2 rounded-xl border border-yellow-300 bg-yellow-50/90 text-yellow-900 text-xs px-3 py-2 dark:bg-yellow-900/30 dark:text-yellow-100 dark:border-yellow-700">
+    Has bloqueado este chat. Desbloquéalo para enviar mensajes.
+  </div>
+)}
+
       {replyTo && (
         <div className="mx-2 mb-2 rounded-xl border bg-white/80 dark:bg-zinc-800/80 dark:border-zinc-700 px-3 py-2 flex items-start gap-2">
           <div className="w-1.5 h-8 rounded bg-blue-400 mt-0.5" />
@@ -166,7 +185,7 @@ export default function MessageInputMobile() {
 
       <div className="flex items-center gap-2 h-14 rounded-2xl border bg-white/95 dark:bg-zinc-800/95 dark:border-zinc-700 shadow-[0_4px_16px_rgba(0,0,0,0.06)] px-2">
         <div className="relative" ref={pickerWrapRef}>
-          <button type="button" title="Emoji" onClick={() => setShowEmoji((s) => !s)} className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 dark:text-gray-200 border border-gray-200 dark:border-zinc-600">
+          <button type="button" title="Emoji" onClick={() => !isBlocked && setShowEmoji((s) => !s)} disabled={isBlocked} className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 dark:text-gray-200 border border-gray-200 dark:border-zinc-600">
             <FaSmile className="text-[18px]" />
           </button>
           {showEmoji && (
@@ -176,7 +195,7 @@ export default function MessageInputMobile() {
           )}
         </div>
 
-        <textarea
+        <textarea disabled={isBlocked}
           ref={textareaRef}
           value={text}
           onChange={onChange}
@@ -192,12 +211,12 @@ export default function MessageInputMobile() {
         <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={onPickFiles} />
 
         {showCamera && (
-          <button type="button" onClick={() => cameraRef.current?.click()} title="Tomar foto" className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 dark:text-gray-200 border border-gray-200 dark:border-zinc-600">
+          <button type="button" onClick={() => !isBlocked && cameraRef.current?.click()} disabled={isBlocked} title="Tomar foto" className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 dark:text-gray-200 border border-gray-200 dark:border-zinc-600">
             <span className="text-[18px]">📷</span>
           </button>
         )}
 
-        <button type="button" onClick={() => galleryRef.current?.click()} title="Adjuntar desde galería" className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 dark:text-gray-200 border border-gray-200 dark:border-zinc-600">
+        <button type="button" onClick={() => !isBlocked && galleryRef.current?.click()} disabled={isBlocked} title="Adjuntar desde galería" className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 dark:text-gray-200 border border-gray-200 dark:border-zinc-600">
           <FaPaperclip className="text-[18px]" />
         </button>
 
@@ -206,7 +225,7 @@ export default function MessageInputMobile() {
           onClick={handleSend}
           title="Enviar (Enter) • Nueva línea (Shift+Enter)"
           className="w-11 h-11 grid place-items-center rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
-          disabled={isSending || (!text.trim() && uploads.filter((u) => !u.pending && !u.error).length === 0)}
+          disabled={isBlocked || isSending || (!text.trim() && uploads.filter((u) => !u.pending && !u.error).length === 0)}
         >
           <FaPaperPlane className="text-[18px]" />
         </button>

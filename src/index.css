@@ -27,48 +27,55 @@ html, body { background: transparent !important; }
 
 /* ===== Texto con emojis de color ===== */
 .emoji-text{
-  /* Fallbacks para emojis de cada SO */
   font-family:system-ui,-apple-system,"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",
                "Segoe UI Symbol","Segoe UI",sans-serif !important;
-  writing-mode: horizontal-tb !important; /* fuerza horizontal */
+  writing-mode: horizontal-tb !important;
 }
 
-/* ===== Twemoji tamaño ===== */
+/* ===== Twemoji / Apple datasource ===== */
 .emoji-img{
-  height:1.15em;
-  width:1.15em;
+  height:1.25em;
+  width:1.25em;
   vertical-align:-0.2em;
   display:inline-block;
 }
 
+/* ===== Mensajes SOLO con emojis (estilo WhatsApp: grandes) ===== */
+.emoji-only{
+  font-size:2.6rem !important;    /* grande, muy similar a WhatsApp */
+  line-height:1.1 !important;
+}
+.emoji-only .emoji-img{
+  width:1em;
+  height:1em;
+  vertical-align:middle;
+}
+
 /* ===== Filas de mensajes (alineación) ===== */
 .msg-row{ display:flex; width:100%; }
-.msg-row.out{ justify-content:flex-end; }   /* mis mensajes → derecha */
-.msg-row.in{  justify-content:flex-start; } /* recibidos → izquierda */
+.msg-row.out{ justify-content:flex-end; }
+.msg-row.in{  justify-content:flex-start; }
 
-/* ===== Burbujas sin “escalón” ===== */
+/* ===== Burbujas ===== */
 .msg-bubble{
   display:inline-block;
   max-width:78%;
   padding:10px 12px;
   border-radius:10px;
   line-height:1.4;
-  white-space:pre-wrap;       /* respeta \n, fluye horizontal */
-  word-break:break-word;      /* corta solo palabrotas largas */
+  white-space:pre-wrap;
+  word-break:break-word;
   writing-mode: horizontal-tb !important;
 }
 
-/* Colores por lado */
-.msg-row.out .msg-bubble{
-  background:#2563eb; /* azul */
-  color:#fff;
-}
-.msg-row.in .msg-bubble{
-  background:#ffffff; /* blanco */
-  color:#2563eb;
-}
+.msg-row.out .msg-bubble{ background:#2563eb; color:#fff; }
+.msg-row.in  .msg-bubble{ background:#ffffff; color:#2563eb; }
 
-/* fuerza touch-action en todo el árbol del panel de chat Desktop */
-.fix-touch, .fix-touch * {
-  touch-action: auto !important;
+.fix-touch, .fix-touch * { touch-action: auto !important; }
+
+
+/* Chat scroll container: evita saltos y respeta el input sin hueco extra */
+[data-chat-scroll]{
+  scroll-padding-bottom: calc(64px + env(safe-area-inset-bottom));
+  overflow-anchor: none;
 }

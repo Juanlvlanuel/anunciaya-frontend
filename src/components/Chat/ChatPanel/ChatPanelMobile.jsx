@@ -1,7 +1,7 @@
-// ChatPanelMobile-1.jsx
-import { useEffect, useMemo, useRef, useState } from "react";
+// ChatPanelMobile-updated.jsx
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { motion } from "framer-motion";
-import { FaMoon, FaSun, FaImage, FaLink, FaTrash, FaPalette, FaSearch } from "react-icons/fa";
+import { FaMoon, FaSun, FaImage, FaLink, FaTrash, FaPalette, FaSearch, FaBan, FaUnlockAlt } from "react-icons/fa";
 import { useChat } from "../../../context/ChatContext";
 import { API_BASE, searchUsers, ensurePrivado } from "../../../services/api";
 import logoChatYA from "../../../assets/logo-chatya.png"; // coloca tu PNG aquí
@@ -9,6 +9,8 @@ import ChatList from "../ChatList/ChatList";
 import ChatWindow from "../ChatWindow/ChatWindowMobile";
 import MessageInput from "../MessageInput/MessageInput";
 
+// Mostrar/ocultar la sección de "Fondos predefinidos"
+const SHOW_PRESETS = false;
 const BG_PRESETS = [
   { name: "Abstracto azul", url: "https://images.unsplash.com/photo-1526318472351-c75fcf070305?w=1200&auto=format&fit=crop&q=60" },
   { name: "Textura papel", url: "https://images.unsplash.com/photo-1523419409543-a5e549c1cfb7?w=1200&auto=format&fit=crop&q=60" },
@@ -19,14 +21,15 @@ const BG_PRESETS = [
 ];
 
 /**
- * ChatPanelMobile-1
+ * ChatPanelMobile — actualizado
  * 
- * Nuevos props:
- * - `panelHeight` (string|number) → alto del panel móvil (por defecto 680px, con tope 92vh)
- * - `windowHeight` (string|number|null) → alto fijo para ChatWindow; si null, mantiene flex-1.
+ * Cambios clave:
+ * - "Mis fondos" (persistentes en localStorage) con agregar por Subir/URL y eliminar.
+ * - Opción para ocultar los predefinidos (SHOW_PRESETS=false).
+ * - Conserva el resto de tu lógica (búsqueda, lista, ventana de chat, etc.).
  */
 export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeight = null }) {
-  const { chats, activeChatId, currentUserId, setActiveChatId, loadChats, loadMessages, statusMap } = useChat();
+  const { chats, activeChatId, currentUserId, setActiveChatId, loadChats, loadMessages, statusMap, blockChat, unblockChat } = useChat();
   const boxRef = useRef(null);
 
   // ===== Cierre =====
@@ -95,30 +98,77 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
 
   // ===== Estado responsive móvil =====
   const [showListMobile, setShowListMobile] = useState(true);
-  // Fallback temporal del partner mientras refresca la lista
+  // ==== Partner / estado + bloqueo ====
   const [partnerHint, setPartnerHint] = useState(null);
 
-  // ===== Partner / estado =====
-  const currentChat = useMemo(
-    () => chats.find((c) => c._id === activeChatId),
-    [chats, activeChatId]
-  );
+  // Chat activo
+  const currentChat = useMemo(() => {
+    if (!activeChatId) return null;
+    try {
+      return (chats || []).find(c => String(c?._id) === String(activeChatId)) || null;
+    } catch {
+      return null;
+    }
+  }, [chats, activeChatId]);
+
+  // El “otro” participante del chat
   const partner = useMemo(() => {
-    if (!currentChat) return partnerHint || null;
-    if (currentChat.usuarioA && currentChat.usuarioB) {
-      return currentChat.usuarioA?._id === currentUserId ? currentChat.usuarioB : currentChat.usuarioA;
+    const c = currentChat;
+    if (!c) return partnerHint || null;
+
+    // 1) Esquema moderno: participantes[]
+    if (Array.isArray(c.participantes) && c.participantes.length) {
+      const mine = String(currentUserId || "");
+      const p = c.participantes.find(u => String(u?._id || u?.id || u) !== mine);
+      return p ? (typeof p === "string" ? { _id: p } : p) : (partnerHint || null);
     }
-    if (Array.isArray(currentChat.participantes)) {
-      const p = currentChat.participantes.find((u) => (u?._id || u?.id) !== currentUserId);
-      return p || partnerHint || null;
+
+    // 2) Esquema legacy: usuarioA/usuarioB
+    if (c.usuarioA && c.usuarioB) {
+      const a = String(c.usuarioA?._id || c.usuarioA);
+      const b = String(c.usuarioB?._id || c.usuarioB);
+      const mine = String(currentUserId || "");
+      const otherId = a === mine ? b : a;
+      return otherId ? { _id: otherId } : (partnerHint || null);
     }
-    return currentChat.partner || partnerHint || null;
+
+    return partnerHint || null;
   }, [currentChat, currentUserId, partnerHint]);
-  const peerId = useMemo(() => String(partner?._id || partner?.id || (typeof partner === "string" ? partner : "")), [partner]);
-  const rawStatus = (useChat().statusMap || {})[peerId];
-  const isOnline = rawStatus === "online";
-  const isAway = rawStatus === "away" || rawStatus === "idle";
-  const statusTxt = isOnline ? "Conectado" : (isAway ? "Ausente" : "Desconectado");
+
+  const partnerId = partner ? String(partner._id || partner.id || partner) : null;
+
+  // Presencia legible del partner
+  const rawStatus = partnerId ? statusMap?.[partnerId] : null;
+  const statusText = rawStatus === "online" ? "Conectado"
+    : rawStatus === "away" ? "Ausente"
+      : rawStatus === "offline" ? "Desconectado"
+        : "";
+
+  // === Bloqueo: ¿YO tengo bloqueado este chat?
+  const isBlocked = useMemo(() => {
+    const c = currentChat;
+    if (!c) return false;
+    // Si el backend ya trae isBlocked, úsalo
+    if (typeof c.isBlocked === "boolean") return c.isBlocked;
+    // Si no, deriva de blockedBy
+    const arr = Array.isArray(c.blockedBy) ? c.blockedBy.map(String) : [];
+    return arr.includes(String(currentUserId));
+  }, [currentChat, currentUserId]);
+
+  // Alternar bloqueo/desbloqueo
+  const onToggleBlock = useCallback(async () => {
+    if (!currentChat?._id) return;
+    try {
+      if (isBlocked) {
+        await unblockChat(currentChat._id);
+      } else {
+        await blockChat(currentChat._id);
+      }
+    } catch (e) {
+      alert(e?.message || "No se pudo actualizar el bloqueo");
+    }
+  }, [currentChat, isBlocked, blockChat, unblockChat]);
+
 
   // ===== Tema / Fondo =====
   const [theme, setTheme] = useState(() => localStorage.getItem("chatTheme") || "light");
@@ -172,7 +222,7 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
   };
   const openWithUser = async (user) => {
     try {
-      const token = localStorage.getItem("token") || "";
+      const token = localStorage.getItem("token") || ""; // (no usado aquí)
       if (!currentUserId || !user?._id) throw new Error("IDs de usuarios no válidos");
 
       setPartnerHint({
@@ -182,7 +232,7 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
         fotoPerfil: user.fotoPerfil,
       });
 
-      const chat = await ensurePrivado(currentUserId, user._id, null, token);
+      const chat = await ensurePrivado(currentUserId, user._id, null);
       await loadChats(); // siempre refrescar
 
       setActiveChatId(chat._id);
@@ -198,10 +248,20 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
     }
   };
 
-  // ===== Fondo: subir/URL/presets =====
+  // ===== Fondo: subir/URL/presets/custom =====
   const fileRef = useRef(null);
   const [showBgMenu, setShowBgMenu] = useState(false);
   const bgMenuRef = useRef(null);
+
+  // Mis fondos (persisten localmente)
+  const [customBgs, setCustomBgs] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("chatBgCustomList") || "[]"); }
+    catch { return []; }
+  });
+  useEffect(() => {
+    localStorage.setItem("chatBgCustomList", JSON.stringify(customBgs.slice(0, 30)));
+  }, [customBgs]);
+
   useEffect(() => {
     const onDoc = (e) => {
       if (!bgMenuRef.current) return;
@@ -210,6 +270,7 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
+
   async function compressImageToDataURL(file, maxDim = 1600, quality = 0.85) {
     const bitmap = await createImageBitmap(file);
     const { width, height } = bitmap;
@@ -224,6 +285,7 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
     try { bitmap.close?.(); } catch { }
     return dataUrl;
   }
+
   const onPickBgFile = async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
@@ -234,11 +296,15 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
       localStorage.setItem("chatBgDataUrl", dataUrl);
       localStorage.removeItem("chatBgUrl");
       localStorage.setItem("chatBgOrigin", "data");
+      // Guardar en "Mis fondos"
+      const name = (f.name || "Mi fondo").replace(/\.[^.]+$/, "");
+      setCustomBgs((prev) => [{ name, url: dataUrl, origin: "data" }, ...prev.filter(b => b.url !== dataUrl)].slice(0, 30));
       setShowBgMenu(false);
     } catch (err) {
       console.error(err); alert("No se pudo procesar la imagen seleccionada.");
     } finally { if (fileRef.current) fileRef.current.value = ""; }
   };
+
   const pickBgFromUrl = () => {
     const url = window.prompt(
       "Pega la URL de una imagen para el fondo del chat (deja vacío para quitar):",
@@ -251,8 +317,14 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
     localStorage.setItem("chatBgUrl", clean);
     localStorage.removeItem("chatBgDataUrl");
     localStorage.setItem("chatBgOrigin", "url");
+    // Guardar en "Mis fondos" (opcionalmente con nombre)
+    const name = window.prompt("Nombre para guardar este fondo (opcional):", "Mi fondo desde URL");
+    if (name && name.trim()) {
+      setCustomBgs((prev) => [{ name: name.trim(), url: clean, origin: "url" }, ...prev.filter(b => b.url !== clean)].slice(0, 30));
+    }
     setShowBgMenu(false);
   };
+
   const clearBg = () => {
     setBgUrl(""); setBgOrigin("");
     localStorage.removeItem("chatBgUrl");
@@ -260,6 +332,7 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
     localStorage.removeItem("chatBgOrigin");
     setShowBgMenu(false);
   };
+
   const applyPreset = (url) => {
     setBgUrl(url); setBgOrigin("url");
     localStorage.setItem("chatBgUrl", url);
@@ -267,6 +340,22 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
     localStorage.setItem("chatBgOrigin", "url");
     setShowBgMenu(false);
   };
+
+  const applyCustom = (bg) => {
+    const origin = bg.origin || (bg.url?.startsWith("data:") ? "data" : "url");
+    setBgUrl(bg.url); setBgOrigin(origin);
+    if (origin === "data") {
+      localStorage.setItem("chatBgDataUrl", bg.url);
+      localStorage.removeItem("chatBgUrl");
+    } else {
+      localStorage.setItem("chatBgUrl", bg.url);
+      localStorage.removeItem("chatBgDataUrl");
+    }
+    localStorage.setItem("chatBgOrigin", origin);
+    setShowBgMenu(false);
+  };
+
+  const removeCustom = (idx) => setCustomBgs((prev) => prev.filter((_, i) => i !== idx));
 
   // Favoritos → refrescar lista
   const handleFavoriteToggled = async () => {
@@ -344,7 +433,7 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
             {/* Header conversación */}
             <HeaderBar
               partner={partner}
-              statusTxt={statusTxt}
+              statusText={statusText}
               theme={theme}
               setTheme={setTheme}
               fileRef={fileRef}
@@ -355,6 +444,12 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
               pickBgFromUrl={pickBgFromUrl}
               clearBg={clearBg}
               applyPreset={applyPreset}
+              customBgs={customBgs}
+              applyCustom={applyCustom}
+              removeCustom={removeCustom}
+              showPresets={SHOW_PRESETS}
+              isBlocked={isBlocked}
+              onToggleBlock={onToggleBlock}
               onBack={() => { setActiveChatId(null); setShowListMobile(true); }}
             />
 
@@ -436,10 +531,11 @@ function SearchBox({ query, onChangeQuery, loadingSearch, resul, showResults, se
 }
 
 function HeaderBar({
-  partner, statusTxt, theme, setTheme,
+  partner, statusText, theme, setTheme,
   fileRef, showBgMenu, setShowBgMenu, bgMenuRef,
   onPickBgFile, pickBgFromUrl, clearBg, applyPreset,
-  onBack
+  customBgs, applyCustom, removeCustom, showPresets,
+  onBack, isBlocked, onToggleBlock
 }) {
   return (
     <div className="sticky top-0 z-10 h-14 px-3 border-b bg-white/90 dark:bg-zinc-900/90 dark:border-zinc-700 backdrop-blur flex items-center gap-3">
@@ -459,8 +555,8 @@ function HeaderBar({
           {partner?.nickname || partner?.nombre || "Contacto"}
         </div>
         <div className="flex items-center gap-1 text-[11px]">
-          <span className={`w-2.5 h-2.5 rounded-full ${statusTxt === "Conectado" ? "bg-green-500" : statusTxt === "Ausente" ? "bg-yellow-500" : "bg-gray-400"}`} />
-          <span className="text-gray-500 dark:text-zinc-400">{statusTxt}</span>
+          <span className={`w-2.5 h-2.5 rounded-full ${statusText === "Conectado" ? "bg-green-500" : statusText === "Ausente" ? "bg-yellow-500" : "bg-gray-400"}`} />
+          <span className="text-gray-500 dark:text-zinc-400">{statusText}</span>
         </div>
       </div>
 
@@ -477,17 +573,49 @@ function HeaderBar({
           </button>
           {showBgMenu && (
             <div className="absolute right-0 mt-2 w-[320px] max-h-[70vh] overflow-auto bg-white dark:bg-zinc-900 border dark:border-zinc-700 rounded-xl shadow-xl p-3 z-30">
-              <div className="text-xs font-semibold mb-2 text-gray-600 dark:text-zinc-300">Fondos predefinidos</div>
+              {/* Mis fondos */}
+              {customBgs?.length > 0 && (
+                <>
+                  <div className="text-xs font-semibold mb-2 text-gray-600 dark:text-zinc-300">Mis fondos</div>
+                  <div className="grid grid-cols-3 gap-2 mb-3">
+                    {customBgs.map((bg, i) => (
+                      <div key={`${bg.url}-${i}`} className="relative group">
+                        <button type="button" onClick={() => applyCustom(bg)} className="w-full h-20 rounded-lg overflow-hidden border dark:border-zinc-700">
+                          <img src={bg.url} alt={bg.name || "Fondo"} className="w-full h-full object-cover" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); removeCustom(i); }}
+                          className="absolute top-1 right-1 p-1 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition"
+                          title="Eliminar de Mis fondos"
+                        >
+                          <FaTimes className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <hr className="my-2 border-gray-200 dark:border-zinc-700" />
+                </>
+              )}
+
+              {/* Predefinidos (opcionales) */}
+              {showPresets && BG_PRESETS.length > 0 && (
+                <>
+                  <div className="text-xs font-semibold mb-2 text-gray-600 dark:text-zinc-300">Fondos predefinidos</div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {BG_PRESETS.map((p, idx) => (
+                      <button key={idx} type="button" onClick={() => applyPreset(p.url)} title={p.name} className="rounded-lg overflow-hidden border dark:border-zinc-700 hover:opacity-90">
+                        <img src={`${p.url}&h=220`} alt={p.name} className="w-full h-20 object-cover" loading="lazy" />
+                      </button>
+                    ))}
+                  </div>
+                  <div className="h-px my-3 bg-gray-200 dark:bg-zinc-700" />
+                </>
+              )}
+
+              {/* Acciones */}
               <div className="grid grid-cols-3 gap-2">
-                {BG_PRESETS.map((p, idx) => (
-                  <button key={idx} type="button" onClick={() => applyPreset(p.url)} title={p.name} className="rounded-lg overflow-hidden border dark:border-zinc-700 hover:opacity-90">
-                    <img src={`${p.url}&h=220`} alt={p.name} className="w-full h-20 object-cover" loading="lazy" />
-                  </button>
-                ))}
-              </div>
-              <div className="h-px my-3 bg-gray-200 dark:bg-zinc-700" />
-              <div className="grid grid-cols-3 gap-2">
-                <button type="button" onClick={() => fileRef.current?.click()} className="col-span-1 flex items-center justify-center gap-2 text-sm rounded-lg border dark:border-zinc-700 px-3 py-2 hover:bg-gray-50 dark:hover:bg-zinc-800" title="Subir desde tu dispositivo">
+                <button type="button" onClick={() => document.querySelector('input[type="file"][accept^="image"]').click()} className="col-span-1 flex items-center justify-center gap-2 text-sm rounded-lg border dark:border-zinc-700 px-3 py-2 hover:bg-gray-50 dark:hover:bg-zinc-800" title="Subir desde tu dispositivo">
                   <FaImage /> Subir
                 </button>
                 <button type="button" onClick={pickBgFromUrl} className="col-span-1 flex items-center justify-center gap-2 text-sm rounded-lg border dark:border-zinc-700 px-3 py-2 hover:bg-gray-50 dark:hover:bg-zinc-800" title="Pegar URL">
@@ -500,6 +628,16 @@ function HeaderBar({
             </div>
           )}
         </div>
+
+        <button
+          type="button"
+          className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-700 transition ${isBlocked ? "text-red-600" : "text-gray-700 dark:text-gray-200"}`}
+          onClick={onToggleBlock}
+          title={isBlocked ? "Desbloquear chat" : "Bloquear chat"}
+          aria-label={isBlocked ? "Desbloquear chat" : "Bloquear chat"}
+        >
+          {isBlocked ? <FaUnlockAlt /> : <FaBan />}
+        </button>
 
         <button
           type="button"

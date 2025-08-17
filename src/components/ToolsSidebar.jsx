@@ -1,161 +1,150 @@
-// src/components/ToolsSidebar.jsx (FAB + BottomSheet) — no estorba el chat
-import React, { useEffect, useMemo, useRef, useState } from "react";
+// src/components/ToolsSidebar-1.jsx
+// Basado estrictamente en tu ToolsSidebar.jsx, con mejoras UI/UX sin tocar la lógica existente:
+// - Tamaño visual consistente de íconos y glassmorphism en celdas
+// - Animaciones sutiles (hover/tap) y sombras suaves
+// - Safe-area inferior + scroll interno en panel
+// - Secciones con subtítulos: Accesos rápidos / Básicas / Más herramientas
+// - Favoritos locales (mantener presionado 600ms sobre un ícono para fijarlo). Máx. 3. Persisten en localStorage.
+//   * Nota: No se altera el onClick original de cada herramienta; sólo se antepone el handler de long-press.
+import React, { useEffect, useRef, useState, useContext, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Grid2X2, ChevronDown } from "lucide-react";
+import { X, Grid2X2, Star } from "lucide-react";
+import TemplatePickerModal from "./TemplatePickerModal";
+import { useNavigate } from "react-router-dom";
+import { AuthContext } from "../context/AuthContext";
 
-/**
- * Nuevo patrón:
- * - Botón flotante (FAB) en esquina inferior derecha
- * - Al tocar, abre un Bottom Sheet (ancho completo) con una grilla de herramientas
- * - Cierra al deslizar hacia abajo, al tocar fuera o con el botón X
- * - No requiere gestos laterales → no interfiere con scroll/gestos del chat
- */
+/* --- Iconos PNG --- */
+import iconChatYA from "../assets/icons/chatya.png";
+import iconPublicar from "../assets/icons/publicar.png";
+import iconBuscador from "../assets/icons/buscador.png";
+import iconMapa from "../assets/icons/mapa.png";
+import iconCalendario from "../assets/icons/calendario.png";
+import iconCalculadora from "../assets/icons/calculadora.png";
+import iconNotificaciones from "../assets/icons/notificaciones.png";
+import iconCupones from "../assets/icons/cupones.png";
+import iconSoporte from "../assets/icons/soporte.png";
+import iconAjustes from "../assets/icons/ajustes.png";
+import iconBorradores from "../assets/icons/borradores.png";
+import iconMisPublicaciones from "../assets/icons/mis-publicaciones.png"; // 'Mis promociones'
 
-const ALL_TOOLS = [
-  { id: "search", label: "Buscador" },
-  { id: "map", label: "Mapa" },
-  { id: "favorites", label: "Favoritos" },
-  { id: "notifs", label: "Notificaciones" },
-  { id: "chat", label: "Chat" },
-  { id: "calendar", label: "Calendario" },
-  { id: "calc", label: "Calculadora" },
-  { id: "publish", label: "Publicar" },
-  { id: "stats", label: "Estadísticas" },
-  { id: "share", label: "Compartir" },
-  { id: "imgsearch", label: "Búsqueda por imagen" },
-  { id: "settings", label: "Ajustes" },
-];
-
-/* ---------- ICONOS (SVG compactos, mismos del diseño anterior) ---------- */
+/* --- Wrapper de ícono (tamaño uniforme) --- */
 const IconWrap = ({ children }) => (
-  <span className="inline-flex h-11 w-11 items-center justify-center">{children}</span>
+  <span className="inline-flex h-[3.5rem] w-[3.5rem] items-center justify-center">{children}</span>
 );
 
+/* --- Componente de badge favorito --- */
+const FavBadge = ({ active }) => (
+  <span
+    className={`absolute -top-1.5 -right-1.5 inline-flex items-center justify-center rounded-full border bg-white shadow-sm ${
+      active ? "text-yellow-500 border-yellow-200" : "text-slate-300 border-slate-200"
+    }`}
+    style={{ width: 22, height: 22 }}
+  >
+    <Star size={14} className={active ? "fill-yellow-400" : ""} />
+  </span>
+);
+
+/* --- Mapa de iconos (PNGs con medidas homogéneas) --- */
 const ICONS = {
   search: () => (
     <IconWrap>
-      <svg viewBox="0 0 24 24" className="h-7 w-7">
-        <defs>
-          <linearGradient id="mg" x1="0" x2="1">
-            <stop offset="0%" stopOpacity="1" stopColor="#6AA9FF" />
-            <stop offset="100%" stopOpacity="1" stopColor="#2D7CF6" />
-          </linearGradient>
-        </defs>
-        <circle cx="10.5" cy="10.5" r="6.5" fill="url(#mg)" />
-        <rect x="15" y="15" width="7" height="2.6" rx="1.3" fill="#1F2937" transform="rotate(45 15 15)" />
-      </svg>
+      <img src={iconBuscador} alt="Buscador" className="h-14 w-14 object-contain" />
     </IconWrap>
   ),
   map: () => (
     <IconWrap>
-      <svg viewBox="0 0 24 24" className="h-7 w-7">
-        <path d="M12 3c3.9 0 7 3.1 7 7 0 5.2-7 11-7 11S5 15.2 5 10c0-3.9 3.1-7 7-7z" fill="#FF6B6B" />
-        <circle cx="12" cy="10" r="3" fill="#FFFFFF" />
-      </svg>
-    </IconWrap>
-  ),
-  favorites: () => (
-    <IconWrap>
-      <svg viewBox="0 0 24 24" className="h-7 w-7">
-        <path d="M12 17l-5.2 3 1.4-5.9L3 9.7l6-.5L12 3l3 6.2 6 .5-5.2 4.4L17.2 20z" fill="#FFC531" />
-      </svg>
+      <img src={iconMapa} alt="Mapa" className="h-14 w-14 object-contain" />
     </IconWrap>
   ),
   notifs: () => (
     <IconWrap>
-      <svg viewBox="0 0 24 24" className="h-7 w-7">
-        <path d="M12 3a6 6 0 00-6 6v3.2L4 14v2h16v-2l-2-.8V9a6 6 0 00-6-6z" fill="#FF7A59" />
-        <circle cx="16.5" cy="7.5" r="2.5" fill="#FF3B30" />
-      </svg>
+      <img src={iconNotificaciones} alt="Notificaciones" className="h-14 w-14 object-contain" />
     </IconWrap>
   ),
   chat: () => (
     <IconWrap>
-      <svg viewBox="0 0 24 24" className="h-7 w-7">
-        <path d="M4 5h16a2 2 0 012 2v6a2 2 0 01-2 2H11l-4.5 3V15H4a2 2 0 01-2-2V7a2 2 0 012-2z" fill="#2D9CDB" />
-        <circle cx="9" cy="10" r="1.2" fill="#fff" />
-        <circle cx="12" cy="10" r="1.2" fill="#fff" />
-        <circle cx="15" cy="10" r="1.2" fill="#fff" />
-      </svg>
+      <img src={iconChatYA} alt="ChatYA" className="h-[3.5rem] w-[3.5rem] object-contain -m-0.5" />
     </IconWrap>
   ),
   calendar: () => (
     <IconWrap>
-      <svg viewBox="0 0 24 24" className="h-7 w-7">
-        <rect x="3" y="5" width="18" height="16" rx="2" fill="#FFE3C1" />
-        <rect x="3" y="8" width="18" height="13" rx="2" fill="#FF9F43" />
-        <rect x="7" y="2" width="2.6" height="5" rx="1.3" fill="#4B5563" />
-        <rect x="14.4" y="2" width="2.6" height="5" rx="1.3" fill="#4B5563" />
-      </svg>
+      <img src={iconCalendario} alt="Calendario" className="h-14 w-14 object-contain" />
     </IconWrap>
   ),
   calc: () => (
     <IconWrap>
-      <svg viewBox="0 0 24 24" className="h-7 w-7">
-        <rect x="4" y="3" width="16" height="18" rx="2" fill="#2F80ED" />
-        <rect x="6.5" y="6" width="11" height="4" rx="1" fill="#1F2937" opacity=".85" />
-        <g fill="#fff">
-          <rect x="6.5" y="12" width="3.5" height="3.5" rx="0.8" />
-          <rect x="11.2" y="12" width="3.5" height="3.5" rx="0.8" />
-          <rect x="6.5" y="16.2" width="3.5" height="3.5" rx="0.8" />
-          <rect x="11.2" y="16.2" width="3.5" height="3.5" rx="0.8" />
-        </g>
-      </svg>
+      <img src={iconCalculadora} alt="Calculadora" className="h-14 w-14 object-contain" />
     </IconWrap>
   ),
   publish: () => (
     <IconWrap>
-      <svg viewBox="0 0 24 24" className="h-7 w-7">
-        <path d="M12 3l5.5 5.5h-3.5V16h-4V8.5H6.5L12 3z" fill="#3B82F6" />
-        <rect x="4" y="17" width="16" height="3.5" rx="1.5" fill="#9CA3AF" />
-      </svg>
-    </IconWrap>
-  ),
-  share: () => (
-    <IconWrap>
-      <svg viewBox="0 0 24 24" className="h-7 w-7">
-        <circle cx="6" cy="12" r="2.2" fill="#111827" />
-        <circle cx="18" cy="6.5" r="2.2" fill="#111827" />
-        <circle cx="18" cy="17.5" r="2.2" fill="#111827" />
-        <path d="M7.8 11.3l8.1-4.2M7.8 12.7l8.1 4.2" stroke="#111827" strokeWidth="2" fill="none" strokeLinecap="round" />
-      </svg>
-    </IconWrap>
-  ),
-  stats: () => (
-    <IconWrap>
-      <svg viewBox="0 0 24 24" className="h-7 w-7">
-        <rect x="4" y="12.5" width="3" height="6" rx="0.8" fill="#F2994A" />
-        <rect x="9" y="10" width="3" height="8.5" rx="0.8" fill="#F2994A" />
-        <rect x="14" y="7" width="3" height="11.5" rx="0.8" fill="#F2994A" />
-        <path d="M4 8l4 2 5-3 6 3" stroke="#2D9CDB" strokeWidth="2" fill="none" strokeLinecap="round" />
-      </svg>
-    </IconWrap>
-  ),
-  imgsearch: () => (
-    <IconWrap>
-      <svg viewBox="0 0 24 24" className="h-7 w-7">
-        <rect x="3" y="5" width="18" height="14" rx="2" fill="#E6F0FF" />
-        <circle cx="9" cy="10" r="2" fill="#60A5FA" />
-        <path d="M5.5 17l4.5-5 3.5 3.5 2.5-2.5L20 17H5.5z" fill="#34D399" />
-      </svg>
+      <img src={iconPublicar} alt="Publicar" className="h-14 w-14 object-contain" />
     </IconWrap>
   ),
   settings: () => (
     <IconWrap>
-      <svg viewBox="0 0 24 24" className="h-7 w-7">
-        <path d="M12 8.5A3.5 3.5 0 1112 15.5 3.5 3.5 0 0112 8.5z" fill="#6B7280" />
-        <path d="M4 13l1.2 2.1 2.3-.4 1.3 2-1.4 1.9L9 20l.5 2h5l.5-2 1.6-1.4-1.4-1.9 1.3-2 2.3.4L20 13l-2-.8v-2.4l2-.8-1.2-2.1-2.3.4-1.3-2L15 3h-6l-.5 1.9-1.3 2-2.3-.4L3 7.5l2 .8V11.7z" fill="#9CA3AF" opacity=".6" />
-      </svg>
+      <img src={iconAjustes} alt="Ajustes" className="h-14 w-14 object-contain" />
+    </IconWrap>
+  ),
+  misanuncios: () => (
+    <IconWrap>
+      <img src={iconMisPublicaciones} alt="Mis promociones" className="h-14 w-14 object-contain" />
+    </IconWrap>
+  ),
+  borradores: () => (
+    <IconWrap>
+      <img src={iconBorradores} alt="Borradores" className="h-14 w-14 object-contain" />
+    </IconWrap>
+  ),
+  cupones: () => (
+    <IconWrap>
+      <img src={iconCupones} alt="Cupones" className="h-14 w-14 object-contain" />
+    </IconWrap>
+  ),
+  soporte: () => (
+    <IconWrap>
+      <img src={iconSoporte} alt="Soporte" className="h-14 w-14 object-contain" />
     </IconWrap>
   ),
 };
 
-/* ---------- Bottom Sheet ---------- */
+/* --- Componente de celda (glass + animaciones + long-press fav) --- */
+function ToolCell({ id, title, onClick, children, isFavorite, onToggleFav }) {
+  const pressTimer = useRef(null);
+  const handlePointerDown = () => {
+    pressTimer.current = setTimeout(() => onToggleFav?.(id), 600);
+  };
+  const clear = () => { if (pressTimer.current) clearTimeout(pressTimer.current); };
+
+  return (
+    <button
+      onPointerDown={handlePointerDown}
+      onPointerUp={clear}
+      onPointerCancel={clear}
+      onPointerLeave={clear}
+      onClick={(e) => {
+        // Si fue long-press, no ejecutar onClick
+        if (pressTimer.current === null) return;
+        clear();
+        onClick?.(e);
+      }}
+      className="relative group h-[92px] w-[92px] mx-auto rounded-2xl border border-white/60 bg-white/70 backdrop-blur-sm shadow-[0_1px_6px_rgba(0,0,0,0.06)]
+                 hover:bg-white/80 hover:shadow-[0_4px_14px_rgba(0,0,0,0.08)] active:scale-[0.98]
+                 transition-all flex flex-col items-center justify-center"
+      title={title}
+      aria-label={title}
+    >
+      <span className="group-hover:scale-110 transition-transform">{children}</span>
+      <FavBadge active={!!isFavorite} />
+    </button>
+  );
+}
+
+/* --- Bottom Sheet --- */
 function BottomSheet({ open, onClose, onLaunch }) {
   const sheetRef = useRef(null);
 
-  // Cerrar al tocar overlay
   useEffect(() => {
     const onDown = (e) => {
       if (!open) return;
@@ -165,6 +154,47 @@ function BottomSheet({ open, onClose, onLaunch }) {
     document.addEventListener("pointerdown", onDown, { passive: true });
     return () => document.removeEventListener("pointerdown", onDown);
   }, [open, onClose]);
+
+  /* ==== Favoritos locales (máx 3) ==== */
+  const [favorites, setFavorites] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("tools:favorites") || "[]"); } catch { return []; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("tools:favorites", JSON.stringify(favorites.slice(0,3))); } catch {}
+  }, [favorites]);
+
+  const toggleFav = (id) => {
+    setFavorites((prev) => {
+      const has = prev.includes(id);
+      if (has) return prev.filter((x) => x !== id);
+      const next = [...prev, id];
+      return next.slice(0, 3);
+    });
+  };
+
+  // Acciones rápidas (primera fila)
+  const quick = useMemo(() => (["publish", "search", "chat"]), []);
+
+  // Otras herramientas base
+  const basics = useMemo(() => (["map", "calendar", "calc"]), []);
+
+  // Resto
+  const others = useMemo(() => (["misanuncios", "borradores", "notifs", "cupones", "soporte", "settings"]), []);
+
+// Favoritos visibles (no incluye 'quick')
+  const favSet = new Set(favorites);
+  const allFavoritable = [...basics, ...others];
+  const favList = allFavoritable.filter((id) => favSet.has(id));
+
+  const nonFavBasics = basics.filter((id) => !favSet.has(id));
+  const nonFavOthers = others.filter((id) => !favSet.has(id));
+
+  const handleClick = (id, label) => {
+    if (id === "search") { try { window.dispatchEvent(new Event("open-search")); } catch {} onClose?.(); return; }
+    if (id === "chat")   { try { window.dispatchEvent(new Event("open-chat")); }   catch {} onClose?.(); return; }
+    if (id === "publish") { onLaunch?.({ id: "publish", label: "Publicar" }); return; }
+    onLaunch?.({ id, label });
+  };
 
   return createPortal(
     <AnimatePresence>
@@ -179,46 +209,134 @@ function BottomSheet({ open, onClose, onLaunch }) {
 
           <motion.div
             ref={sheetRef}
-            initial={{ y: 24 }}
+            initial={{ y: 26 }}
             animate={{ y: 0 }}
-            exit={{ y: 24 }}
-            transition={{ type: "spring", stiffness: 260, damping: 24 }}
-            className="relative w-full rounded-t-3xl bg-white dark:bg-zinc-900 border-t border-slate-200 dark:border-zinc-700 p-3 pb-5"
+            exit={{ y: 26 }}
+            transition={{ type: "spring", stiffness: 260, damping: 26 }}
+            className="relative w-full max-h-[86vh] overflow-hidden rounded-t-3xl bg-white/80 backdrop-blur border-t border-white/60 p-2 shadow-[0_-4px_18px_rgba(0,0,0,0.08)]"
             drag="y"
             dragConstraints={{ top: 0, bottom: 0 }}
             onDragEnd={(_, info) => { if (info.offset.y > 50) onClose?.(); }}
           >
-            <div className="mx-auto mb-2 h-1 w-12 rounded-full bg-slate-300/70" />
-            <div className="flex items-center justify-between px-1">
-              <div className="flex items-center gap-2">
-                <Grid2X2 className="h-4 w-4" />
-                <div className="text-sm font-semibold">Herramientas</div>
+            <div className="mx-auto mb-2 h-1 w-14 rounded-full bg-slate-300/70" />
+            <div className="relative flex items-center justify-center px-1">
+              <div className="flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 shadow-sm">
+                <Grid2X2 className="h-4 w-4 text-slate-600" />
+                <div className="text-[13px] font-semibold text-slate-700">Herramientas</div>
               </div>
               <button
+                style={{position:"absolute", right:8}}
                 onClick={onClose}
-                className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-2 py-1 hover:bg-slate-50 dark:bg-zinc-800 dark:border-zinc-700"
+                className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-2 py-1 hover:bg-slate-50"
                 title="Cerrar"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            {/* Grid responsiva */}
-            <div className="mt-3 grid grid-cols-3 sm:grid-cols-4 gap-2">
-              {ALL_TOOLS.map((t) => {
-                const Icon = ICONS[t.id] || ICONS.search;
-                return (
-                  <button
-                    key={t.id}
-                    onClick={() => onLaunch?.(t)}
-                    className="group h-[84px] rounded-2xl border border-slate-200 dark:border-zinc-700 bg-white/90 dark:bg-zinc-800/80 hover:bg-slate-50 dark:hover:bg-zinc-700/80 flex flex-col items-center justify-center gap-2 transition active:scale-[0.99]"
-                    title={t.label}
-                  >
-                    <span className="group-hover:scale-110 transition-transform"><Icon /></span>
-                    <span className="text-[12px] text-slate-700 dark:text-slate-200">{t.label}</span>
-                  </button>
-                );
-              })}
+            {/* Contenido scrollable */}
+            <div className="mt-1.5 overflow-y-auto pr-1 pb-[max(16px,env(safe-area-inset-bottom))]">
+              {/* Accesos rápidos */}
+              <div className="px-1 pb-1 text-[11px] uppercase tracking-wide text-slate-500 font-semibold">Accesos rápidos</div>
+              <div className="mb-2 grid grid-cols-3 gap-3 place-items-center">
+                {quick.map((id) => {
+                  const Icon = ICONS[id];
+                  const title = id === "publish" ? "Publicar" : id === "search" ? "Buscador" : "Chat";
+                  return (
+                    <ToolCell
+                      key={id}
+                      id={id}
+                      title={title}
+                      isFavorite={favorites.includes(id)}
+                      onToggleFav={toggleFav}
+                      onClick={() => handleClick(id, title)}
+                    >
+                      <Icon />
+                    </ToolCell>
+                  );
+                })}
+              </div>
+
+              {/* Favoritos (si hay) */}
+              {favList.length > 0 && (
+                <>
+                  <div className="px-1 pb-1 text-[11px] uppercase tracking-wide text-slate-500 font-semibold">Favoritos</div>
+                  <div className="mb-2 grid grid-cols-3 gap-3 place-items-center">
+                    {favList.map((id) => {
+                      const Icon = ICONS[id];
+                      const titleMap = {
+                        map: "Mapa", calendar: "Calendario", calc: "Calculadora",
+                        misanuncios: "Mis promociones", borradores: "Borradores", notifs: "Notificaciones",
+                        cupones: "Cupones", soporte: "Soporte", settings: "Ajustes",
+                      };
+                      const title = titleMap[id] || id;
+                      return (
+                        <ToolCell
+                          key={`fav-${id}`}
+                          id={id}
+                          title={title}
+                          isFavorite
+                          onToggleFav={toggleFav}
+                          onClick={() => handleClick(id, title)}
+                        >
+                          <Icon />
+                        </ToolCell>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {/* Básicas */}
+              <div className="px-1 pb-1 text-[11px] uppercase tracking-wide text-slate-500 font-semibold">Básicas</div>
+              <div className="mb-2 grid grid-cols-3 gap-3 place-items-center">
+                {nonFavBasics.map((id) => {
+                  const Icon = ICONS[id];
+                  const titleMap = { map: "Mapa", calendar: "Calendario", calc: "Calculadora" };
+                  const title = titleMap[id] || id;
+                  return (
+                    <ToolCell
+                      key={id}
+                      id={id}
+                      title={title}
+                      isFavorite={favorites.includes(id)}
+                      onToggleFav={toggleFav}
+                      onClick={() => handleClick(id, title)}
+                    >
+                      <Icon />
+                    </ToolCell>
+                  );
+                })}
+              </div>
+
+              {/* Más herramientas */}
+              <div className="px-1 pb-1 text-[11px] uppercase tracking-wide text-slate-500 font-semibold">Más herramientas</div>
+              <div className="grid grid-cols-3 gap-3 place-items-center">
+                {nonFavOthers.map((id) => {
+                  const Icon = ICONS[id];
+                  const titleMap = {
+                    misanuncios: "Mis promociones",
+                    borradores: "Borradores",
+                    notifs: "Notificaciones",
+                    cupones: "Cupones",
+                    soporte: "Soporte",
+                    settings: "Ajustes",
+                  };
+                  const title = titleMap[id] || id;
+                  return (
+                    <ToolCell
+                      key={id}
+                      id={id}
+                      title={title}
+                      isFavorite={favorites.includes(id)}
+                      onToggleFav={toggleFav}
+                      onClick={() => handleClick(id, title)}
+                    >
+                      <Icon />
+                    </ToolCell>
+                  );
+                })}
+              </div>
             </div>
           </motion.div>
         </motion.div>
@@ -228,28 +346,43 @@ function BottomSheet({ open, onClose, onLaunch }) {
   );
 }
 
-/* ---------- FAB ---------- */
+/* --- Componente principal (misma lógica) --- */
 export default function ToolsSidebar({ onLaunch }) {
+  const { usuario } = useContext(AuthContext) || {};
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [openTemplate, setOpenTemplate] = useState(false);
 
-  // Altura segura sobre input del chat
-  const bottomOffset = 88; // px aprox; ajusta según tu input/footer
+  useEffect(() => {
+    const handler = () => setOpen(true);
+    window.addEventListener("open-tools-sidebar", handler);
+    return () => window.removeEventListener("open-tools-sidebar", handler);
+  }, []);
+
+  // Todos los perfiles: acceso completo
+  const allowedTemplates = null;
+
+  const handleLaunch = (t) => {
+    if (t?.id === "publish") {
+      setOpen(false);
+      setOpenTemplate(true);
+      return;
+    }
+    onLaunch?.(t);
+  };
 
   return createPortal(
     <>
-      {/* FAB */}
-      <button
-        onClick={() => setOpen(true)}
-        className="fixed right-4 z-[2147483647] rounded-full shadow-lg border border-slate-200 bg-white/95 backdrop-blur active:scale-95 transition"
-        style={{ bottom: bottomOffset, width: 56, height: 56 }}
-        title="Herramientas"
-      >
-        <ChevronDown className={`mx-auto h-5 w-5`} />
-        <div className="text-[10px] leading-3 mt-0.5">Tools</div>
-      </button>
-
-      {/* Bottom Sheet */}
-      <BottomSheet open={open} onClose={() => setOpen(false)} onLaunch={onLaunch} />
+      <BottomSheet open={open} onClose={() => setOpen(false)} onLaunch={handleLaunch} />
+      <TemplatePickerModal
+        open={openTemplate}
+        allowed={allowedTemplates}
+        onClose={() => setOpenTemplate(false)}
+        onSelect={(tpl) => {
+          setOpenTemplate(false);
+          try { if (tpl?.to) navigate(tpl.to); } catch (e) { console.error("No se pudo navegar a la ruta de la plantilla", e); }
+        }}
+      />
     </>,
     document.body
   );

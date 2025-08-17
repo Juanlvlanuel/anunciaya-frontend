@@ -2,6 +2,9 @@ import { createContext, useState, useEffect } from "react";
 import axios from "axios";
 import { API_BASE } from "../services/api"; // 👈 unificado
 
+// Asegura que todas las peticiones axios incluyan credenciales (cookies)
+axios.defaults.withCredentials = true;
+
 const AuthContext = createContext();
 
 const limpiarEstadoTemporal = () => {
@@ -54,7 +57,14 @@ const AuthProvider = ({ children }) => {
   const login = async ({ correo, contraseña }) => {
     limpiarEstadoTemporal();
     try {
-      const res = await axios.post(`${API_BASE}/api/usuarios/login`, { correo, contraseña });
+      const res = await axios.post(
+        `${API_BASE}/api/usuarios/login`,
+        { correo, contraseña },
+        {
+          withCredentials: true,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
       iniciarSesion(res.data.token, res.data.usuario);
     } catch (err) {
       const status = err?.response?.status;
@@ -99,14 +109,19 @@ const AuthProvider = ({ children }) => {
       }
     } catch {}
     let perfil = perfilValor;
-    if (typeof perfil === "string" && /^\d+$/.test(perfil)) perfil = Number(perfil);
+    if (typeof perfil === "string" && /^\\d+$/.test(perfil)) perfil = Number(perfil);
     if (perfil && typeof perfil === "object" && "perfil" in perfil) perfil = perfil.perfil;
     if (perfil == null) perfil = 1;
     if (!tipo) tipo = "usuario";
 
-    const res = await axios.post(`${API_BASE}/api/usuarios/registro`, {
-      nombre, correo, contraseña, nickname, tipo, perfil,
-    });
+    const res = await axios.post(
+      `${API_BASE}/api/usuarios/registro`,
+      { nombre, correo, contraseña, nickname, tipo, perfil },
+      {
+        withCredentials: true,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
     limpiarEstadoTemporal();
     return res.data;
   };

@@ -1,6 +1,6 @@
-// src/components/Chat/Message/MessageMobile-1.jsx
+// MessageMobile-fixed.jsx (corrige JSX del preview y mantiene tu lógica/offsets)
 import { useMemo, useRef, useState, useEffect } from "react";
-import EmojiText from "../EmojiText";
+import twemoji from "twemoji";
 
 export default function MessageMobile({
   msg,
@@ -11,9 +11,6 @@ export default function MessageMobile({
   onDelete,
   onEdit,
 }) {
-  const emisorFromMsg = typeof msg?.emisor === 'string' ? msg.emisor : (msg?.emisor?._id || '');
-
-  // === Identificación robusta del autor ===
   const myId = String(
     (typeof currentUserId !== 'undefined' && currentUserId) ||
     msg?.currentUserId ||
@@ -32,7 +29,6 @@ export default function MessageMobile({
     msg?.mine === true ||
     (myId && senderId && myId === senderId);
 
-
   const [menuOpen, setMenuOpen] = useState(false);
   const holdTimer = useRef(null);
   const menuRef = useRef(null);
@@ -40,7 +36,6 @@ export default function MessageMobile({
   const bubbleRef = useRef(null);
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
 
-  // Cerrar al tocar fuera
   useEffect(() => {
     if (!menuOpen) return;
     const onDoc = (e) => {
@@ -55,88 +50,75 @@ export default function MessageMobile({
     };
   }, [menuOpen]);
 
-  // Colocar menú fuera de la burbuja, estilo WhatsApp (pegado al costado y hacia arriba)
+  // ====== Posicionamiento con límites ======
   useEffect(() => {
     if (!menuOpen) return;
-    // === Ajustes de posición del menú ===
-    const MENU_W = 220;  // ancho aprox del menú
-    const MENU_H = 220;  // alto aprox del menú
 
-    // Mensajes RECIBIDOS (del otro)  → menú a la DERECHA y hacia ARRIBA
-    const RECV_GAP_X = 10;     // separación horizontal desde el borde de la burbuja
-    const RECV_GAP_Y = -160;     // separación vertical hacia arriba
-    const RECV_MARGIN = 8;     // margen de seguridad contra el borde derecho
+    const MENU_W = 128; // coincide con w-32
+    const MENU_H = 220;
+    const PAD = 8;      // margen dentro del chat
 
-    // Mensajes ENVIADOS (míos)      → menú a la IZQUIERDA y hacia ARRIBA
-    const SENT_GAP_X = -90;     // separación horizontal desde el borde de la burbuja
-    const SENT_GAP_Y = -90;     // separación vertical hacia arriba
-    const SENT_MARGIN = 8;     // margen de seguridad contra el borde izquierdo
+    const getScrollContainer = () =>
+      bubbleRef.current?.closest("[data-chat-scroll]") ||
+      bubbleRef.current?.closest(".overflow-y-auto") ||
+      bubbleRef.current?.parentElement;
 
-    const place = () => {
-      const el = bubbleRef.current;
-      if (!el) return;
-      const r = el.getBoundingClientRect();
+    const placeMenu = () => {
+      const bubble = bubbleRef.current;
+      if (!bubble) return;
 
-      let x = 0;
-      let y = 0;
+      const scrollEl = getScrollContainer();
+      const bubbleR = bubble.getBoundingClientRect();
+      const contR = (scrollEl || document.body).getBoundingClientRect();
 
-      if (mine) {
-        // IZQUIERDA (enviados): totalmente fuera y arriba
-        x = r.left - SENT_GAP_X - MENU_W;
-        x = Math.max(SENT_MARGIN, x); // clamp por la izquierda
-        y = r.top - MENU_H - SENT_GAP_Y;
-      } else {
-        // DERECHA (recibidos): totalmente fuera y arriba
-        x = r.right + RECV_GAP_X;
-        x = Math.min(window.innerWidth - RECV_MARGIN - MENU_W, x); // clamp por la derecha
-        y = r.top - MENU_H - RECV_GAP_Y;
-      }
+      // posición base con tus offsets
+      let x = mine ? bubbleR.left - MENU_W - 15 : bubbleR.right + 13;
+      let y = mine
+        ? bubbleR.top - MENU_H + 90          // enviados
+        : bubbleR.top - MENU_H + 160;        // recibidos (más abajo)
 
-      // Clamp vertical para no salirse de pantalla
-      y = Math.max(8, Math.min(y, window.innerHeight - MENU_H - 8));
+      // clamp horizontal
+      x = Math.max(contR.left + PAD, Math.min(x, contR.right - PAD - MENU_W));
 
-      // Auto-scroll del contenedor para que el menú quepa completo dentro del área de mensajes
-      try {
-        const container = el.closest('.overflow-y-auto');
-        if (container) {
-          const c = container.getBoundingClientRect();
-          const PAD = 8;
-          let menuTop = y;
-          let menuBottom = y + MENU_H;
-
-          if (menuTop < c.top + PAD) {
-            const delta = Math.ceil((c.top + PAD) - menuTop);
-            container.scrollTop -= delta;
-            const r2 = el.getBoundingClientRect();
-            if (mine) {
-              y = r2.top - MENU_H - SENT_GAP_Y;
-            } else {
-              y = r2.top - MENU_H - RECV_GAP_Y;
-            }
-          } else if (menuBottom > c.bottom - PAD) {
-            const delta = Math.ceil(menuBottom - (c.bottom - PAD));
-            container.scrollTop += delta;
-            const r2 = el.getBoundingClientRect();
-            if (mine) {
-              y = r2.top - MENU_H - SENT_GAP_Y;
-            } else {
-              y = r2.top - MENU_H - RECV_GAP_Y;
-            }
+      // auto-scroll si no cabe
+      const ensureInView = () => {
+        if (!scrollEl) return;
+        let tries = 0;
+        while (tries < 6) {
+          const contNow = scrollEl.getBoundingClientRect();
+          const menuTop = y;
+          const menuBottom = y + MENU_H;
+          let moved = false;
+          if (menuTop < contNow.top + PAD) {
+            const delta = Math.ceil((contNow.top + PAD) - menuTop);
+            scrollEl.scrollTop -= delta;
+            y += delta; moved = true;
           }
+          if (menuBottom > contNow.bottom - PAD) {
+            const delta = Math.ceil(menuBottom - (contNow.bottom - PAD));
+            scrollEl.scrollTop += delta;
+            y -= delta; moved = true;
+          }
+          tries++;
+          if (!moved) break;
         }
-      } catch {}
+      };
+      ensureInView();
 
-
-      
+      // clamp vertical
+      const contNow = (scrollEl || document.body).getBoundingClientRect();
+      y = Math.max(contNow.top + PAD, Math.min(y, contNow.bottom - PAD - MENU_H));
 
       setMenuPos({ x, y });
     };
-    place();
-    window.addEventListener('resize', place);
-    window.addEventListener('scroll', place, true);
+
+    placeMenu();
+    const onAnyScroll = () => placeMenu();
+    window.addEventListener("resize", placeMenu);
+    document.addEventListener("scroll", onAnyScroll, true);
     return () => {
-      window.removeEventListener('resize', place);
-      window.removeEventListener('scroll', place, true);
+      window.removeEventListener("resize", placeMenu);
+      document.removeEventListener("scroll", onAnyScroll, true);
     };
   }, [menuOpen, mine]);
 
@@ -145,6 +127,43 @@ export default function MessageMobile({
     const d = new Date(msg?.createdAt || msg?.fecha || Date.now());
     return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }, [msg]);
+
+  const escapeHTML = (s) =>
+    String(s || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+
+  const isEmojiOnly = (text) => {
+    if (!text) return false;
+    // Quita espacios/ZWJ/variation selectors/modificadores de tono
+    const stripped = String(text)
+      .replace(/\s+/g, '')
+      .replace(/\u200D/g, '')           // ZWJ
+      .replace(/[\uFE0E\uFE0F]/g, '')   // variation selectors
+      .replace(/[\u{1F3FB}-\u{1F3FF}]/gu, ''); // skin tones
+    if (!stripped) return false;
+    // Considera emoji si todos los codepoints restantes son pictográficos
+    return /^\p{Extended_Pictographic}+$/u.test(stripped);
+  };
+
+
+  const html = useMemo(() => {
+    const safe = escapeHTML(String(msg?.texto || ""));
+    return twemoji.parse(safe, {
+      folder: "64",
+      ext: ".png",
+      className: "emoji-img",
+      callback: (icon) =>
+        `https://cdn.jsdelivr.net/npm/emoji-datasource-apple/img/apple/64/${icon}.png`,
+      attributes: () => ({ draggable: "false", loading: "lazy" }),
+    });
+  }, [msg?.texto]);
+
+  const emojiOnly = isEmojiOnly(msg?.texto);
 
   const startLongPress = () => {
     clearTimeout(holdTimer.current);
@@ -160,8 +179,8 @@ export default function MessageMobile({
   return (
     <div className={`flex ${mine ? "justify-end" : "justify-start"} px-1`}>
       <div
-        className={`max-w-[82%] relative rounded-2xl px-3 py-2 shadow-sm border
-        ${mine ? "bg-blue-600 text-white border-blue-600" : "bg-white dark:bg-zinc-800 dark:text-gray-100 dark:border-zinc-700"}
+        className={`max-w-[82%] relative rounded-2xl ${emojiOnly ? "bg-transparent border-0 shadow-none px-0 py-0" : "px-3 py-2 shadow-sm border"}
+        ${mine ? (emojiOnly ? "" : "bg-blue-600 text-white border-blue-600") : (emojiOnly ? "" : "bg-white dark:bg-zinc-800 dark:text-gray-100 dark:border-zinc-700")}
         ${pinned ? "ring-2 ring-amber-300" : ""}`}
         onTouchStart={startLongPress}
         onTouchEnd={cancelLongPress}
@@ -172,14 +191,48 @@ export default function MessageMobile({
         onContextMenu={(e) => { e.preventDefault(); setMenuOpen(true); }}
       >
         <div ref={bubbleRef} className="relative">
-          {/* Texto */}
-          {msg?.texto && (
-            <div className={`text-[15px] leading-snug ${mine ? "text-white" : "text-gray-800 dark:text-gray-100"}`}>
-              <EmojiText text={String(msg.texto)} />
+
+          {/* Preview de respuesta (seguro, sin IIFE) */}
+          {/* Preview de respuesta (mejor contraste) */}
+          {msg?.replyTo ? (
+            <div
+              className={`mb-2 rounded-lg px-2 py-1 max-w-[260px] border-l-4 ${mine
+                  ? "bg-white/10 border-white/40"         // <-- en mis mensajes: fondo translúcido claro
+                  : "bg-gray-50 border-gray-300"          // <-- en recibidos: igual que antes
+                }`}
+            >
+              <div
+                className={`text-[11px] font-semibold ${mine ? "text-white/90" : "text-gray-800"
+                  }`}
+              >
+                {String((msg.replyTo.autor && (msg.replyTo.autor._id || msg.replyTo.autor.id || msg.replyTo.autor)) || "") === String(myId)
+                  ? "Tú"
+                  : ((msg.replyTo.autor && (msg.replyTo.autor.nombre || msg.replyTo.autor.name)) || "Mensaje")}
+              </div>
+
+              {/* 2 líneas máximo, sin plugin line-clamp */}
+              <div
+                className={`text-[11px] ${mine ? "text-white/85" : "text-gray-700"}`}
+                style={{
+                  display: "-webkit-box",
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
+                }}
+              >
+                {msg.replyTo.texto || msg.replyTo.preview || "…"}
+              </div>
             </div>
+          ) : null}
+
+
+          {!!msg?.texto && (
+            <div
+              className={`text-[15px] leading-snug ${mine ? "text-white" : "text-gray-800 dark:text-gray-100"} emoji-text ${emojiOnly ? "emoji-only" : ""}`}
+              dangerouslySetInnerHTML={{ __html: html }}
+            />
           )}
 
-          {/* Adjuntos */}
           {archivos.length > 0 && (
             <div className="mt-2 grid grid-cols-2 gap-2">
               {archivos.map((a, i) => (
@@ -200,12 +253,10 @@ export default function MessageMobile({
             </div>
           )}
 
-
-
           {menuOpen && (
             <div
               ref={menuRef}
-              className={`fixed z-50 w-48 max-w-[92vw] rounded-xl border bg-white dark:bg-zinc-900 dark:border-zinc-700 shadow-xl overflow-hidden ${mine ? "translate-x-[-100%]" : ""}`}
+              className="fixed z-50 w-32 max-w-[92vw] rounded-xl border bg-white dark:bg-zinc-900 dark:border-zinc-700 shadow-xl overflow-hidden"
               style={{ left: menuPos.x, top: menuPos.y }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -220,18 +271,12 @@ export default function MessageMobile({
               )}
             </div>
           )}
-
         </div>
 
-        {/* Hora y pin */}
         <div className={`mt-1 text-[11px] ${mine ? "text-white/80" : "text-gray-500 dark:text-gray-400"} flex items-center gap-1`}>
           {pinned && <span title="Fijado">📌</span>}
           <span>{time}</span>
         </div>
-
-        {/* Mini menú táctil */}
-
-
       </div>
     </div>
   );
