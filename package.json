@@ -31,7 +31,7 @@
     "socket.io-client": "^4.8.1",
     "sweetalert2": "^11.22.2",
     "swiper": "^11.2.10",
-    "twemoji": "^15.1.0"
+    "twemoji": "14.0.2"
   },
   "devDependencies": {
     "@vitejs/plugin-react-swc": "^3.7.0",
