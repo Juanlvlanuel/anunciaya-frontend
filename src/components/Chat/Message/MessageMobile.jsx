@@ -138,17 +138,21 @@ export default function MessageMobile({
 
 
   const isEmojiOnly = (text) => {
-    if (!text) return false;
-    // Quita espacios/ZWJ/variation selectors/modificadores de tono
-    const stripped = String(text)
-      .replace(/\s+/g, '')
-      .replace(/\u200D/g, '')           // ZWJ
-      .replace(/[\uFE0E\uFE0F]/g, '')   // variation selectors
-      .replace(/[\u{1F3FB}-\u{1F3FF}]/gu, ''); // skin tones
-    if (!stripped) return false;
-    // Considera emoji si todos los codepoints restantes son pictográficos
-    return /^\p{Extended_Pictographic}+$/u.test(stripped);
-  };
+  if (!text) return false;
+  // Remove spaces, ZWJ, variation selectors, and skin tones
+  const stripped = String(text)
+    .replace(/\s+/g, '')
+    .replace(/\u200D/g, '')           // ZWJ
+    .replace(/[\uFE0E\uFE0F]/g, '')   // variation selectors
+    .replace(/[\u{1F3FB}-\u{1F3FF}]/gu, ''); // skin tones
+  if (!stripped) return false;
+
+  // Consider emoji-only if the string consists solely of pictographs
+  // and/or FLAG sequences built from pairs of Regional Indicator symbols.
+  const RI = "\\p{Regional_Indicator}";
+  const pattern = new RegExp(`^(?:\\p{Extended_Pictographic}+|${RI}{2})+$`, 'u');
+  return pattern.test(stripped);
+};
 
 
   const html = useMemo(() => {

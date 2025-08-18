@@ -26,7 +26,7 @@ const SearchPopup = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-[9999] flex items-center justify-center sm:items-start sm:justify-end sm:pt-[90px] sm:pr-[60px]">
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-[99990] flex items-center justify-center sm:items-start sm:justify-end sm:pt-[90px] sm:pr-[60px] pb-bottom-safe">
       <div className="relative w-full sm:w-auto flex justify-center sm:justify-end sm:mr-4">
         {/* 🔻 Flechita para escritorio */}
         <div className="hidden sm:block absolute -top-2 left-[90px] w-4 h-4 bg-white rotate-45 shadow-md border border-gray-200 z-10" />

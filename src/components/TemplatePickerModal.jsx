@@ -1,5 +1,5 @@
 // src/components/TemplatePickerModal.jsx
-import React from "react";
+import React, { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import comercioIcon from "../assets/icons/comercios.png";
@@ -35,12 +35,25 @@ export default function TemplatePickerModal({ open, onClose, onSelect, allowed =
     : ALL_TEMPLATES;
 
   const grouped = byGroup(items);
+  useEffect(() => {
+    if (!open) return;
+    const handleExternalOpen = () => { try { onClose?.(); } catch {} };
+    window.addEventListener('open-tools-sidebar', handleExternalOpen);
+    window.addEventListener('open-search', handleExternalOpen);
+    window.addEventListener('open-chat', handleExternalOpen);
+    return () => {
+      window.removeEventListener('open-tools-sidebar', handleExternalOpen);
+      window.removeEventListener('open-search', handleExternalOpen);
+      window.removeEventListener('open-chat', handleExternalOpen);
+    };
+  }, [open, onClose]);
+
 
   return (
     <AnimatePresence>
       {open && (
         <motion.div
-          className="fixed inset-0 z-[2147483600] flex items-end sm:items-center sm:justify-center"
+          className="fixed inset-0 z-[90000] flex items-end sm:items-center sm:justify-center"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -52,7 +65,7 @@ export default function TemplatePickerModal({ open, onClose, onSelect, allowed =
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 24, opacity: 0 }}
             transition={{ duration: 0.18, ease: "easeOut" }}
-            className="relative w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl bg-white/95 backdrop-blur-md border border-slate-200 p-4 max-h-[85vh] overflow-y-auto"
+            className="relative w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl bg-white/95 backdrop-blur-md border border-slate-200 p-4 max-h-[85vh] overflow-y-auto pb-bottom-safe"
           >
             <div className="text-base font-semibold text-slate-800 mb-2">Elige qué quieres publicar</div>
 

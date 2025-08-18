@@ -275,7 +275,7 @@ const isBlocked = useMemo(() => {
 )}
 
       {/* Lista de mensajes */}
-      <div className={`px-3 pt-2 ${bottomGapClass} space-y-2`}>
+      <div className="px-3 pt-2 space-y-2 pb-bottom-safe">
         {list.map((m, idx) => {
           const id = String(m?._id || `${activeChatId}-${idx}`);
           return (
@@ -311,7 +311,7 @@ const isBlocked = useMemo(() => {
       </div>
 
       {!isPinnedAtBottom && (
-        <button onClick={scrollToBottom} className="fixed bottom-[calc(64px+env(safe-area-inset-bottom))] right-4 z-20 rounded-full shadow-md border bg-white/95 dark:bg-zinc-800/95 dark:border-zinc-600 backdrop-blur p-2" aria-label="Ir al último mensaje" title="Ir al último mensaje">
+        <button onClick={scrollToBottom} className="fixed bottom-[calc(var(--bottom-nav-h)+env(safe-area-inset-bottom)+8px)] right-4 z-20 rounded-full shadow-md border bg-white/95 dark:bg-zinc-800/95 dark:border-zinc-600 backdrop-blur p-2" aria-label="Ir al último mensaje" title="Ir al último mensaje">
           <svg viewBox="0 0 24 24" className="w-5 h-5 text-gray-700 dark:text-gray-200" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
         </button>
       )}

@@ -1,7 +1,7 @@
-// ChatPanelMobile-updated.jsx
+// ChatPanelMobile.jsx (actualizado sin presets inactivos y limpieza menor)
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { motion } from "framer-motion";
-import { FaMoon, FaSun, FaImage, FaLink, FaTrash, FaPalette, FaSearch, FaBan, FaUnlockAlt } from "react-icons/fa";
+import { FaMoon, FaSun, FaImage, FaLink, FaTrash, FaPalette, FaSearch, FaBan, FaUnlockAlt, FaTimes } from "react-icons/fa";
 import { useChat } from "../../../context/ChatContext";
 import { API_BASE, searchUsers, ensurePrivado } from "../../../services/api";
 import logoChatYA from "../../../assets/logo-chatya.png"; // coloca tu PNG aquí
@@ -9,25 +9,6 @@ import ChatList from "../ChatList/ChatList";
 import ChatWindow from "../ChatWindow/ChatWindowMobile";
 import MessageInput from "../MessageInput/MessageInput";
 
-// Mostrar/ocultar la sección de "Fondos predefinidos"
-const SHOW_PRESETS = false;
-const BG_PRESETS = [
-  { name: "Abstracto azul", url: "https://images.unsplash.com/photo-1526318472351-c75fcf070305?w=1200&auto=format&fit=crop&q=60" },
-  { name: "Textura papel", url: "https://images.unsplash.com/photo-1523419409543-a5e549c1cfb7?w=1200&auto=format&fit=crop&q=60" },
-  { name: "Ondas moradas", url: "https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=1200&auto=format&fit=crop&q=60" },
-  { name: "Patrón geométrico", url: "https://images.unsplash.com/photo-1520697222868-8b3c80b0f7b4?w=1200&auto=format&fit=crop&q=60" },
-  { name: "Gradiente suave", url: "https://images.unsplash.com/photo-1528459105426-b9548367068b?w=1200&auto=format&fit=crop&q=60" },
-  { name: "Cian minimal", url: "https://images.unsplash.com/photo-1496307042754-b4aa456c4a2d?w=1200&auto=format&fit=crop&q=60" },
-];
-
-/**
- * ChatPanelMobile — actualizado
- * 
- * Cambios clave:
- * - "Mis fondos" (persistentes en localStorage) con agregar por Subir/URL y eliminar.
- * - Opción para ocultar los predefinidos (SHOW_PRESETS=false).
- * - Conserva el resto de tu lógica (búsqueda, lista, ventana de chat, etc.).
- */
 export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeight = null }) {
   const { chats, activeChatId, currentUserId, setActiveChatId, loadChats, loadMessages, statusMap, blockChat, unblockChat } = useChat();
   const boxRef = useRef(null);
@@ -142,7 +123,7 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
   const statusText = rawStatus === "online" ? "Conectado"
     : rawStatus === "away" ? "Ausente"
       : rawStatus === "offline" ? "Desconectado"
-        : "";
+        : "Desconectado";
 
   // === Bloqueo: ¿YO tengo bloqueado este chat?
   const isBlocked = useMemo(() => {
@@ -182,8 +163,6 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
       (localStorage.getItem("chatBgDataUrl") ? "data" : localStorage.getItem("chatBgUrl") ? "url" : "")
   );
   useEffect(() => {
-    const el = document.documentElement;
-    if (theme === "dark") el.classList.add("dark"); else el.classList.remove("dark");
     localStorage.setItem("chatTheme", theme);
   }, [theme]);
 
@@ -222,7 +201,6 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
   };
   const openWithUser = async (user) => {
     try {
-      const token = localStorage.getItem("token") || ""; // (no usado aquí)
       if (!currentUserId || !user?._id) throw new Error("IDs de usuarios no válidos");
 
       setPartnerHint({
@@ -248,7 +226,7 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
     }
   };
 
-  // ===== Fondo: subir/URL/presets/custom =====
+  // ===== Fondo: subir/URL/custom =====
   const fileRef = useRef(null);
   const [showBgMenu, setShowBgMenu] = useState(false);
   const bgMenuRef = useRef(null);
@@ -305,23 +283,15 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
     } finally { if (fileRef.current) fileRef.current.value = ""; }
   };
 
+  // 🔄 Modal UX para URL de fondo
+  const [urlModalOpen, setUrlModalOpen] = useState(false);
+  const [bgUrlTemp, setBgUrlTemp] = useState("");
+  const [bgUrlError, setBgUrlError] = useState("");
+
   const pickBgFromUrl = () => {
-    const url = window.prompt(
-      "Pega la URL de una imagen para el fondo del chat (deja vacío para quitar):",
-      bgOrigin === "url" ? localStorage.getItem("chatBgUrl") || "" : ""
-    );
-    if (url === null) return;
-    const clean = url.trim();
-    if (!clean) { clearBg(); return; }
-    setBgUrl(clean); setBgOrigin("url");
-    localStorage.setItem("chatBgUrl", clean);
-    localStorage.removeItem("chatBgDataUrl");
-    localStorage.setItem("chatBgOrigin", "url");
-    // Guardar en "Mis fondos" (opcionalmente con nombre)
-    const name = window.prompt("Nombre para guardar este fondo (opcional):", "Mi fondo desde URL");
-    if (name && name.trim()) {
-      setCustomBgs((prev) => [{ name: name.trim(), url: clean, origin: "url" }, ...prev.filter(b => b.url !== clean)].slice(0, 30));
-    }
+    setBgUrlTemp(bgUrl || "");
+    setBgUrlError("");
+    setUrlModalOpen(true);
     setShowBgMenu(false);
   };
 
@@ -330,14 +300,6 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
     localStorage.removeItem("chatBgUrl");
     localStorage.removeItem("chatBgDataUrl");
     localStorage.removeItem("chatBgOrigin");
-    setShowBgMenu(false);
-  };
-
-  const applyPreset = (url) => {
-    setBgUrl(url); setBgOrigin("url");
-    localStorage.setItem("chatBgUrl", url);
-    localStorage.removeItem("chatBgDataUrl");
-    localStorage.setItem("chatBgOrigin", "url");
     setShowBgMenu(false);
   };
 
@@ -372,7 +334,7 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
   const normalize = (v) => (typeof v === "number" ? `${v}px` : v);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center">
+    <div className={`fixed inset-0 z-50 flex items-end justify-center ${theme === 'dark' ? 'dark' : ''}`}>
       {/* Overlay */}
       <motion.div
         className="absolute inset-0 bg-black/35"
@@ -443,11 +405,9 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
               onPickBgFile={onPickBgFile}
               pickBgFromUrl={pickBgFromUrl}
               clearBg={clearBg}
-              applyPreset={applyPreset}
               customBgs={customBgs}
               applyCustom={applyCustom}
               removeCustom={removeCustom}
-              showPresets={SHOW_PRESETS}
               isBlocked={isBlocked}
               onToggleBlock={onToggleBlock}
               onBack={() => { setActiveChatId(null); setShowListMobile(true); }}
@@ -455,9 +415,110 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
 
             {/* Mensajes + Input */}
             <ChatWindow theme={theme} bgUrl={bgUrl} height={windowHeight} />
-            <div className="sticky bottom-0 bg-white dark:bg-zinc-900 border-t dark:border-zinc-700 pb-[max(8px,env(safe-area-inset-bottom))]">
+            <div className="sticky bottom-[var(--bottom-nav-h)] bg-white dark:bg-zinc-900 border-t dark:border-zinc-700 pb-[max(8px,env(safe-area-inset-bottom))]">
               <MessageInput />
             </div>
+
+            {/* === Modal para pegar URL del fondo === */}
+            {urlModalOpen && (
+              <div
+                className="fixed inset-0 z-[100000] flex items-center justify-center"
+                aria-modal="true"
+                role="dialog"
+                onClick={() => setUrlModalOpen(false)}
+              >
+                {/* Overlay */}
+                <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+
+                {/* Card */}
+                <div
+                  className="relative z-10 w-[92%] max-w-md bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-100 rounded-2xl shadow-2xl border border-slate-200/70 dark:border-zinc-700 p-4"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-[15px] font-semibold">Fondo del chat por URL</h3>
+                    <button
+                      onClick={() => setUrlModalOpen(false)}
+                      className="h-8 w-8 inline-flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10"
+                      aria-label="Cerrar"
+                    >
+                      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                        <path d="M18 6L6 18M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  <label className="block text-xs font-medium mb-1">Pega una URL de imagen</label>
+                  <input
+                    autoFocus
+                    type="url"
+                    placeholder="https://ejemplo.com/imagen.jpg"
+                    value={bgUrlTemp}
+                    onChange={(e) => { setBgUrlTemp(e.target.value); setBgUrlError(""); }}
+                    className="w-full h-10 rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+
+                  <div className="mt-1 min-h-[20px]">
+                    {bgUrlError ? (
+                      <p className="text-xs text-red-600">{bgUrlError}</p>
+                    ) : (
+                      <p className="text-[11px] text-slate-500">Admite JPG, PNG, GIF, WEBP.</p>
+                    )}
+                  </div>
+
+                  {bgUrlTemp && (
+                    <div className="mt-2">
+                      <div className="text-xs mb-1 text-slate-500">Vista previa</div>
+                      <div className="rounded-lg overflow-hidden border border-slate-200 dark:border-zinc-700">
+                        <img
+                          src={bgUrlTemp}
+                          alt="Vista previa"
+                          className="w-full max-h-48 object-cover"
+                          onError={() => setBgUrlError("No se pudo cargar la imagen. Verifica la URL.")}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mt-4 flex items-center justify-end gap-2">
+                    <button
+                      onClick={() => {
+                        setBgUrl("");
+                        setBgOrigin("");
+                        localStorage.removeItem("chatBgUrl");
+                        localStorage.removeItem("chatBgDataUrl");
+                        localStorage.removeItem("chatBgOrigin");
+                        setUrlModalOpen(false);
+                      }}
+                      className="h-9 px-3 rounded-lg border border-slate-300 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-800 text-sm"
+                    >
+                      Quitar
+                    </button>
+                    <button
+                      onClick={() => {
+                        const val = (bgUrlTemp || "").trim();
+                        if (!val) { setBgUrlError("Escribe una URL válida o usa Quitar."); return; }
+                        try {
+                          new URL(val); // valida formato
+                          setBgUrl(val);
+                          setBgOrigin("url");
+                          localStorage.setItem("chatBgUrl", val);
+                          localStorage.removeItem("chatBgDataUrl");
+                          localStorage.setItem("chatBgOrigin", "url");
+                          setUrlModalOpen(false);
+                        } catch {
+                          setBgUrlError("La URL no es válida.");
+                        }
+                      }}
+                      className="h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium shadow"
+                    >
+                      Aplicar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            {/* === Fin modal === */}
           </div>
         )}
       </motion.div>
@@ -533,11 +594,14 @@ function SearchBox({ query, onChangeQuery, loadingSearch, resul, showResults, se
 function HeaderBar({
   partner, statusText, theme, setTheme,
   fileRef, showBgMenu, setShowBgMenu, bgMenuRef,
-  onPickBgFile, pickBgFromUrl, clearBg, applyPreset,
-  customBgs, applyCustom, removeCustom, showPresets,
+  onPickBgFile, pickBgFromUrl, clearBg,
+  customBgs, applyCustom, removeCustom,
   onBack, isBlocked, onToggleBlock
 }) {
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
+
   return (
+    <>
     <div className="sticky top-0 z-10 h-14 px-3 border-b bg-white/90 dark:bg-zinc-900/90 dark:border-zinc-700 backdrop-blur flex items-center gap-3">
       {/* Back móvil */}
       <button
@@ -549,7 +613,9 @@ function HeaderBar({
         <svg viewBox="0 0 24 24" className="w-5 h-5 text-gray-700 dark:text-gray-200" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
       </button>
 
+      <div onClick={() => setShowAvatarModal(true)} className="cursor-pointer">
       <Avatar nickname={partner?.nickname || partner?.nombre} fotoPerfil={partner?.fotoPerfil} />
+    </div>
       <div className="leading-tight min-w-0">
         <div className="text-sm font-medium truncate dark:text-zinc-100">
           {partner?.nickname || partner?.nombre || "Contacto"}
@@ -572,7 +638,9 @@ function HeaderBar({
             <FaPalette className="text-gray-700 dark:text-gray-200" />
           </button>
           {showBgMenu && (
-            <div className="absolute right-0 mt-2 w-[320px] max-h-[70vh] overflow-auto bg-white dark:bg-zinc-900 border dark:border-zinc-700 rounded-xl shadow-xl p-3 z-30">
+            <div className="absolute right-0 mt-2 w-[320px] max-h-[70vh] overflow-auto bg-white dark:bg-zinc-900 border dark:border-zinc-700 rounded-xl shadow-xl p-3 z-30" 
+            style={{ left: -200, right: "auto", maxWidth: "95vw" }}
+            >
               {/* Mis fondos */}
               {customBgs?.length > 0 && (
                 <>
@@ -598,24 +666,14 @@ function HeaderBar({
                 </>
               )}
 
-              {/* Predefinidos (opcionales) */}
-              {showPresets && BG_PRESETS.length > 0 && (
-                <>
-                  <div className="text-xs font-semibold mb-2 text-gray-600 dark:text-zinc-300">Fondos predefinidos</div>
-                  <div className="grid grid-cols-3 gap-2">
-                    {BG_PRESETS.map((p, idx) => (
-                      <button key={idx} type="button" onClick={() => applyPreset(p.url)} title={p.name} className="rounded-lg overflow-hidden border dark:border-zinc-700 hover:opacity-90">
-                        <img src={`${p.url}&h=220`} alt={p.name} className="w-full h-20 object-cover" loading="lazy" />
-                      </button>
-                    ))}
-                  </div>
-                  <div className="h-px my-3 bg-gray-200 dark:bg-zinc-700" />
-                </>
-              )}
-
               {/* Acciones */}
               <div className="grid grid-cols-3 gap-2">
-                <button type="button" onClick={() => document.querySelector('input[type="file"][accept^="image"]').click()} className="col-span-1 flex items-center justify-center gap-2 text-sm rounded-lg border dark:border-zinc-700 px-3 py-2 hover:bg-gray-50 dark:hover:bg-zinc-800" title="Subir desde tu dispositivo">
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  className="col-span-1 flex items-center justify-center gap-2 text-sm rounded-lg border dark:border-zinc-700 px-3 py-2 hover:bg-gray-50 dark:hover:bg-zinc-800"
+                  title="Subir desde tu dispositivo"
+                >
                   <FaImage /> Subir
                 </button>
                 <button type="button" onClick={pickBgFromUrl} className="col-span-1 flex items-center justify-center gap-2 text-sm rounded-lg border dark:border-zinc-700 px-3 py-2 hover:bg-gray-50 dark:hover:bg-zinc-800" title="Pegar URL">
@@ -658,6 +716,26 @@ function HeaderBar({
         </button>
       </div>
     </div>
+      {showAvatarModal && (partner?.fotoPerfil || partner?.nickname) && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70" onClick={() => setShowAvatarModal(false)}>
+          {partner?.fotoPerfil ? (
+            <img
+              src={partner?.fotoPerfil?.startsWith("http") ? partner.fotoPerfil : `${API_BASE}${partner.fotoPerfil}`}
+              alt={partner?.nickname || partner?.nombre || "Foto de perfil"}
+              className="max-w-[90%] max-h-[90%] rounded-xl shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <div
+              className="w-[70vmin] h-[70vmin] max-w-[90%] max-h-[90%] rounded-full grid place-items-center bg-blue-600 text-white text-6xl font-bold select-none"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {(partner?.nickname || partner?.nombre || "?").slice(0,2).toUpperCase()}
+            </div>
+          )}
+        </div>
+      )}
+    </>
   );
 }
 

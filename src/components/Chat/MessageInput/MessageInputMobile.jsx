@@ -162,7 +162,7 @@ const isBlocked = useMemo(() => {
   const handlePickEmoji = (emoji) => setText((prev) => (prev || "") + emoji);
 
   return (
-    <div className="px-3 pt-2 relative">
+    <div className="px-2 pb-2 relative">
 
 {isBlocked && (
   <div className="mx-2 mb-2 rounded-xl border border-yellow-300 bg-yellow-50/90 text-yellow-900 text-xs px-3 py-2 dark:bg-yellow-900/30 dark:text-yellow-100 dark:border-yellow-700">

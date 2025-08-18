@@ -1,4 +1,8 @@
-// src/components/Chat/ChatList/ChatListMobile.jsx
+// src/components/Chat/ChatList/ChatListMobile-1.jsx
+// Lista de chats (móvil) con menú kebab (⋮) fijo en viewport.
+// Acciones: Favorito / Bloquear-Desbloquear / Eliminar
+// Incluye efectos visuales para chats bloqueados y posicionamiento robusto del menú.
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useChat } from "../../../context/ChatContext";
 import { API_BASE, chatAPI } from "../../../services/api";
@@ -21,17 +25,17 @@ function ConfirmModal({ open, title, message, onConfirm, onCancel, confirmText =
 }
 
 const Star = ({ filled }) => filled ? (
-  <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
     <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" fill="#F59E0B" />
   </svg>
 ) : (
-  <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
     <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" fill="none" stroke="#9CA3AF" strokeWidth="2" />
   </svg>
 );
 
 export default function ChatListMobile({ onSelectChat }) {
-  const { chats, setChats, loadChats, setActiveChatId, activeChatId, currentUserId, loadMessages, statusMap } = useChat();
+  const { chats, setChats, loadChats, setActiveChatId, activeChatId, currentUserId, loadMessages, statusMap, blockChat, unblockChat } = useChat();
   const [q, setQ] = useState("");
   const [confirm, setConfirm] = useState({ open: false, chatId: null, name: "" });
 
@@ -56,26 +60,28 @@ export default function ChatListMobile({ onSelectChat }) {
     return p?.nickname || p?.nombre || chat?.nombre || "Contacto";
   };
 
-  // ---------- SOLO CAMBIO: criterio para ocultar solo chats realmente "vacíos" ----------
+  const isBlockedForMe = (c) => {
+    if (!c) return false;
+    if (typeof c.isBlocked === "boolean") return c.isBlocked;
+    const arr = Array.isArray(c.blockedBy) ? c.blockedBy.map(String) : [];
+    return arr.includes(String(currentUserId));
+  };
+
   // Consideramos que HAY mensaje si:
   //  - ultimoMensaje existe (string no vacío o cualquier objeto)
   //  - o totalMensajes > 0
   //  - o mensajes[] tiene elementos
-  // Esto asegura que, si borraste el chat "para mí" y luego llega un mensaje nuevo,
-  // el chat volverá a aparecer aunque el backend aún no rellene 'texto'.
   const hasAnyMessage = (c) => {
     if (!c) return false;
     const um = c?.ultimoMensaje;
     if (um !== undefined && um !== null) {
       if (typeof um === "string") return um.trim() !== "";
-      // si es objeto, asumimos que existe un último mensaje (aunque sea emoji/archivo)
       return true;
     }
     if (typeof c?.totalMensajes === "number") return c.totalMensajes > 0;
     if (Array.isArray(c?.mensajes)) return c.mensajes.length > 0;
     return false;
   };
-  // --------------------------------------------------------------------------------------
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -103,14 +109,11 @@ export default function ChatListMobile({ onSelectChat }) {
   };
 
   const toggleFavorite = async (chat) => {
-    // Token robusto desde varias llaves comunes
     let token = localStorage.getItem("token") || localStorage.getItem("authToken") || "";
     if (!token) {
       try {
         const u = JSON.parse(localStorage.getItem("usuario") || "{}");
-        if (u && (u.token || u.jwt || u.accessToken)) {
-          token = u.token || u.jwt || u.accessToken;
-        }
+        if (u && (u.token || u.jwt || u.accessToken)) token = u.token || u.jwt || u.accessToken;
       } catch {}
     }
     const wasFav = getFav(chat);
@@ -121,8 +124,17 @@ export default function ChatListMobile({ onSelectChat }) {
           : c
       ));
     }
-    try { await chatAPI.toggleFavorite(chat._id, !wasFav, token); } catch (e) { /* si falla, refrescamos */ loadChats?.(); }
+    try { await chatAPI.toggleFavorite(chat._id, !wasFav, token); } catch { loadChats?.(); }
     window.dispatchEvent(new Event("chat:favorites-updated"));
+  };
+
+  const toggleBlock = async (chat) => {
+    if (!chat?._id) return;
+    try {
+      if (isBlockedForMe(chat)) await unblockChat(chat._id);
+      else await blockChat(chat._id);
+      await loadChats?.();
+    } catch {}
   };
 
   const askDelete = (chat) => setConfirm({ open: true, chatId: chat._id, name: getDisplayName(chat) });
@@ -135,18 +147,84 @@ export default function ChatListMobile({ onSelectChat }) {
     } catch { setConfirm({ open: false, chatId: null, name: "" }); }
   };
 
+  const MENU_W = 176; // px
+  const MENU_MARGIN = 8; // px
+  const APPROX_MENU_H = 160; // estimado antes de render
+
+  // === Ajustes manuales del menú kebab ===
+  const MENU_OFFSET_X = -20;        // + mueve a la derecha, - a la izquierda
+  const MENU_OFFSET_Y_DOWN = -20;   // + baja el menú cuando abre hacia abajo
+  const MENU_OFFSET_Y_UP = -15;     // + sube más el menú cuando abre hacia arriba
+  // =======================================
+
+
   const Row = ({ chat }) => {
     const p = getPartner(chat);
     const name = getDisplayName(chat);
     const last = chat?.ultimoMensaje?.texto || chat?.ultimoMensaje || "";
     const fav = getFav(chat);
+    const blocked = isBlockedForMe(chat);
     const avatarSrc = p?.fotoPerfil ? (p.fotoPerfil.startsWith("http") ? p.fotoPerfil : `${API_BASE}${p.fotoPerfil}`) : null;
     const online = statusMap?.[String(p?._id || p?.id || p)] === "online";
     const active = chat._id === activeChatId;
 
+    const [openMenu, setOpenMenu] = useState(false);
+    const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+    const rowRef = useRef(null);
+    const kebabBtnRef = useRef(null);
+    const menuPanelRef = useRef(null);
+
+    // Cerrar al hacer click fuera
+    useEffect(() => {
+      const onDoc = (e) => {
+        if (!menuPanelRef.current || !openMenu) return;
+        if (!menuPanelRef.current.contains(e.target) && !kebabBtnRef.current?.contains(e.target)) setOpenMenu(false);
+      };
+      document.addEventListener("mousedown", onDoc);
+      return () => document.removeEventListener("mousedown", onDoc);
+    }, [openMenu]);
+
+    // Calcular posición al abrir
+    useEffect(() => {
+      if (!openMenu) return;
+      try { rowRef.current?.scrollIntoView({ block: "center", behavior: "smooth" }); } catch {}
+
+      const btn = kebabBtnRef.current;
+      const r = btn ? btn.getBoundingClientRect() : null;
+      if (!r) return;
+
+      // Posición base hacia abajo
+      let top = r.bottom + MENU_MARGIN + MENU_OFFSET_Y_DOWN;
+      let left = Math.min(
+        Math.max(r.right - MENU_W + MENU_OFFSET_X, MENU_MARGIN),
+        window.innerWidth - MENU_W - MENU_MARGIN
+      );
+
+      // Si no cabe hacia abajo, subimos
+      const spaceBelow = window.innerHeight - r.bottom;
+      const estH = APPROX_MENU_H;
+      if (spaceBelow < estH + MENU_MARGIN) top = Math.max(r.top - estH - MENU_MARGIN - MENU_OFFSET_Y_UP, MENU_MARGIN);
+
+      setMenuPos({ top, left });
+
+      // Ajuste fino tras render para usar altura real del menú
+      setTimeout(() => {
+        const panel = menuPanelRef.current;
+        if (!panel) return;
+        const realH = panel.offsetHeight || estH;
+        let t = r.bottom + MENU_MARGIN + MENU_OFFSET_Y_DOWN;
+        if (window.innerHeight - r.bottom < realH + MENU_MARGIN) t = Math.max(r.top - realH - MENU_MARGIN - MENU_OFFSET_Y_UP, MENU_MARGIN);
+        const l = Math.min(
+          Math.max(r.right - MENU_W + MENU_OFFSET_X, MENU_MARGIN),
+          window.innerWidth - MENU_W - MENU_MARGIN
+        );
+        setMenuPos({ top: t, left: l });
+      }, 0);
+    }, [openMenu]);
+
     return (
-      <div className="px-2">
-        <div className={`relative flex items-center gap-3 px-2 py-2 rounded-xl ${active ? "bg-blue-50 border border-blue-200" : "hover:bg-gray-50"}`}>
+      <div className="px-2" ref={rowRef}>
+        <div className={`relative flex items-center gap-3 px-2 py-2 rounded-xl ${active ? "bg-blue-50 border border-blue-200" : "hover:bg-gray-50"} ${blocked ? "opacity-60" : ""}`}>
           <button
             type="button"
             onMouseEnter={() => prefetch(chat._id)}
@@ -155,30 +233,94 @@ export default function ChatListMobile({ onSelectChat }) {
           >
             <div className="relative">
               {avatarSrc ? (
-                <img src={avatarSrc} alt={name} className="w-10 h-10 rounded-full object-cover border" />
+                <img src={avatarSrc} alt={name} className={`w-10 h-10 rounded-full object-cover border ${blocked ? "grayscale" : ""}`} />
               ) : (
-                <div className="w-10 h-10 rounded-full grid place-items-center bg-blue-600 text-white text-xs font-semibold">
+                <div className={`w-10 h-10 rounded-full grid place-items-center bg-blue-600 text-white text-xs font-semibold ${blocked ? "grayscale" : ""}`}>
                   {(name || "?").slice(0,2).toUpperCase()}
                 </div>
               )}
               <span className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full ring-2 ring-white ${online ? "bg-green-500" : "bg-gray-400"}`} />
+              {blocked && (
+                <span className="absolute -top-1 -left-1 w-4 h-4 rounded-full bg-white ring-2 ring-white grid place-items-center text-gray-700">
+                  <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="5" y="11" width="14" height="8" rx="2" />
+                    <path d="M7 11V8a5 5 0 0110 0v3" />
+                  </svg>
+                </span>
+              )}
             </div>
 
             <div className="min-w-0 flex-1">
-              <div className="text-sm font-medium truncate">{name}</div>
+              <div className="text-sm font-medium truncate flex items-center gap-2">
+                {name}
+                {blocked && (<span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 border border-red-200">Bloqueado</span>)}
+              </div>
               <div className="text-xs text-gray-500 truncate">{last}</div>
             </div>
           </button>
 
-          <div className="flex items-center gap-1">
-            <button type="button" onClick={(e) => { e.stopPropagation(); toggleFavorite(chat); }} className="w-8 h-8 grid place-items-center rounded-md hover:bg-gray-50" aria-label={fav ? "Quitar de favoritos" : "Añadir a favoritos"} title={fav ? "Quitar de favoritos" : "Añadir a favoritos"}>
-              <Star filled={fav} />
+          {/* Botón kebab */}
+          <button
+            ref={kebabBtnRef}
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setOpenMenu(s => !s); }}
+            className="w-8 h-8 grid place-items-center rounded-md hover:bg-gray-50"
+            aria-label="Más opciones"
+            title="Más opciones"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="text-gray-600">
+              <circle cx="12" cy="5" r="2"></circle>
+              <circle cx="12" cy="12" r="2"></circle>
+              <circle cx="12" cy="19" r="2"></circle>
+            </svg>
+          </button>
+        </div>
+
+        {/* Menú kebab fijo en viewport */}
+        {openMenu && (
+          <div
+            ref={menuPanelRef}
+            className="fixed z-50 w-44 bg-white rounded-xl shadow-xl border py-1 max-h-[60vh] overflow-auto"
+            style={{ top: menuPos.top, left: menuPos.left }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="w-full px-3 py-2 text-sm flex items-center gap-2 hover:bg-gray-50"
+              onClick={() => { setOpenMenu(false); toggleFavorite(chat); }}
+            >
+              <Star filled={fav} /> <span>{fav ? "Quitar de favoritos" : "Añadir a favoritos"}</span>
             </button>
-            <button type="button" onClick={(e) => { e.stopPropagation(); askDelete(chat); }} className="w-8 h-8 grid place-items-center rounded-md hover:bg-red-50" title="Eliminar chat" aria-label="Eliminar chat">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" className="text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            <button
+              className="w-full px-3 py-2 text-sm flex items-center gap-2 hover:bg-gray-50"
+              onClick={() => { setOpenMenu(false); toggleBlock(chat); }}
+            >
+              {blocked ? (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M3 12a9 9 0 1018 0 9 9 0 00-18 0z"></path>
+                    <path d="M9 15l6-6"></path>
+                  </svg>
+                  <span>Desbloquear</span>
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-red-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M3 12a9 9 0 1018 0 9 9 0 00-18 0z"></path>
+                    <path d="M9 9l6 6M15 9l-6 6"></path>
+                  </svg>
+                  <span>Bloquear</span>
+                </>
+              )}
+            </button>
+            <button
+              className="w-full px-3 py-2 text-sm flex items-center gap-2 hover:bg-red-50 text-red-600"
+              onClick={() => { setOpenMenu(false); askDelete(chat); }}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" className="text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              <span>Eliminar</span>
             </button>
           </div>
-        </div>
+        )}
       </div>
     );
   };

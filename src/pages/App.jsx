@@ -14,6 +14,9 @@ import LoginModal from "../modals/LoginModal";
 // Rutas centralizadas
 import AppRoutes from "../routes";
 
+// ⬇️ Menú inferior global (createPortal)
+import MobileBottomNav from "../components/NavsLogeado/MobileBottomNav";
+
 function App() {
   const { cargando, autenticado } = useContext(AuthContext);
   const [modalAbierto, setModalAbierto] = useState(false);
@@ -66,6 +69,9 @@ function App() {
 
       {/* 🧰 Barra de herramientas global */}
       <Tools />
+
+      {/* 🔵 Menú inferior global (createPortal ya lo lleva al body) */}
+      {typeof window !== "undefined" && <MobileBottomNav />}
 
       {typeof window !== "undefined" && (
         <LoginModal

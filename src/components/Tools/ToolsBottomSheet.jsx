@@ -30,7 +30,7 @@ export default function ToolsBottomSheet({ open, onClose, onLaunch }) {
           exit={{ opacity: 0 }}
           style={{ willChange: "opacity" }}
         >
-          <div className="absolute inset-0 bg-black/35" />
+          <div className="absolute top-0 left-0 right-0 bottom-[var(--safe-bottom-offset)] bg-black/35" />
 
           <motion.div
             ref={sheetRef}
@@ -38,7 +38,7 @@ export default function ToolsBottomSheet({ open, onClose, onLaunch }) {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 26, opacity: 1 }}
             transition={{ duration: 0.18, ease: "easeOut" }}
-            className="relative w-full max-h-[86vh] overflow-hidden rounded-t-3xl bg-white/95 border-t border-white/60 p-2 shadow-md"
+            className="relative w-full max-h-[86vh] overflow-hidden rounded-t-3xl bg-white/95 border-t border-white/60 p-2 shadow-md bottom-safe"
             drag="y"
             dragConstraints={{ top: 0, bottom: 0 }}
             onDragEnd={(_, info) => { if (info.offset.y > 50) onClose?.(); }}
