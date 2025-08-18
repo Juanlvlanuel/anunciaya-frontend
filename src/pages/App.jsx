@@ -1,101 +1,68 @@
-import { useState, useEffect } from "react";
-import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
-import { useContext } from "react";
+import { useState, useEffect, useContext } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import SplashScreen from "../components/SplashScreen";
-import PanelAdministrativo from "../layouts/PanelAdministrativo";
 
-// 🔵 estilos twemoji (añadido)
+// 🔵 estilos twemoji
 import "../styles/chat-twemoji.css";
-// 🔵 Barra de herramientas (SIEMPRE montada)
+// 🔵 Barra de herramientas global
 import { Tools } from "../components/Tools";
-
-// Páginas públicas MODERNAS (solo las válidas)
-import HomeSelector from "../components/HomeSelector";
-import Rifas from "./Rifas";
-import Promociones from "./Promociones";
-import Empleos from "./Empleos";
-import Marketplace from "./Marketplace";
-import NegociosLocales from "./NegociosLocales";
-import Dashboard from "./Dashboard";
-import RegalaODona from "./RegalaODona";
-
-// Admin
-import LoginAdmin from "../components/admin/LoginAdmin";
-import CarouselPage from "./admin/CarouselPage";
 
 // Modal login/registro
 import LoginModal from "../modals/LoginModal";
 
-// 🔵 IMPORTA el callback de Google
-import GoogleCallback from "./GoogleCallback"; // AJUSTA la ruta si lo guardas en otra carpeta
+// Rutas centralizadas
+import AppRoutes from "../routes";
 
 function App() {
-  const { autenticado, cargando } = useContext(AuthContext);
+  const { cargando, autenticado } = useContext(AuthContext);
   const [modalAbierto, setModalAbierto] = useState(false);
   const [esLogin, setEsLogin] = useState(true);
 
-  const navigate = useNavigate();
   const location = useLocation();
+  const navigate = useNavigate();
 
+  // Abrir automáticamente el modal de Login cuando RequireAuth lo pida
   useEffect(() => {
-    const manejarRetroceso = (e) => {
-      const esBackspace = e.key === "Backspace" || e.code === "Backspace";
-      const esCampoInput =
-        e.target.tagName === "INPUT" ||
-        e.target.tagName === "TEXTAREA" ||
-        e.target.isContentEditable;
-
-      if (esBackspace && !esCampoInput) {
-        e.preventDefault();
-        window.history.back();
+    const st = location.state;
+    if (st?.showLogin) {
+      setEsLogin(true);
+      setModalAbierto(true);
+      if (st.ret) {
+        try { sessionStorage.setItem("retAfterLogin", st.ret); } catch {}
       }
-    };
+    }
+  }, [location]);
 
-    document.addEventListener("keydown", manejarRetroceso);
-    return () => document.removeEventListener("keydown", manejarRetroceso);
-  }, []);
+  // Tras login exitoso, si hay "retAfterLogin", navegar allí y cerrar modal
+  useEffect(() => {
+    if (autenticado) {
+      try {
+        const ret = sessionStorage.getItem("retAfterLogin");
+        if (ret) {
+          sessionStorage.removeItem("retAfterLogin");
+          navigate(ret, { replace: true });
+          setModalAbierto(false);
+        }
+      } catch {}
+    }
+  }, [autenticado, navigate]);
 
   if (cargando) return <SplashScreen />;
 
   return (
     <>
-      <Routes location={location} key={location.pathname}>
-        <Route path="/">
-          <Route
-            index
-            element={
-              <HomeSelector
-                abrirModalLogin={() => {
-                  setEsLogin(true);
-                  setModalAbierto(true);
-                }}
-                abrirModalRegistro={(tipo) => {
-                  setEsLogin(false);
-                  setModalAbierto(true);
-                  console.log("Registrarse como:", tipo);
-                }}
-              />
-            }
-          />
-        </Route>
-
-        <Route path="/promociones" element={<Promociones />} />
-        <Route path="/empleos" element={<Empleos />} />
-        <Route path="/marketplace" element={<Marketplace />} />
-        <Route path="/negocios-locales" element={<NegociosLocales />} />
-        <Route path="/regala-o-dona" element={<RegalaODona />} />
-        <Route path="/rifas" element={<Rifas />} />
-
-        <Route path="/dashboard" element={<Dashboard />} />
-
-        <Route path="/admin" element={<LoginAdmin />} />
-        <Route path="/admin/PanelAdministrativo" element={<PanelAdministrativo />}>
-          <Route path="carousel" element={<CarouselPage />} />
-        </Route>
-
-        <Route path="/auth/google/callback" element={<GoogleCallback />} />
-      </Routes>
+      <AppRoutes
+        abrirModalLogin={() => {
+          setEsLogin(true);
+          setModalAbierto(true);
+        }}
+        abrirModalRegistro={(tipo) => {
+          setEsLogin(false);
+          setModalAbierto(true);
+          console.log("Registrarse como:", tipo);
+        }}
+      />
 
       {/* 🧰 Barra de herramientas global */}
       <Tools />

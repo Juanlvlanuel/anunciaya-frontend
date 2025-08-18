@@ -1,4 +1,5 @@
 import React, { useState, useContext } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import {
   FaHome,
@@ -17,12 +18,12 @@ import ChatPanel from "../Chat/ChatPanel/ChatPanel";
 
 const navItems = [
   { label: "Inicio", icon: <FaHome size={28} />, action: "home" },
-  { label: "Mi Cuenta", icon: <FaUser size={28} />, action: "cuenta" },
+  { label: "Mi Cuenta", icon: <FaUser size={28} />, action: "mi-cuenta" },
   { label: "Mis Compras", icon: <FaTags size={28} />, action: "compras" },
   { label: "Salir", icon: <FaSignOutAlt size={28} />, action: "salir" },
 ];
 
-const MobileBottomNav = () => {
+const MobileBottomNavContent = () => {
   const navigate = useNavigate();
   const { cerrarSesion } = useContext(AuthContext);
 
@@ -47,8 +48,8 @@ const MobileBottomNav = () => {
       case "home":
         navigate("/");
         break;
-      case "cuenta":
-        navigate("/cuenta");
+      case "mi-cuenta":
+        navigate("/mi-cuenta");
         break;
       case "buscar":
         setSearchOpen(true);
@@ -75,7 +76,7 @@ const MobileBottomNav = () => {
     <>
       <nav
         className="
-          fixed bottom-0 inset-x-0 z-50 h-[70px] bg-white/90 border-t border-blue-200
+          fixed bottom-0 inset-x-0 z-[99999] h-[70px] bg-white/90 border-t border-blue-200
           flex justify-between items-center text-[#111827] text-xs shadow-lg
           md:hidden
         "
@@ -171,4 +172,8 @@ const MobileBottomNav = () => {
   );
 };
 
+const MobileBottomNav = (props) => {
+  if (typeof document === "undefined") return null;
+  return createPortal(<MobileBottomNavContent {...props} />, document.body);
+};
 export default MobileBottomNav;

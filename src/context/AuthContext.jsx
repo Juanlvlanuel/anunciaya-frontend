@@ -1,6 +1,10 @@
-import { createContext, useState, useEffect } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { API_BASE } from "../services/api"; // 👈 unificado
+import { API_BASE, getJSON } from "../services/api";
+
+// ⬇️ NUEVO: catálogo de features/abilities por plan/rol
+import { FEATURES_BY_PLAN } from "../config/features";
+import { ROLE_ABILITIES } from "../config/abilities";
 
 // Asegura que todas las peticiones axios incluyan credenciales (cookies)
 axios.defaults.withCredentials = true;
@@ -13,34 +17,90 @@ const limpiarEstadoTemporal = () => {
     localStorage.removeItem("perfilCuentaIntentada");
     localStorage.removeItem("tipoCuentaRegistro");
     localStorage.removeItem("perfilCuentaRegistro");
-  } catch {}
+  } catch { }
 };
+
+// ⬇️ NUEVO: normaliza/enriquece el usuario con role/plan/features/abilities
+function enriquecerUsuario(base) {
+  if (!base || typeof base !== "object") return base;
+
+  const accountType = base.accountType ?? base.tipo ?? "usuario";
+  const profileType = base.profileType ?? base.perfil ?? 1;
+  const plan = base.plan ?? "basico";
+
+  const features = base.features ?? FEATURES_BY_PLAN[plan] ?? {};
+  const abilities = base.abilities ?? ROLE_ABILITIES[accountType] ?? [];
+
+  return {
+    ...base,
+    accountType,
+    profileType,
+    plan,
+    features,
+    abilities,
+  };
+}
 
 const AuthProvider = ({ children }) => {
   const [autenticado, setAutenticado] = useState(false);
   const [usuario, setUsuario] = useState(null);
   const [cargando, setCargando] = useState(true);
-  const [mounted, setMounted] = useState(false); // ⬅️ nuevo estado
+  const [mounted, setMounted] = useState(false);
 
+  // Hidratación inicial desde localStorage (back-compat)
   useEffect(() => {
     const token = localStorage.getItem("token");
     const usuarioGuardado = localStorage.getItem("usuario");
     if (token && usuarioGuardado) {
-      setUsuario(JSON.parse(usuarioGuardado));
-      setAutenticado(true);
+      try {
+        const parse = JSON.parse(usuarioGuardado);
+        const enriquecido = enriquecerUsuario(parse);
+        setUsuario(enriquecido);
+        setAutenticado(true);
+      } catch {
+        setUsuario(null);
+        setAutenticado(false);
+      }
     } else {
       setAutenticado(false);
       setUsuario(null);
     }
     setCargando(false);
-    setMounted(true); // ⬅️ marcamos montado después del primer render
+    setMounted(true);
+  }, []);
+
+  // ✅ Paso 1: al montar, consultar sesión real al backend
+  useEffect(() => {
+    let cancelled = false;
+    async function checkSession() {
+      try {
+        setCargando(true);
+        const data = await getJSON(`/api/usuarios/session`, {
+          headers: { /* Authorization se adjunta solo si hay token */ },
+          credentials: "include",
+        });
+        if (!cancelled && data?.usuario) {
+          const enriquecido = enriquecerUsuario(data.usuario);
+          setUsuario(enriquecido);
+          setAutenticado(true);
+          try { localStorage.setItem("usuario", JSON.stringify(enriquecido)); } catch {}
+        }
+      } catch (_) {
+        // Si falla (401 incluso tras refresh), dejamos el estado hidratado de localStorage
+      } finally {
+        if (!cancelled) setCargando(false);
+      }
+    }
+    checkSession();
+    return () => { cancelled = true; };
   }, []);
 
   const iniciarSesion = (token, usuarioRecibido) => {
     if (!token || !usuarioRecibido) return;
+    const enriquecido = enriquecerUsuario(usuarioRecibido);
     localStorage.setItem("token", token);
-    localStorage.setItem("usuario", JSON.stringify(usuarioRecibido));
-    setUsuario(usuarioRecibido);
+    localStorage.setItem("usuario", JSON.stringify(enriquecido));
+    setUsuario(enriquecido);
     setAutenticado(true);
     limpiarEstadoTemporal();
   };
@@ -76,18 +136,11 @@ const AuthProvider = ({ children }) => {
         throw new Error(`Demasiados intentos. Por seguridad debes esperar ${espera} antes de volver a intentar.`);
       }
 
-      // Mensajes específicos:
-      if (status === 404) {
-        throw new Error(backendMsg || "No existe una cuenta con este correo. Regístrate para continuar.");
-      }
-      if (status === 401) {
-        throw new Error(backendMsg || "Contraseña incorrecta. Inténtalo de nuevo.");
-      }
+      if (status === 404) throw new Error(backendMsg || "No existe una cuenta con este correo. Regístrate para continuar.");
+      if (status === 401) throw new Error(backendMsg || "Contraseña incorrecta. Inténtalo de nuevo.");
       if (backendMsg) throw new Error(backendMsg);
+      if (status === 400) throw new Error("Faltan credenciales");
 
-      if (status === 400) {
-        throw new Error("Faltan credenciales");
-      }
       throw new Error("No se pudo conectar con el servidor. Inténtalo de nuevo más tarde.");
     }
   };
@@ -107,9 +160,9 @@ const AuthProvider = ({ children }) => {
           perfilValor = perfilCrudo;
         }
       }
-    } catch {}
+    } catch { }
     let perfil = perfilValor;
-    if (typeof perfil === "string" && /^\\d+$/.test(perfil)) perfil = Number(perfil);
+    if (typeof perfil === "string" && /^\d+$/.test(perfil)) perfil = Number(perfil);
     if (perfil && typeof perfil === "object" && "perfil" in perfil) perfil = perfil.perfil;
     if (perfil == null) perfil = 1;
     if (!tipo) tipo = "usuario";
@@ -126,15 +179,30 @@ const AuthProvider = ({ children }) => {
     return res.data;
   };
 
+  const value = useMemo(() => ({
+    autenticado,
+    usuario,
+    cargando,
+    iniciarSesion,
+    cerrarSesion,
+    login,
+    registrar,
+  }), [autenticado, usuario, cargando]);
+
   if (!mounted) return null;
 
   return (
-    <AuthContext.Provider value={{
-      autenticado, usuario, iniciarSesion, cerrarSesion, cargando, login, registrar,
-    }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
+};
+
+// ⬇️ NUEVO: helper para consumir el contexto
+export const useAuth = () => {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth debe usarse dentro de <AuthProvider>");
+  return ctx;
 };
 
 export { AuthContext, AuthProvider };
