@@ -1,10 +1,10 @@
 // src/components/Tools/Tools.jsx
-// Contenedor principal renombrado a "Tools".
-// Mantiene la lógica original (abre BottomSheet y TemplatePickerModal) con imports a subcomponentes.
+// Versión -1: integra SearchPopup y escucha 'open-search'
 import React, { useEffect, useState, useContext } from "react";
 import { createPortal } from "react-dom";
 import ToolsBottomSheet from "./ToolsBottomSheet.jsx";
 import TemplatePickerModal from "../TemplatePickerModal";
+import SearchPopup from "../SearchPopup.jsx";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../../context/AuthContext";
 
@@ -13,11 +13,21 @@ export default function Tools({ onLaunch }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [openTemplate, setOpenTemplate] = useState(false);
+  const [openSearch, setOpenSearch] = useState(false);
 
   useEffect(() => {
-    const handler = () => setOpen(true);
-    window.addEventListener("open-tools-sidebar", handler);
-    return () => window.removeEventListener("open-tools-sidebar", handler);
+    const openTools = () => setOpen(true);
+    const openSearchPopup = () => {
+      setOpen(false);
+      setOpenTemplate(false);
+      setOpenSearch(true);
+    };
+    window.addEventListener("open-tools-sidebar", openTools);
+    window.addEventListener("open-search", openSearchPopup);
+    return () => {
+      window.removeEventListener("open-tools-sidebar", openTools);
+      window.removeEventListener("open-search", openSearchPopup);
+    };
   }, []);
 
   const allowedTemplates = null;
@@ -43,6 +53,7 @@ export default function Tools({ onLaunch }) {
           try { if (tpl?.to) navigate(tpl.to); } catch (e) { console.error("No se pudo navegar a la ruta de la plantilla", e); }
         }}
       />
+      <SearchPopup isOpen={openSearch} onClose={() => setOpenSearch(false)} />
     </>,
     document.body
   );

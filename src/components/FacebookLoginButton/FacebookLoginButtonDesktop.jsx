@@ -3,6 +3,7 @@ import React, { useContext, useEffect } from "react";
 import Swal from "sweetalert2";
 import { AuthContext } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { API_BASE } from "../../services/api";
 // Asegúrate de tener este icono:
 import facebookIcon from "../../assets/facebook-icon.png";
 
@@ -39,7 +40,7 @@ const FacebookLoginButton = ({ isLogin = true }) => {
           const accessToken = response.authResponse.accessToken;
 
           try {
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/usuarios/facebook`, {
+            const res = await fetch(`${API_BASE}/api/usuarios/facebook`, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
@@ -50,7 +51,7 @@ const FacebookLoginButton = ({ isLogin = true }) => {
             const data = await res.json();
 
             if (res.ok) {
-              iniciarSesion(data.token);
+              iniciarSesion(data.token, data.usuario);
               Swal.fire({
                 icon: "success",
                 title: "¡Bienvenido!",

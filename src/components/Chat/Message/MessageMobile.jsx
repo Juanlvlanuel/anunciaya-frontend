@@ -1,6 +1,7 @@
 // MessageMobile-fixed.jsx (corrige JSX del preview y mantiene tu lógica/offsets)
 import { useMemo, useRef, useState, useEffect } from "react";
 import twemoji from "twemoji";
+import { getAuthSession } from "../../../utils/authStorage";
 
 export default function MessageMobile({
   msg,
@@ -12,12 +13,9 @@ export default function MessageMobile({
   onEdit,
 }) {
   const myId = String(
-    (typeof currentUserId !== 'undefined' && currentUserId) ||
+    (typeof currentUserId !== "undefined" && currentUserId) ||
     msg?.currentUserId ||
-    (function () { try { const u = JSON.parse(localStorage.getItem('usuario') || '{}'); return u && u._id ? u._id : null; } catch { return null; } })() ||
-    localStorage.getItem('uid') ||
-    localStorage.getItem('userId') ||
-    ''
+    (((getAuthSession && getAuthSession())?.user?._id) || "")
   );
 
   const senderId = String(

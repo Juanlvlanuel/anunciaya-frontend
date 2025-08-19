@@ -1,8 +1,13 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 
 export default function AvatarUploader({ initialUrl = "", onChange }) {
   const inputRef = useRef(null);
   const [preview, setPreview] = useState(initialUrl);
+
+  // Mantener preview sincronizado si cambia initialUrl desde arriba
+  useEffect(() => {
+    setPreview(initialUrl || "");
+  }, [initialUrl]);
 
   const handlePick = () => inputRef.current?.click();
 

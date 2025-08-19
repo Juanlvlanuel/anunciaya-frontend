@@ -15,9 +15,6 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
         cookieDomainRewrite: '',
-        cookiePathRewrite: {
-          '/api/usuarios/auth/refresh': '/api/usuarios/auth/refresh',
-        },
         configure: (proxy) => {
           proxy.on('proxyRes', (proxyRes) => {
             const key = 'set-cookie'

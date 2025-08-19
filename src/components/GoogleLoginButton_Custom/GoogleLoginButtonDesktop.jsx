@@ -6,6 +6,7 @@ import axios from "axios";
 import Swal from "sweetalert2";
 import { AuthContext } from "../../context/AuthContext";
 import { API_BASE } from "../../services/api"; // base centralizada
+import { setAuthSession, removeFlag } from "../../utils/authStorage";
 
 const limpiarEstadoTemporal = () => {
   localStorage.removeItem("tipoCuentaIntentada");
@@ -78,10 +79,8 @@ const GoogleLoginButtonDesktop = ({
       const res = await axios.post(`${API_BASE}/api/usuarios/google`, body);
 
       if (res.status === 200 && res.data?.token) {
-        localStorage.setItem("token", res.data.token);
         if (res.data?.usuario) {
-          localStorage.setItem("usuario", JSON.stringify(res.data.usuario));
-        }
+          }
 
         const partes = res.data.usuario?.nombre?.split(" ") || [];
         const nombreMostrado = partes.slice(0, 2).join(" ") || "Usuario";
@@ -135,6 +134,7 @@ const GoogleLoginButtonDesktop = ({
         });
 
         iniciarSesion(res.data.token, res.data.usuario);
+        try { setAuthSession({ accessToken: res.data.token, user: res.data.usuario || null }); } catch {}
         limpiarEstadoTemporal();
         onClose?.();
         onRegistroExitoso?.();

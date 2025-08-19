@@ -123,7 +123,7 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
   const statusText = rawStatus === "online" ? "Conectado"
     : rawStatus === "away" ? "Ausente"
       : rawStatus === "offline" ? "Desconectado"
-        : "Desconectado";
+        : "";
 
   // === Bloqueo: ¿YO tengo bloqueado este chat?
   const isBlocked = useMemo(() => {
@@ -598,10 +598,7 @@ function HeaderBar({
   customBgs, applyCustom, removeCustom,
   onBack, isBlocked, onToggleBlock
 }) {
-  const [showAvatarModal, setShowAvatarModal] = useState(false);
-
   return (
-    <>
     <div className="sticky top-0 z-10 h-14 px-3 border-b bg-white/90 dark:bg-zinc-900/90 dark:border-zinc-700 backdrop-blur flex items-center gap-3">
       {/* Back móvil */}
       <button
@@ -613,9 +610,7 @@ function HeaderBar({
         <svg viewBox="0 0 24 24" className="w-5 h-5 text-gray-700 dark:text-gray-200" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
       </button>
 
-      <div onClick={() => setShowAvatarModal(true)} className="cursor-pointer">
       <Avatar nickname={partner?.nickname || partner?.nombre} fotoPerfil={partner?.fotoPerfil} />
-    </div>
       <div className="leading-tight min-w-0">
         <div className="text-sm font-medium truncate dark:text-zinc-100">
           {partner?.nickname || partner?.nombre || "Contacto"}
@@ -716,26 +711,6 @@ function HeaderBar({
         </button>
       </div>
     </div>
-      {showAvatarModal && (partner?.fotoPerfil || partner?.nickname) && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70" onClick={() => setShowAvatarModal(false)}>
-          {partner?.fotoPerfil ? (
-            <img
-              src={partner?.fotoPerfil?.startsWith("http") ? partner.fotoPerfil : `${API_BASE}${partner.fotoPerfil}`}
-              alt={partner?.nickname || partner?.nombre || "Foto de perfil"}
-              className="max-w-[90%] max-h-[90%] rounded-xl shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            />
-          ) : (
-            <div
-              className="w-[70vmin] h-[70vmin] max-w-[90%] max-h-[90%] rounded-full grid place-items-center bg-blue-600 text-white text-6xl font-bold select-none"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {(partner?.nickname || partner?.nombre || "?").slice(0,2).toUpperCase()}
-            </div>
-          )}
-        </div>
-      )}
-    </>
   );
 }
 
@@ -754,5 +729,31 @@ function Avatar({ nickname = "", fotoPerfil }) {
     <div className="w-8 h-8 rounded-full grid place-items-center bg-blue-600 text-white text-xs font-semibold select-none">
       {initials || "?"}
     </div>
+  );
+}
+
+
+// ===== Lanzador global para overlay móvil =====
+import ReactDOM from "react-dom";
+
+export function ChatPanelMobilePortal() {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const openHandler = () => setOpen(true);
+    const closeHandler = () => setOpen(false);
+    window.addEventListener("open-chat", openHandler);
+    window.addEventListener("close-chat", closeHandler);
+    return () => {
+      window.removeEventListener("open-chat", openHandler);
+      window.removeEventListener("close-chat", closeHandler);
+    };
+  }, []);
+
+  if (!open) return null;
+  const container = document.body;
+  return ReactDOM.createPortal(
+    <ChatPanelMobile onClose={() => setOpen(false)} />,
+    container
   );
 }

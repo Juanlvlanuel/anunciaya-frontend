@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect, useContext } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import HeaderNoLogeado from "../HeaderNoLogeado";
 import RegistroModal from "../../modals/RegistroModal";
 import PerfilModal from "../../modals/PerfilModal";
-import LoginModal from "../../modals/LoginModal";
 import CarrouselCategorias from "../CarrouselCategorias";
 import { motion, AnimatePresence } from "framer-motion";
 import { UbiContext } from "../../context/UbiContext"; // Ajusta la ruta si es diferente
+import { getSuppressLoginOnce, clearSuppressLoginOnce } from "../../utils/authStorage";
 
 const limpiarEstadoRegistro = () => {
   localStorage.removeItem("tipoCuentaIntentada");
@@ -13,8 +14,12 @@ const limpiarEstadoRegistro = () => {
 };
 
 const HomeNoLogeadoMobile = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   // Estados y handlers necesarios
   const [mostrarModalLogin, setMostrarModalLogin] = useState(false);
+  const [allowLoginOpen, setAllowLoginOpen] = useState(true);
+  const [suppressAutoLogin, setSuppressAutoLogin] = useState(false);
   const [mostrarModalRegistro, setMostrarModalRegistro] = useState(false);
   const [mostrarSeleccionPerfilModal, setMostrarSeleccionPerfilModal] = useState(false);
   const [tipoSeleccionado, setTipoSeleccionado] = useState(null);
@@ -26,6 +31,35 @@ const HomeNoLogeadoMobile = () => {
 
   // Lógica para esconder el footer según scroll
   const [showFooter, setShowFooter] = useState(true);
+
+  
+  // ⛔ Supresión fuerte: si venimos de logout o si nos mandaron showLogin:false,
+  // limpia el history state y evita que el LoginModal se reabra después.
+  
+  // Abrir login sólo si fue solicitado explícitamente y no está suprimido
+  useEffect(() => {
+    const st = (location && location.state) ? location.state : {};
+    const shouldOpen = st?.showLogin === true && allowLoginOpen && !suppressAutoLogin;
+    if (!shouldOpen) return;
+    setMostrarModalLogin(true);
+  }, [location?.state, allowLoginOpen, suppressAutoLogin]);
+
+  useEffect(() => {
+    try {
+      const once = getSuppressLoginOnce() ? "1" : null;
+      const st = (location && location.state) ? location.state : {};
+      if (once === "1" || st?.showLogin === false) {
+        // limpiar bandera y state
+        try { clearSuppressLoginOnce(); } catch {}
+        setSuppressAutoLogin(true);
+        setAllowLoginOpen(false);
+        // reemplaza la entrada de historia para quitar cualquier showLogin
+        try { navigate(location.pathname, { replace: true, state: {} }); } catch {}
+        const to = setTimeout(() => { setAllowLoginOpen(true); setSuppressAutoLogin(false); }, 1400);
+        return () => clearTimeout(to);
+      }
+    } catch {}
+  }, [location?.key]);
 
   useEffect(() => {
     let lastScroll = window.scrollY;
@@ -83,6 +117,7 @@ const HomeNoLogeadoMobile = () => {
   };
 
   const handleAbrirModalLogin = () => {
+    if (!allowLoginOpen) return;
     setMostrarModalLogin(true);
     setMostrarModalRegistro(false);
     setMostrarSeleccionPerfilModal(false);
@@ -113,7 +148,7 @@ const HomeNoLogeadoMobile = () => {
   return (
     <div
       className="
-        min-h-screen flex flex-col
+        min-h-[100dvh] flex flex-col pb-[calc(env(safe-area-inset-bottom,0px))]
         bg-[url('/src/assets/fondo-inicio-mobile.jpg')]
         bg-cover
         bg-[position:70%_top]
@@ -223,7 +258,7 @@ const HomeNoLogeadoMobile = () => {
 
                 {/* Botón Iniciar Sesión */}
                 <motion.button
-                  onClick={handleAbrirModalLogin}
+                  data-open-login onClick={() => { try { window.openLogin && window.openLogin(); } catch (e) {} }}
                   className="
                     w-full bg-blue-700 hover:bg-blue-800
                     text-white font-bold text-base py-3 rounded-xl shadow transition-all duration-100 mb-2
@@ -322,11 +357,7 @@ const HomeNoLogeadoMobile = () => {
             )}
           </AnimatePresence>
 
-          <LoginModal
-            isOpen={mostrarModalLogin}
-            onClose={() => setMostrarModalLogin(false)}
-            isLogin={true}
-          />
+
           <RegistroModal
             isOpen={mostrarModalRegistro}
             onClose={handleCerrarRegistro}

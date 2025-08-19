@@ -1,4 +1,5 @@
 import React from "react";
+import { setFlag, removeFlag } from "../utils/authStorage";
 
 const ModalAccesoRestringido = ({
   isOpen,
@@ -11,8 +12,8 @@ const ModalAccesoRestringido = ({
   // Limpia llaves legacy sin tocar la selección vigente
   const limpiarClavesViejas = () => {
     try {
-      localStorage.removeItem("tipoCuentaIntentada");
-      localStorage.removeItem("perfilCuentaIntentada");
+      removeFlag("tipoCuentaIntentada");
+      removeFlag("perfilCuentaIntentada");
     } catch {}
   };
 
@@ -20,7 +21,7 @@ const ModalAccesoRestringido = ({
   const seleccionarTipo = (tipo) => {
     try {
       limpiarClavesViejas();
-      localStorage.setItem("tipoCuentaRegistro", tipo); // 👈 GUARDA TIPO
+      setFlag("tipoCuentaRegistro", tipo); // 👈 GUARDA TIPO
     } catch {}
     if (onSeleccionarTipo) onSeleccionarTipo(tipo);
     if (onClose) onClose();

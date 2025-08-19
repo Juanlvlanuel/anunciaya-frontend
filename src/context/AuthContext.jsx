@@ -1,12 +1,12 @@
+// src/context/AuthContext-1.jsx
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { API_BASE, getJSON } from "../services/api";
+import { setAuthSession, getAuthSession, clearAuthSession, clearKnownFlags, setSuppressLoginOnce, setFlag, getFlag } from "../utils/authStorage";
 
-// ⬇️ NUEVO: catálogo de features/abilities por plan/rol
 import { FEATURES_BY_PLAN } from "../config/features";
 import { ROLE_ABILITIES } from "../config/abilities";
 
-// Asegura que todas las peticiones axios incluyan credenciales (cookies)
 axios.defaults.withCredentials = true;
 
 const AuthContext = createContext();
@@ -17,28 +17,33 @@ const limpiarEstadoTemporal = () => {
     localStorage.removeItem("perfilCuentaIntentada");
     localStorage.removeItem("tipoCuentaRegistro");
     localStorage.removeItem("perfilCuentaRegistro");
-  } catch { }
+  } catch {}
 };
 
-// ⬇️ NUEVO: normaliza/enriquece el usuario con role/plan/features/abilities
+const PERFIL_DRAFT_KEY = "perfilDraft";
+
+function leerBorradorPerfil() {
+  try {
+    const raw = localStorage.getItem(PERFIL_DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") return parsed;
+  } catch {}
+  return null;
+}
+
+function limpiarBorradorPerfil() {
+  try { localStorage.removeItem(PERFIL_DRAFT_KEY); } catch {}
+}
+
 function enriquecerUsuario(base) {
   if (!base || typeof base !== "object") return base;
-
   const accountType = base.accountType ?? base.tipo ?? "usuario";
   const profileType = base.profileType ?? base.perfil ?? 1;
   const plan = base.plan ?? "basico";
-
   const features = base.features ?? FEATURES_BY_PLAN[plan] ?? {};
   const abilities = base.abilities ?? ROLE_ABILITIES[accountType] ?? [];
-
-  return {
-    ...base,
-    accountType,
-    profileType,
-    plan,
-    features,
-    abilities,
-  };
+  return { ...base, accountType, profileType, plan, features, abilities };
 }
 
 const AuthProvider = ({ children }) => {
@@ -47,15 +52,24 @@ const AuthProvider = ({ children }) => {
   const [cargando, setCargando] = useState(true);
   const [mounted, setMounted] = useState(false);
 
-  // Hidratación inicial desde localStorage (back-compat)
+
+  // Hidratación inicial (NO bajar cargando todavía)
   useEffect(() => {
+    // 1) Hidratar desde helper centralizado (sin causar re-renders infinitos)
+    try {
+      const stored = (typeof getAuthSession === "function") ? getAuthSession() : null;
+      if (stored && (stored.accessToken || stored.user)) {
+        if (stored.user) setUsuario(enriquecerUsuario(stored.user));
+        if (stored.accessToken) setAutenticado(true);
+      }
+    } catch {}
+
     const token = localStorage.getItem("token");
     const usuarioGuardado = localStorage.getItem("usuario");
     if (token && usuarioGuardado) {
       try {
         const parse = JSON.parse(usuarioGuardado);
-        const enriquecido = enriquecerUsuario(parse);
-        setUsuario(enriquecido);
+        setUsuario(enriquecerUsuario(parse));
         setAutenticado(true);
       } catch {
         setUsuario(null);
@@ -65,28 +79,51 @@ const AuthProvider = ({ children }) => {
       setAutenticado(false);
       setUsuario(null);
     }
-    setCargando(false);
+    // Mantener cargando=true hasta terminar checkSession
     setMounted(true);
   }, []);
 
-  // ✅ Paso 1: al montar, consultar sesión real al backend
+  // Consulta de sesión real (con pre-refresh sólo si hubo sesión previa)
   useEffect(() => {
     let cancelled = false;
     async function checkSession() {
       try {
         setCargando(true);
+
+        const token = localStorage.getItem("token");
+        const hadSession = localStorage.getItem("wasLoggedIn") === "1";
+
+        // Si no hay token pero sí hubo sesión previa, intenta refresh primero
+        if (!token && hadSession) {
+          try {
+            const r = await fetch(`${API_BASE}/api/usuarios/auth/refresh`, {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json", ...( (typeof localStorage!=="undefined" && localStorage.getItem("token")) ? { Authorization: `Bearer ${localStorage.getItem("token")}` } : {}) },
+              body: "{}",
+            });
+            if (r.ok) {
+              const j = await r.json().catch(() => ({}));
+              const newToken = j?.token;
+              if (newToken) localStorage.setItem("token", newToken);
+            }
+          } catch {}
+        }
+
+        // Pide la sesión (si 401 y no hay cookie, se ignora)
         const data = await getJSON(`/api/usuarios/session`, {
-          headers: { /* Authorization se adjunta solo si hay token */ },
+          headers: {},
           credentials: "include",
         });
+
         if (!cancelled && data?.usuario) {
           const enriquecido = enriquecerUsuario(data.usuario);
-          setUsuario(enriquecido);
+          setUsuario(enriquecerUsuario(data.usuario));
           setAutenticado(true);
           try { localStorage.setItem("usuario", JSON.stringify(enriquecido)); } catch {}
         }
       } catch (_) {
-        // Si falla (401 incluso tras refresh), dejamos el estado hidratado de localStorage
+        // Ignorar 401 cuando no hay sesión
       } finally {
         if (!cancelled) setCargando(false);
       }
@@ -95,72 +132,104 @@ const AuthProvider = ({ children }) => {
     return () => { cancelled = true; };
   }, []);
 
-  const iniciarSesion = (token, usuarioRecibido) => {
-    if (!token || !usuarioRecibido) return;
-    const enriquecido = enriquecerUsuario(usuarioRecibido);
-    localStorage.setItem("token", token);
-    localStorage.setItem("usuario", JSON.stringify(enriquecido));
-    setUsuario(enriquecido);
-    setAutenticado(true);
+  const iniciarSesion = async (token, usuarioRecibido) => {
+    if (!token) return;
+    try {
+      localStorage.setItem("token", token);
+      localStorage.setItem("wasLoggedIn", "1");
+    } catch {};
+    try { setAuthSession({ accessToken: token, user: usuarioRecibido || null }); } catch {}
+    if (usuarioRecibido) {
+      const enriquecido = enriquecerUsuario(usuarioRecibido);
+      try { localStorage.setItem("usuario", JSON.stringify(enriquecido)); } catch {}
+      setUsuario(enriquecerUsuario(usuarioRecibido));
+      setAutenticado(true);
+      try { setAuthSession({ accessToken: token, user: enriquecido }); } catch {}
+      limpiarEstadoTemporal();
+      return;
+    }
+    try {
+      const data = await getJSON(`/api/usuarios/session`, {
+        headers: {},
+        credentials: "include",
+      });
+      if (data?.usuario) {
+        const enriquecido = enriquecerUsuario(data.usuario);
+        setUsuario(enriquecerUsuario(data.usuario));
+        try { localStorage.setItem("usuario", JSON.stringify(enriquecido)); } catch {}
+        setAutenticado(true);
+        try { setAuthSession({ accessToken: (typeof localStorage!=="undefined" && localStorage.getItem("token")) || null, user: enriquecido }); } catch {}
+      }
+    } catch {}
     limpiarEstadoTemporal();
   };
 
-  const cerrarSesion = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("usuario");
+  const cerrarSesion = async () => {
+    // Flush de borrador de perfil antes de cerrar sesión
+    try {
+      const rawDraft = (typeof localStorage !== "undefined" && localStorage.getItem("perfilDraft")) || "";
+      const draft = rawDraft ? JSON.parse(rawDraft) : null;
+      if (draft && typeof draft === "object" && Object.keys(draft).length > 0) {
+        const __t = (typeof localStorage !== "undefined" && localStorage.getItem("token")) || "";
+        await getJSON(`/api/usuarios/me`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", ...( __t ? { Authorization: `Bearer ${__t}` } : {}) },
+          body: JSON.stringify(draft),
+          credentials: "include",
+        });
+        try { localStorage.removeItem("perfilDraft"); } catch {}
+      }
+    } catch {}
+
+    try {
+      await getJSON(`/api/usuarios/logout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...( (typeof localStorage!=="undefined" && localStorage.getItem("token")) ? { Authorization: `Bearer ${localStorage.getItem("token")}` } : {}) },
+        body: "{}",
+        credentials: "include",
+      });
+    } catch {}
+    try { localStorage.removeItem("token"); } catch {}
+    try { localStorage.removeItem("usuario"); } catch {}
+    try { localStorage.removeItem("wasLoggedIn"); } catch {}
     limpiarEstadoTemporal();
+    try { clearAuthSession(); clearKnownFlags(); setFlag("logoutAt", String(Date.now())); setSuppressLoginOnce(true); } catch {}
     setUsuario(null);
     setAutenticado(false);
   };
 
-  // LOGIN
   const login = async ({ correo, contraseña }) => {
     limpiarEstadoTemporal();
-    try {
-      const res = await axios.post(
-        `${API_BASE}/api/usuarios/login`,
-        { correo, contraseña },
-        {
-          withCredentials: true,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-      iniciarSesion(res.data.token, res.data.usuario);
-    } catch (err) {
-      const status = err?.response?.status;
-      const backendMsg = err?.response?.data?.mensaje;
-
-      if (status === 429) {
-        const retryAfter = err?.response?.headers?.["retry-after"];
-        const espera = retryAfter ? `${retryAfter} segundos` : "unos minutos";
-        throw new Error(`Demasiados intentos. Por seguridad debes esperar ${espera} antes de volver a intentar.`);
-      }
-
-      if (status === 404) throw new Error(backendMsg || "No existe una cuenta con este correo. Regístrate para continuar.");
-      if (status === 401) throw new Error(backendMsg || "Contraseña incorrecta. Inténtalo de nuevo.");
-      if (backendMsg) throw new Error(backendMsg);
-      if (status === 400) throw new Error("Faltan credenciales");
-
-      throw new Error("No se pudo conectar con el servidor. Inténtalo de nuevo más tarde.");
-    }
+    const res = await axios.post(
+      `${API_BASE}/api/usuarios/login`,
+      { correo, contraseña },
+      { withCredentials: true, headers: { "Content-Type": "application/json" } }
+    );
+    await iniciarSesion(res.data?.token, res.data?.usuario);
   };
 
-  // REGISTRO
   const registrar = async ({ nombre, correo, contraseña, nickname }) => {
+    // 1) Flags (authStorage) primero
     let tipo = null;
     let perfilValor = null;
     try {
-      tipo = localStorage.getItem("tipoCuentaRegistro") || localStorage.getItem("tipoCuentaIntentada") || null;
-      const perfilCrudo = localStorage.getItem("perfilCuentaRegistro") || localStorage.getItem("perfilCuentaIntentada") || null;
-      if (perfilCrudo) {
-        try {
-          const parsed = JSON.parse(perfilCrudo);
-          perfilValor = parsed?.perfil ?? parsed;
-        } catch {
-          perfilValor = perfilCrudo;
+      tipo = getFlag("tipoCuentaRegistro") || getFlag("tipoCuentaIntentada") || null;
+      let p = getFlag("perfilCuentaRegistro") || getFlag("perfilCuentaIntentada") || null;
+      if (p && typeof p === "object" && "perfil" in p) perfilValor = p.perfil;
+      else perfilValor = p;
+    } catch {}
+
+    // 2) Respaldo: localStorage (compat)
+    if (!tipo || perfilValor == null) {
+      try {
+        tipo = tipo || localStorage.getItem("tipoCuentaRegistro") || localStorage.getItem("tipoCuentaIntentada") || null;
+        const perfilCrudo = localStorage.getItem("perfilCuentaRegistro") || localStorage.getItem("perfilCuentaIntentada") || null;
+        if (perfilCrudo != null && perfilValor == null) {
+          try { const parsed = JSON.parse(perfilCrudo); perfilValor = parsed?.perfil ?? parsed; } catch { perfilValor = perfilCrudo; }
         }
-      }
-    } catch { }
+      } catch {}
+    }
+
     let perfil = perfilValor;
     if (typeof perfil === "string" && /^\d+$/.test(perfil)) perfil = Number(perfil);
     if (perfil && typeof perfil === "object" && "perfil" in perfil) perfil = perfil.perfil;
@@ -170,13 +239,23 @@ const AuthProvider = ({ children }) => {
     const res = await axios.post(
       `${API_BASE}/api/usuarios/registro`,
       { nombre, correo, contraseña, nickname, tipo, perfil },
-      {
-        withCredentials: true,
-        headers: { "Content-Type": "application/json" },
-      }
+      { withCredentials: true, headers: { "Content-Type": "application/json" } }
     );
     limpiarEstadoTemporal();
     return res.data;
+  };
+
+  const actualizarPerfil = async (partial) => {
+    const data = await getJSON(`/api/usuarios/me`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...( (typeof localStorage!=="undefined" && localStorage.getItem("token")) ? { Authorization: `Bearer ${localStorage.getItem("token")}` } : {}) },
+      body: JSON.stringify(partial || {}),
+      credentials: "include",
+    });
+    const actualizado = enriquecerUsuario(data?.usuario || data);
+    setUsuario(actualizado);
+    try { localStorage.setItem("usuario", JSON.stringify(actualizado)); } catch {}
+    return actualizado;
   };
 
   const value = useMemo(() => ({
@@ -187,18 +266,14 @@ const AuthProvider = ({ children }) => {
     cerrarSesion,
     login,
     registrar,
+    actualizarPerfil,
   }), [autenticado, usuario, cargando]);
 
   if (!mounted) return null;
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-// ⬇️ NUEVO: helper para consumir el contexto
 export const useAuth = () => {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth debe usarse dentro de <AuthProvider>");

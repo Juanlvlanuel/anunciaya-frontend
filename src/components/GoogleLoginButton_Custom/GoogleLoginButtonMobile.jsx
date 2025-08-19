@@ -5,7 +5,8 @@ import { GoogleLogin } from "@react-oauth/google";
 import axios from "axios";
 import Swal from "sweetalert2";
 import { AuthContext } from "../../context/AuthContext";
-import { API_BASE } from "../../services/api"; // ✅ usar base centralizada
+import { API_BASE, getJSON } from "../../services/api"; // ✅ usar base centralizada
+import { setAuthSession, removeFlag } from "../../utils/authStorage";
 
 const limpiarEstadoTemporal = () => {
   localStorage.removeItem("tipoCuentaIntentada");
@@ -77,10 +78,8 @@ const GoogleLoginButtonMobile = ({
       const res = await axios.post(`${API_BASE}/api/usuarios/google`, body);
 
       if (res.status === 200 && res.data?.token) {
-        localStorage.setItem("token", res.data.token);
         if (res.data?.usuario) {
-          localStorage.setItem("usuario", JSON.stringify(res.data.usuario));
-        }
+          }
 
         const partes = res.data.usuario?.nombre?.split(" ") || [];
         const nombreMostrado = partes.slice(0, 2).join(" ") || "Usuario";
@@ -92,6 +91,7 @@ const GoogleLoginButtonMobile = ({
 </svg>
 `;
 
+        // ✅ iniciarSesion completado, ahora sí mostrar Swal
         Swal.fire({
           icon: undefined,
           html: `
@@ -136,11 +136,14 @@ const GoogleLoginButtonMobile = ({
           }
         });
 
-        iniciarSesion(res.data.token, res.data.usuario);
+        await iniciarSesion(res.data.token, res.data.usuario);
+        try { setAuthSession({ accessToken: res.data.token, user: res.data.usuario || null }); } catch {}
+        await getJSON(`/api/usuarios/session`, { credentials: 'include' });
         limpiarEstadoTemporal();
         if (onClose) onClose();
         if (onRegistroExitoso) onRegistroExitoso();
       } else {
+        // ✅ iniciarSesion completado, ahora sí mostrar Swal
         Swal.fire({
           icon: "warning",
           title: "Error con Google",
@@ -159,6 +162,7 @@ const GoogleLoginButtonMobile = ({
         typeof mensaje === "string" &&
         (mensaje.toLowerCase().includes("registrada") || mensaje.toLowerCase().includes("existe"))
       ) {
+        // ✅ iniciarSesion completado, ahora sí mostrar Swal
         Swal.fire({
           icon: "info",
           title: "Cuenta ya existente",
@@ -166,6 +170,7 @@ const GoogleLoginButtonMobile = ({
           customClass: { popup: "rounded-md" }
         });
       } else {
+        // ✅ iniciarSesion completado, ahora sí mostrar Swal
         Swal.fire({
           icon: "error",
           title: "Google Login",
@@ -182,6 +187,7 @@ const GoogleLoginButtonMobile = ({
         onSuccess={handleSuccess}
         onError={() => {
           limpiarEstadoTemporal();
+          // ✅ iniciarSesion completado, ahora sí mostrar Swal
           Swal.fire({
             icon: "error",
             title: "Google Login",

@@ -91,7 +91,7 @@ html, body { background: transparent !important; }
 }
 
 /* Empuja TODO el contenido de la app por encima del menú */
-body { padding-bottom: var(--safe-bottom-offset); }
+/* body padding-bottom removed; now managed by MobileBottomNav */
 
 /* Utilidades para elementos fijados al fondo (sheets, toasts, popups) */
 @layer utilities {

@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FaTimes } from "react-icons/fa";
+import { getFlag, setFlag, removeFlag } from "../utils/authStorage";
 
 const perfilesPorTipo = {
   usuario: [
@@ -48,14 +49,14 @@ const SeleccionPerfilModal = ({
   // Determinar tipo de cuenta usando prop o storage actualizado
   const tipoCuenta =
     tipoCuentaProp ||
-    localStorage.getItem("tipoCuentaRegistro") ||
+    getFlag("tipoCuentaRegistro") ||
     "usuario";
 
   // Limpia claves viejas al cerrar
   const handleClose = () => {
     try {
-      localStorage.removeItem("tipoCuentaIntentada");
-      localStorage.removeItem("perfilCuentaIntentada");
+      removeFlag("tipoCuentaIntentada");
+      removeFlag("perfilCuentaIntentada");
     } catch {}
     onClose && onClose();
   };
@@ -63,7 +64,7 @@ const SeleccionPerfilModal = ({
   // Guardar perfil seleccionado como objeto en storage
   const handleSeleccion = (perfilObj) => {
     try {
-      localStorage.setItem("perfilCuentaRegistro", JSON.stringify({ perfil: perfilObj.perfil }));
+      setFlag("perfilCuentaRegistro", { perfil: perfilObj.perfil });
     } catch {}
     if (onSeleccionarPerfil) onSeleccionarPerfil(perfilObj);
     onClose?.();
@@ -72,8 +73,8 @@ const SeleccionPerfilModal = ({
   useEffect(() => {
     return () => {
       try {
-        localStorage.removeItem("tipoCuentaIntentada");
-        localStorage.removeItem("perfilCuentaIntentada");
+        removeFlag("tipoCuentaIntentada");
+        removeFlag("perfilCuentaIntentada");
       } catch {}
     };
   }, []);

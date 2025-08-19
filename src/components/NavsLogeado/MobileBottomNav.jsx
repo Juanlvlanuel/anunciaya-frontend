@@ -1,120 +1,121 @@
-import React, { useState, useContext, useEffect, useRef } from "react";
+import React, { useContext, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { FaHome, FaUser, FaTags, FaSignOutAlt } from "react-icons/fa";
-import { AnimatePresence } from "framer-motion";
-import MobileMenuDrawer from "../HomeMobile/MobileMenuDrawer";
-import SearchPopup from "../SearchPopup";
+import { BsGrid3X3GapFill } from "react-icons/bs";
 import { AuthContext } from "../../context/AuthContext";
-import ChatPanel from "../Chat/ChatPanel/ChatPanel";
+import { setSuppressLoginOnce, setFlag } from "../../utils/authStorage";
+import Tools from "../Tools/Tools.jsx";
 
-const navItems = [
+/**
+ * MobileBottomNav
+ * Se conserva el acomodo y estilos de los 4 íconos actuales (texto en 1 línea).
+ * Se inserta el botón azul (solo ícono) justo al centro, entre el 2° y 3°.
+ * Rutas intactas.
+ */
+
+const items = [
   { label: "Inicio", icon: <FaHome size={26} />, action: "home" },
   { label: "Mi Cuenta", icon: <FaUser size={26} />, action: "mi-cuenta" },
+  // (Botón Tools irá aquí en el render)
   { label: "Mis Compras", icon: <FaTags size={26} />, action: "compras" },
   { label: "Salir", icon: <FaSignOutAlt size={26} />, action: "salir" },
 ];
 
 const MobileBottomNavContent = () => {
+  const { cerrarSesion } = useContext(AuthContext) || {};
   const navigate = useNavigate();
-  const { cerrarSesion } = useContext(AuthContext);
-
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
-
   const navRef = useRef(null);
 
+  // Mantener padding inferior para no tapar contenido
   useEffect(() => {
     const setHeights = () => {
       const h = navRef.current?.offsetHeight || 70;
-      const root = document.documentElement;
-      root.style.setProperty("--bottom-nav-h", `${h}px`);
       document.body.style.paddingBottom = `calc(${h}px + env(safe-area-inset-bottom, 0px))`;
     };
     setHeights();
     window.addEventListener("resize", setHeights);
     return () => {
       window.removeEventListener("resize", setHeights);
+      try { document.body.style.paddingBottom = ""; } catch { }
     };
   }, []);
 
-  useEffect(() => {
-    const openSearch = () => setSearchOpen(true);
-    const openChat = () => setChatOpen(true);
-    window.addEventListener("open-search", openSearch);
-    window.addEventListener("open-chat", openChat);
-    return () => {
-      window.removeEventListener("open-search", openSearch);
-      window.removeEventListener("open-chat", openChat);
-    };
-  }, []);
-
-  const handleNavClick = (action) => {
+  const handleNavClick = async (action) => {
     switch (action) {
-      case "home": navigate("/"); break;
-      case "mi-cuenta": navigate("/mi-cuenta"); break;
-      case "compras": navigate("/compras"); break;
-      case "salir": cerrarSesion(); navigate("/"); break;
-      case "menu": setMenuOpen(true); break;
-      default: break;
+      case "home":
+        navigate("/", { replace: true, state: { showLogin: false } });
+        break;
+      case "mi-cuenta":
+        navigate("/mi-cuenta");
+        break;
+      case "compras":
+        navigate("/compras");
+        break;
+      case "salir":
+        try { setSuppressLoginOnce(true); setFlag("logoutAt", String(Date.now())); } catch { }
+        try { await cerrarSesion?.(); } catch { }
+        try { navigate("/", { replace: true, state: { showLogin: false } }); } catch { }
+        break;
+      default:
+        break;
     }
   };
+
+  const openTools = () => {
+    try {
+      window.dispatchEvent(new Event("open-tools-sidebar"));
+    } catch { }
+  };
+
+  // Construimos el orden: 2 primeros, Tools, 2 últimos
+  const ordered = [items[0], items[1], { label: "__TOOLS__" }, items[2], items[3]];
 
   return (
     <>
       <nav
         ref={navRef}
-        className="
-          fixed bottom-0 inset-x-0 z-[99999] h-[70px] bg-white/90 border-t border-blue-200
-          flex items-center text-[#111827] text-xs shadow-lg md:hidden
-        "
+        className="fixed bottom-0 inset-x-0 z-[99999] h-[70px] bg-white/90 backdrop-blur-md border-t border-black/5 flex items-center text-[#111827] text-xs shadow-lg md:hidden"
       >
-        <div className="w-full flex items-center justify-evenly">
-          <button onClick={() => handleNavClick('home')} className="flex flex-col items-center font-medium transition-all duration-200 hover:scale-110 focus:scale-110 px-1 outline-none" type="button">
-            <span className="mb-[2px] flex items-center justify-center"><FaHome size={26} /></span>
-            <span className="text-[12px] leading-3 mt-1.5">Inicio</span>
-          </button>
-          <button onClick={() => handleNavClick('mi-cuenta')} className="flex flex-col items-center font-medium transition-all duration-200 hover:scale-110 focus:scale-110 px-1 outline-none" type="button">
-            <span className="mb-[2px] flex items-center justify-center"><FaUser size={26} /></span>
-            <span className="text-[12px] leading-3 mt-1.5">Mi Cuenta</span>
-          </button>
-          <div className="w-14 shrink-0" aria-hidden />
-          <button onClick={() => handleNavClick('compras')} className="flex flex-col items-center font-medium transition-all duration-200 hover:scale-110 focus:scale-110 px-1 outline-none" type="button">
-            <span className="mb-[2px] flex items-center justify-center"><FaTags size={26} /></span>
-            <span className="text-[12px] leading-3 mt-1.5">Mis Compras</span>
-          </button>
-          <button onClick={() => handleNavClick('salir')} className="flex flex-col items-center font-medium transition-all duration-200 hover:scale-110 focus:scale-110 px-1 outline-none" type="button">
-            <span className="mb-[2px] flex items-center justify-center"><FaSignOutAlt size={26} /></span>
-            <span className="text-[12px] leading-3 mt-1.5">Salir</span>
-          </button>
-        </div>
-
-        <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[60]">
-          <button
-            onClick={() => { try { window.dispatchEvent(new Event("open-tools-sidebar")); } catch {} }}
-            aria-label="Abrir funciones"
-            className="pointer-events-auto h-14 w-14 rounded-full bg-[#2457DB] text-white shadow-xl shadow-blue-600/25 border-[3px] border-white flex items-center justify-center active:scale-95 transition"
-            style={{ boxShadow: "0 8px 22px rgba(36, 87, 219, 0.35)" }}
-          >
-            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-              <circle cx="5" cy="5" r="2" fill="currentColor" />
-              <circle cx="12" cy="5" r="2" fill="currentColor" />
-              <circle cx="19" cy="5" r="2" fill="currentColor" />
-              <circle cx="5" cy="12" r="2" fill="currentColor" />
-              <circle cx="12" cy="12" r="2" fill="currentColor" />
-              <circle cx="19" cy="12" r="2" fill="currentColor" />
-              <circle cx="5" cy="19" r="2" fill="currentColor" />
-              <circle cx="12" cy="19" r="2" fill="currentColor" />
-              <circle cx="19" cy="19" r="2" fill="currentColor" />
-            </svg>
-          </button>
+        <div className="w-full flex items-center justify-evenly px-2">
+          {ordered.map((item, idx) => {
+            if (item.label === "__TOOLS__") {
+              // Botón central azul, SOLO ícono (sin texto)
+              return (
+                <button
+                  key="tools-center"
+                  type="button"
+                  aria-label="Abrir herramientas"
+                  onClick={openTools}
+                  className="flex flex-col items-center font-medium transition-transform duration-200 hover:scale-110 focus:scale-110 px-1 outline-none"
+                >
+                  <span className="h-[54px] w-[54px] rounded-full bg-[#2563eb] border-[3px] border-white shadow-[0_0_20px_rgba(37,99,235,0.8)] flex items-center justify-center">
+                    <div className="grid grid-cols-3 gap-0.5">
+                      {Array.from({ length: 9 }).map((_, i) => (
+                        <span key={i} className="h-1 w-1 bg-white rounded-full"></span>
+                      ))}
+                    </div>
+                  </span>
+                </button>
+              );
+            }
+            return (
+              <button
+                key={item.action}
+                onClick={() => handleNavClick(item.action)}
+                className="flex flex-col items-center font-medium transition-transform duration-200 hover:scale-110 focus:scale-110 px-1 outline-none"
+                type="button"
+              >
+                <span className="mb-[2px] flex items-center justify-center">{item.icon}</span>
+                <span className="text-[12px] leading-3 mt-1 whitespace-nowrap">{item.label}</span>
+              </button>
+            );
+          })}
         </div>
       </nav>
 
-      <MobileMenuDrawer isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
-      <SearchPopup isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
-      <AnimatePresence>{chatOpen && <ChatPanel onClose={() => setChatOpen(false)} />}</AnimatePresence>
+      {/* Montamos el controlador de Tools (BottomSheet + TemplatePicker) */}
+      <Tools />
     </>
   );
 };
@@ -123,4 +124,5 @@ const MobileBottomNav = (props) => {
   if (typeof document === "undefined") return null;
   return createPortal(<MobileBottomNavContent {...props} />, document.body);
 };
+
 export default MobileBottomNav;

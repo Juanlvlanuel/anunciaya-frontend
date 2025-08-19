@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useChat } from "../../../context/ChatContext";
 import { API_BASE, chatAPI } from "../../../services/api";
+import { getAuthSession } from "../../../utils/authStorage";
 
 const Star = ({ filled }) => filled ? (
   <svg viewBox="0 0 24 24" width="20" height="20">
@@ -14,12 +15,21 @@ const Star = ({ filled }) => filled ? (
 );
 
 export default function ChatListDesktop({ onToggleFavorite, onSelectChat }) {
+
+  const getToken = () => {
+    try {
+      const s = (typeof getAuthSession === "function") ? getAuthSession() : null;
+      return s?.accessToken || "";
+    } catch {
+      return "";
+    }
+  };
   const { chats, setChats, loadChats, setActiveChatId, activeChatId, currentUserId, loadMessages, statusMap } = useChat();
   const [q, setQ] = useState("");
 
   useEffect(() => { loadChats?.(); }, [loadChats]);
 
-  const myId = String(currentUserId || localStorage.getItem("uid") || localStorage.getItem("userId") || "");
+  const myId = String(currentUserId || ((getAuthSession && getAuthSession())?.user?._id) || "");
   const hasSetChats = typeof setChats === "function";
 
   const getFav = (c) =>
@@ -65,7 +75,7 @@ export default function ChatListDesktop({ onToggleFavorite, onSelectChat }) {
   };
 
   const toggleFavorite = async (chat) => {
-    const token = localStorage.getItem("token");
+    const token = getToken();
     const wasFav = getFav(chat);
     if (hasSetChats) {
       setChats((prev) =>
@@ -90,7 +100,7 @@ export default function ChatListDesktop({ onToggleFavorite, onSelectChat }) {
   const askDelete = async (chat) => {
     if (!confirm(`Se ocultará el chat con “${getDisplayName(chat)}” de tu lista. El otro usuario NO perderá el historial.\n\n¿Eliminar?`)) return;
     try {
-      const token = localStorage.getItem("token");
+      const token = getToken();
       await chatAPI.deleteForMe(chat._id, token);
       await loadChats?.();
     } catch {}

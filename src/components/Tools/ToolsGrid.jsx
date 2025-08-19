@@ -3,6 +3,9 @@ import React, { useMemo } from "react";
 import ToolCell from "./ToolCell.jsx";
 import { ICONS } from "./ToolsIcons.jsx";
 
+const __emitOpenChat = () => { try { window.dispatchEvent(new Event('open-chat')); } catch(e) {} };
+const __emitOpenSearch = () => { try { window.dispatchEvent(new Event('open-search')); } catch(e) {} };
+
 export default function ToolsGrid({ favorites, toggleFav, onLaunch, onClose }) {
   const quick = useMemo(() => ["publish", "search", "chat"], []);
   const basics = useMemo(() => ["map", "calendar", "calc"], []);

@@ -1,21 +1,17 @@
-import { useState, useEffect, useContext } from "react";
+// src/pages/App.jsx
+import { useState, useEffect, useContext, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import SplashScreen from "../components/SplashScreen";
+import { FLAGS, getFlag, setFlag, removeFlag, getSuppressLoginOnce, clearSuppressLoginOnce } from "../utils/authStorage";
 
-// 🔵 estilos twemoji
 import "../styles/chat-twemoji.css";
-// 🔵 Barra de herramientas global
 import { Tools } from "../components/Tools";
-
-// Modal login/registro
 import LoginModal from "../modals/LoginModal";
-
-// Rutas centralizadas
 import AppRoutes from "../routes";
-
-// ⬇️ Menú inferior global (createPortal)
 import MobileBottomNav from "../components/NavsLogeado/MobileBottomNav";
+import { ChatPanelPortal } from "../components/Chat/ChatPanelPortal";
+
 
 function App() {
   const { cargando, autenticado } = useContext(AuthContext);
@@ -25,29 +21,68 @@ function App() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Abrir automáticamente el modal de Login cuando RequireAuth lo pida
+  // ✅ Hook declarado DENTRO del componente (Nunca fuera)
+  const handledKeyRef = useRef(null);
+
+  // Helper consistente para abrir login manual
+  const openLogin = () => {
+    try { clearSuppressLoginOnce(); } catch {}
+    setEsLogin(true);
+    setModalAbierto(true);
+  };
+
+  // Exponer para llamadas globales/legacy
+  if (typeof window !== "undefined") {
+    window.openLogin = openLogin;
+  }
+
+  // Delegación (opcional) por data-open-login
+  useEffect(() => {
+    const handler = (e) => {
+      const el = e.target.closest?.("[data-open-login]");
+      if (el) {
+        e.preventDefault();
+        openLogin();
+      }
+    };
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, []);
+
+  // Evitar auto-open tras logout explícito (una sola vez)
+  useEffect(() => {
+    try {
+      if (getSuppressLoginOnce()) {
+        clearSuppressLoginOnce();
+        if (location.state?.showLogin) {
+          navigate(location.pathname, { replace: true, state: {} });
+        }
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 🧯 Rollback estable: NO abrir LoginModal automático desde location.state
   useEffect(() => {
     const st = location.state;
     if (st?.showLogin) {
-      setEsLogin(true);
-      setModalAbierto(true);
-      if (st.ret) {
-        try { sessionStorage.setItem("retAfterLogin", st.ret); } catch {}
-      }
+      navigate(location.pathname, { replace: true, state: {} });
+      handledKeyRef.current = location.key;
     }
-  }, [location]);
+    // Si necesitas reactivar el auto-open, aquí iría, con guards.
+  }, [location.key, navigate]);
 
   // Tras login exitoso, si hay "retAfterLogin", navegar allí y cerrar modal
   useEffect(() => {
     if (autenticado) {
       try {
-        const ret = sessionStorage.getItem("retAfterLogin");
+        const ret = getFlag(FLAGS.retAfterLogin);
         if (ret) {
-          sessionStorage.removeItem("retAfterLogin");
+          removeFlag(FLAGS.retAfterLogin);
           navigate(ret, { replace: true });
-          setModalAbierto(false);
         }
       } catch {}
+      setModalAbierto(false);
     }
   }, [autenticado, navigate]);
 
@@ -56,10 +91,7 @@ function App() {
   return (
     <>
       <AppRoutes
-        abrirModalLogin={() => {
-          setEsLogin(true);
-          setModalAbierto(true);
-        }}
+        abrirModalLogin={openLogin}
         abrirModalRegistro={(tipo) => {
           setEsLogin(false);
           setModalAbierto(true);
@@ -67,11 +99,11 @@ function App() {
         }}
       />
 
-      {/* 🧰 Barra de herramientas global */}
       <Tools />
 
-      {/* 🔵 Menú inferior global (createPortal ya lo lleva al body) */}
-      {typeof window !== "undefined" && <MobileBottomNav />}
+      {typeof window !== "undefined" && autenticado && <MobileBottomNav />}
+
+      <ChatPanelPortal />
 
       {typeof window !== "undefined" && (
         <LoginModal

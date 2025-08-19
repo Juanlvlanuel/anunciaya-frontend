@@ -1,6 +1,6 @@
 // ✅ src/modals/RegistroModal-1.jsx
-// Cambios: acepta 201 además de 200 y muestra `mensaje` del backend en errores 409.
-// Mantiene diseño y flujo original.
+// Cambios mínimos: lee tipo/perfil desde authStorage flags (getFlag) y usa localStorage solo como respaldo.
+// Mantiene diseño y flujo original sin borrar lógica existente.
 
 import React, { useState, useEffect, useContext } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -11,18 +11,19 @@ import { API_BASE } from "../services/api";
 import GoogleLoginButton from "../components/GoogleLoginButton_Custom";
 import FacebookLoginButton from "../components/FacebookLoginButton";
 import { AuthContext } from "../context/AuthContext";
+import { getFlag, removeFlag } from "../utils/authStorage";
 
 // Limpia posibles llaves usadas en intentos previos
 const limpiarEstadoTemporal = () => {
   try {
-    localStorage.removeItem("tipoCuentaRegistro");
-    localStorage.removeItem("perfilCuentaRegistro");
-    localStorage.removeItem("tipoCuentaIntentada");
-    localStorage.removeItem("perfilCuentaIntentada");
+    removeFlag("tipoCuentaRegistro");
+    removeFlag("perfilCuentaRegistro");
+    removeFlag("tipoCuentaIntentada");
+    removeFlag("perfilCuentaIntentada");
   } catch {}
 };
 
-// Obtiene tipo/perfil desde props o desde localStorage (compat)
+// Obtiene tipo/perfil desde props, luego desde flags (authStorage) y, por compatibilidad, desde localStorage
 const obtenerTipoYPerfil = (propTipo, propPerfil) => {
   let t = propTipo;
   let p = propPerfil;
@@ -30,29 +31,43 @@ const obtenerTipoYPerfil = (propTipo, propPerfil) => {
   try {
     if (!t) {
       t =
+        getFlag("tipoCuentaRegistro") ||
         localStorage.getItem("tipoCuentaRegistro") ||
+        getFlag("tipoCuentaIntentada") ||
         localStorage.getItem("tipoCuentaIntentada") ||
         null;
     }
     if (!p) {
-      const crudo =
-        localStorage.getItem("perfilCuentaRegistro") ||
-        localStorage.getItem("perfilCuentaIntentada") ||
+      // Flags primero (pueden guardar objeto {perfil: n})
+      p =
+        getFlag("perfilCuentaRegistro") ||
+        getFlag("perfilCuentaIntentada") ||
         null;
 
-      if (crudo) {
-        try {
-          const parsed = JSON.parse(crudo);
-          p = parsed;
-        } catch {
-          p = { perfil: crudo };
+      // Respaldo: localStorage (puede ser string o JSON)
+      if (!p) {
+        const crudo =
+          localStorage.getItem("perfilCuentaRegistro") ||
+          localStorage.getItem("perfilCuentaIntentada") ||
+          null;
+        if (crudo) {
+          try {
+            const parsed = JSON.parse(crudo);
+            p = parsed;
+          } catch {
+            p = { perfil: crudo };
+          }
         }
       }
     }
   } catch {}
 
-  if (p && typeof p === "string") {
-    p = { perfil: p };
+  // Normaliza a objeto {perfil: ...}
+  if (p && typeof p === "string") p = { perfil: p };
+  if (typeof p === "number") p = { perfil: p };
+  if (p && typeof p === "object" && "perfil" in p) {
+    const v = p.perfil;
+    if (typeof v === "string" && /^\d+$/.test(v)) p.perfil = Number(v);
   }
 
   return { tipo: t, perfil: p };

@@ -1,17 +1,60 @@
-import { useState } from "react";
 
+import { useState, useEffect } from "react";
+
+/**
+ * Formulario de datos personales. Permite editar y enviar:
+ * { nombre, telefono, direccion }
+ * onSubmit(values) -> Promise
+ */
+const PERFIL_DRAFT_KEY = "perfilDraft";
 export default function PerfilDatosForm({ initial = {}, onSubmit }) {
   const [form, setForm] = useState({
-    nombre: initial.nombre || "Nombre del Usuario",
+    nombre: initial.nombre || "",
     telefono: initial.telefono || "",
     direccion: initial.direccion || "",
   });
+  const [saving, setSaving] = useState(false);
+  const [ok, setOk] = useState(false);
+  const [err, setErr] = useState("");
 
-  const handle = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+  useEffect(() => {
+    // Cargar borrador guardado si existe
+    try {
+      const raw = localStorage.getItem(PERFIL_DRAFT_KEY);
+      if (raw) {
+        const draft = JSON.parse(raw);
+        if (draft && typeof draft === 'object') {
+          initial = { ...initial, ...draft };
+        }
+      }
+    } catch {}
+    
+    setForm({
+      nombre: initial.nombre || "",
+      telefono: initial.telefono || "",
+      direccion: initial.direccion || "",
+    });
+  }, [initial?.nombre, initial?.telefono, initial?.direccion]);
 
-  const submit = (e) => {
+  const handle = (e) => {
+    const next = { ...form, [e.target.name]: e.target.value };
+    setForm(next);
+    try { localStorage.setItem(PERFIL_DRAFT_KEY, JSON.stringify(next)); } catch {}
+  };
+
+  const submit = async (e) => {
     e.preventDefault();
-    onSubmit?.(form);
+    setErr(""); setOk(false);
+    try {
+      setSaving(true);
+      await onSubmit?.(form);
+      setOk(true);
+      try { localStorage.removeItem(PERFIL_DRAFT_KEY); } catch {}
+    } catch (e) {
+      setErr(e?.message || "No se pudo guardar");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -41,10 +84,15 @@ export default function PerfilDatosForm({ initial = {}, onSubmit }) {
         />
       </Field>
 
-      <div className="pt-2">
-        <button className="text-sm px-3 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700">
-          Guardar cambios
+      <div className="pt-2 flex items-center gap-3">
+        <button
+          className="text-sm px-3 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+          disabled={saving}
+        >
+          {saving ? "Guardando…" : "Guardar cambios"}
         </button>
+        {ok && <span className="text-sm text-green-600">Guardado ✔</span>}
+        {err && <span className="text-sm text-amber-600">{err}</span>}
       </div>
     </form>
   );

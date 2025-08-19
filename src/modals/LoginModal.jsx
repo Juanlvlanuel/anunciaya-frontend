@@ -7,6 +7,7 @@ import { AuthContext } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import facebookIcon from "../assets/facebook-icon.png";
 import { motion, AnimatePresence } from "framer-motion";
+import { setAuthSession, removeFlag } from "../utils/authStorage";
 
 const overlayVariants = {
   hidden: { opacity: 0 },
@@ -14,17 +15,14 @@ const overlayVariants = {
   exit: { opacity: 0, transition: { duration: 0.3 } },
 };
 
-const limpiarEstadoTemporal = () => {
-  localStorage.removeItem("tipoCuentaIntentada");
-  localStorage.removeItem("perfilCuentaIntentada");
-};
+const limpiarEstadoTemporal = () => { try { removeFlag("tipoCuentaIntentada"); removeFlag("perfilCuentaIntentada"); } catch {} };
 
 const LoginModal = ({ isOpen, onClose }) => {
   const [correo, setCorreo] = useState("");
   const [contraseña, setContraseña] = useState("");
   const [mostrarPassword, setMostrarPassword] = useState(false);
 
-  const { login } = useContext(AuthContext);
+  const { login , iniciarSesion } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const resetForm = () => {
@@ -99,6 +97,14 @@ const LoginModal = ({ isOpen, onClose }) => {
           const data = await res.json();
 
           if (res.ok) {
+            try {
+              if (iniciarSesion) {
+                await iniciarSesion(data.token, data.usuario);
+              } else if (data?.token) {
+                setAuthSession({ accessToken: data.token, user: data.usuario || null });
+              }
+            } catch {}
+
             Swal.fire({
               icon: "success",
               title: `¡Bienvenido, ${data.usuario.nickname}!`,

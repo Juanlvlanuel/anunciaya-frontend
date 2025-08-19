@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useChat } from "../../../context/ChatContext";
 import { API_BASE, chatAPI } from "../../../services/api";
+import { getAuthSession } from "../../../utils/authStorage";
 
 function ConfirmModal({ open, title, message, onConfirm, onCancel, confirmText = "Confirmar", cancelText = "Cancelar" }) {
   if (!open) return null;
@@ -35,13 +36,30 @@ const Star = ({ filled }) => filled ? (
 );
 
 export default function ChatListMobile({ onSelectChat }) {
+
+  const getToken = () => {
+    try {
+      const s = (typeof getAuthSession === "function") ? getAuthSession() : null;
+      return s?.accessToken || "";
+    } catch {
+      return "";
+    }
+  };
   const { chats, setChats, loadChats, setActiveChatId, activeChatId, currentUserId, loadMessages, statusMap, blockChat, unblockChat } = useChat();
   const [q, setQ] = useState("");
+  useEffect(() => { setPage(1); }, [q]);
   const [confirm, setConfirm] = useState({ open: false, chatId: null, name: "" });
+
+  // === Paginación/scroll infinito (regla rápida) ===
+  const PAGE_SIZE = 50; // ajusta si quieres 50-100
+  const [page, setPage] = useState(1);
+  const [loadingNext, setLoadingNext] = useState(false);
+  const loadMoreRef = useRef(null);
+  const ioRef = useRef(null);
 
   useEffect(() => { loadChats?.(); }, [loadChats]);
 
-  const myId = String(currentUserId || localStorage.getItem("uid") || localStorage.getItem("userId") || "");
+  const myId = String(currentUserId || ((getAuthSession && getAuthSession())?.user?._id) || "");
   const hasSetChats = typeof setChats === "function";
 
   const getFav = (c) => {
@@ -97,10 +115,40 @@ export default function ChatListMobile({ onSelectChat }) {
     });
   }, [q, chats]);
 
-  const favorites = filtered.filter(getFav);
-  const others = filtered.filter((c) => !getFav(c));
+  const displayed = useMemo(() => filtered.slice(0, page * PAGE_SIZE), [filtered, page]);
+  const favorites = displayed.filter(getFav);
+  const others = displayed.filter((c) => !getFav(c));
 
-  const selectChat = (id) => { setActiveChatId(id); onSelectChat?.(id); };
+  // IntersectionObserver para scroll infinito
+  useEffect(() => {
+    if (!loadMoreRef.current) return;
+    if (ioRef.current) { ioRef.current.disconnect(); ioRef.current = null; }
+    ioRef.current = new IntersectionObserver((entries) => {
+      const e = entries[0];
+      if (e && e.isIntersecting) {
+        // Si aún hay más por mostrar y no estamos cargando
+        if (!loadingNext && (page * PAGE_SIZE) < filtered.length) {
+          setLoadingNext(true);
+          // Simula latencia mínima; si luego usas backend, llama a loadChats(page+1)
+          setTimeout(() => {
+            setPage((p) => p + 1);
+            setLoadingNext(false);
+          }, 200);
+        }
+      }
+    }, { root: null, rootMargin: '200px 0px', threshold: 0.01 });
+    ioRef.current.observe(loadMoreRef.current);
+    return () => { ioRef.current && ioRef.current.disconnect(); };
+  }, [filtered.length, page, loadingNext]);
+
+
+  useEffect(() => {
+    // Si la cantidad filtrada ahora es menor que lo mostrado, reajusta página
+    const maxPage = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    if (page > maxPage) setPage(maxPage);
+  }, [filtered.length]);
+
+const selectChat = (id) => { setActiveChatId(id); onSelectChat?.(id); };
   const prefetched = useRef(new Set());
   const prefetch = (id) => {
     if (!id || prefetched.current.has(id)) return;
@@ -109,11 +157,11 @@ export default function ChatListMobile({ onSelectChat }) {
   };
 
   const toggleFavorite = async (chat) => {
-    let token = localStorage.getItem("token") || localStorage.getItem("authToken") || "";
+    let token = getToken();
     if (!token) {
       try {
-        const u = JSON.parse(localStorage.getItem("usuario") || "{}");
-        if (u && (u.token || u.jwt || u.accessToken)) token = u.token || u.jwt || u.accessToken;
+        const s = (typeof getAuthSession === "function") ? getAuthSession() : null;
+        token = s?.accessToken || "";
       } catch {}
     }
     const wasFav = getFav(chat);
@@ -140,7 +188,7 @@ export default function ChatListMobile({ onSelectChat }) {
   const askDelete = (chat) => setConfirm({ open: true, chatId: chat._id, name: getDisplayName(chat) });
   const doDelete = async () => {
     try {
-      const token = localStorage.getItem("token");
+      const token = getToken();
       await chatAPI.deleteForMe(confirm.chatId, token);
       await loadChats?.();
       setConfirm({ open: false, chatId: null, name: "" });
@@ -328,7 +376,7 @@ export default function ChatListMobile({ onSelectChat }) {
   return (
     <div className="w-full h-full flex flex-col bg-white">
       <div className="sticky top-0 z-10 bg-white/95 backdrop-blur border-b">
-        <div className="px-3 pt-3 pb-2 font-semibold">Chats</div>
+        <div className="px-3 pt-3 pb-2 font-semibold">Chats <span className="text-gray-500 font-normal text-sm">({filtered.length})</span></div>
         <div className="px-3 pb-3">
           <div className="relative">
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Busca por nombre o mensaje…" className="w-full rounded-xl border px-10 py-2 outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 text-sm" type="text" />

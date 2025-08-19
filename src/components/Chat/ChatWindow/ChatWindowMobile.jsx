@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useChat } from "../../../context/ChatContext";
 import MessageMobile from "../Message/MessageMobile";
 import { chatAPI } from "../../../services/api";
+import { getAuthSession } from "../../../utils/authStorage";
 
 function ConfirmModal({ open, title, message, onConfirm, onCancel, confirmText = "Eliminar", cancelText = "Cancelar" }) {
   if (!open) return null;
@@ -28,6 +29,15 @@ function ConfirmModal({ open, title, message, onConfirm, onCancel, confirmText =
  * - Auto-scroll robusto.
  */
 export default function ChatWindowMobile({ theme = "light", bgUrl = "", height = null }) {
+
+  const getToken = () => {
+    try {
+      const s = (typeof getAuthSession === "function") ? getAuthSession() : null;
+      return s?.accessToken || "";
+    } catch {
+      return "";
+    }
+  };
   const {
     currentUserId,
     activeChatId,
@@ -72,7 +82,7 @@ const isBlocked = useMemo(() => {
   const fetchPins = useCallback(async () => {
     if (!activeChatId) return;
     try {
-      const token = localStorage.getItem("token");
+      const token = getToken();
       const list = await chatAPI.getPins(activeChatId, token);
       setPinned(Array.isArray(list) ? list : []);
     } catch { setPinned([]); }
@@ -120,7 +130,7 @@ const isBlocked = useMemo(() => {
   const replyTo = (msg) => { window.dispatchEvent(new CustomEvent("chat:reply", { detail: { message: msg } })); };
   const onTogglePin = async (messageId, willPin) => {
     try {
-      const token = localStorage.getItem("token");
+      const token = getToken();
       if (willPin && pinned.length >= 5) { alert("Límite de 5 mensajes fijados alcanzado."); return; }
       await chatAPI.togglePin(messageId, willPin, token);
       await fetchPins();
@@ -134,7 +144,7 @@ const isBlocked = useMemo(() => {
     try {
       const mine = String(msg?.emisor?._id || msg?.emisor || msg?.emisorId || "") === String(currentUserId) || msg?.mine === true;
       if (!mine) { alert("Solo puedes borrar tus propios mensajes."); return; }
-      const token = localStorage.getItem("token");
+      const token = getToken();
       await chatAPI.deleteMessage(msg._id, token);
       try { deleteMessageLive?.(msg._id, () => { }); } catch { }
       await loadMessages(activeChatId);
@@ -148,7 +158,7 @@ const isBlocked = useMemo(() => {
       const nuevo = window.prompt("Editar mensaje:", typeof msg?.texto === "string" ? msg.texto : "");
       if (nuevo == null) return;
       const texto = String(nuevo);
-      const token = localStorage.getItem("token");
+      const token = getToken();
       await chatAPI.editMessage(msg._id, { texto }, token);
       try { editMessageLive?.(msg._id, texto, () => { }); } catch { }
       await loadMessages(activeChatId);
