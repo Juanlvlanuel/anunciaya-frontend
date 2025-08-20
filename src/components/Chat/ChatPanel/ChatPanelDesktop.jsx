@@ -240,7 +240,7 @@ export default function ChatPanelDesktop({ onClose }) {
                   value={query}
                   onChange={onChangeQuery}
                   placeholder="Buscar por nickname o correo… (Ctrl/Cmd + K)"
-                  className="flex-1 bg-transparent outline-none text-sm dark:text-zinc-100"
+                  className="flex-1 bg-transparent outline-none text-sm"
                   onFocus={() => { if (query.trim()) setShowResults(true); }}
                   onKeyDown={(e) => {
                     if (e.key === "Escape") setShowResults(false);
@@ -272,8 +272,8 @@ export default function ChatPanelDesktop({ onClose }) {
                       >
                         <Avatar nickname={u.nickname || u.nombre} fotoPerfil={u.fotoPerfil} />
                         <div className="text-left">
-                          <div className="text-sm font-medium dark:text-zinc-100">{u.nickname || u.nombre}</div>
-                          <div className="text-xs text-gray-500 dark:text-zinc-400">{u.correo}</div>
+                          <div className="text-sm font-medium">{u.nickname || u.nombre}</div>
+                          <div className="text-xs text-gray-500">{u.correo}</div>
                         </div>
                       </button>
                     ))
@@ -299,12 +299,12 @@ export default function ChatPanelDesktop({ onClose }) {
           <header className="sticky top-0 z-10 h-16 px-5 border-b bg-white/90 dark:bg-zinc-900/90 dark:border-zinc-700 backdrop-blur flex items-center gap-3">
             <Avatar nickname={partner?.nickname || partner?.nombre} fotoPerfil={partner?.fotoPerfil} />
             <div className="leading-tight min-w-0">
-              <div className="text-[15px] font-semibold truncate dark:text-zinc-100">
+              <div className="text-[15px] font-semibold truncate">
                 {partner?.nickname || partner?.nombre || "Contacto"}
               </div>
               <div className="flex items-center gap-1 text-[12px]">
                 <span className={`w-2.5 h-2.5 rounded-full ${isOnline ? "bg-green-500" : (isAway ? "bg-yellow-500" : "bg-gray-400")}`} />
-                <span className="text-gray-500 dark:text-zinc-400">{statusTxt}</span>
+                <span className="text-gray-500">{statusTxt}</span>
               </div>
             </div>
 
@@ -318,11 +318,11 @@ export default function ChatPanelDesktop({ onClose }) {
                   onClick={() => setShowBgMenu((s) => !s)}
                   title="Elegir fondo"
                 >
-                  <FaPalette className="text-gray-700 dark:text-gray-200" />
+                  <FaPalette className="text-gray-700" />
                 </button>
                 {showBgMenu && (
                   <div className="absolute right-0 mt-2 w-[420px] max-h-[70vh] overflow-auto bg-white dark:bg-zinc-900 border dark:border-zinc-700 rounded-xl shadow-2xl p-4 z-30">
-                    <div className="text-xs font-semibold mb-2 text-gray-600 dark:text-zinc-300">Fondos predefinidos</div>
+                    <div className="text-xs font-semibold mb-2 text-gray-600">Fondos predefinidos</div>
                     <div className="grid grid-cols-5 gap-2">
                       {BG_PRESETS.map((p, idx) => (
                         <button key={idx} type="button" onClick={() => applyPreset(p.url)} title={p.name} className="rounded-lg overflow-hidden border dark:border-zinc-700 hover:opacity-90">
@@ -352,7 +352,7 @@ export default function ChatPanelDesktop({ onClose }) {
                 onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
                 title={theme === "dark" ? "Modo claro" : "Modo oscuro"}
               >
-                {theme === "dark" ? <FaSun className="text-gray-700 dark:text-gray-200" /> : <FaMoon className="text-gray-700" />}
+                {theme === "dark" ? <FaSun className="text-gray-700" /> : <FaMoon className="text-gray-700" />}
               </button>
 
               <button
@@ -361,7 +361,7 @@ export default function ChatPanelDesktop({ onClose }) {
                 onClick={handleClose}
                 aria-label="Cerrar chat" title="Cerrar"
               >
-                <svg viewBox="0 0 24 24" className="w-5 h-5 text-gray-700 dark:text-gray-200" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg viewBox="0 0 24 24" className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M18 6L6 18M6 6l12 12" />
                 </svg>
               </button>

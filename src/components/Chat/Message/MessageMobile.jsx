@@ -264,7 +264,7 @@ export default function MessageMobile({
               : "bg-blue-600 text-white border-blue-600"
             : emojiOnly
               ? ""
-              : "bg-white dark:text-gray-100 dark:border-zinc-700"
+              : "bg-white dark:border-zinc-700"
           }
  ${pinned ? "ring-2 ring-amber-300" : ""}`}
         onTouchStart={startLongPress}
@@ -281,7 +281,7 @@ export default function MessageMobile({
         <div ref={bubbleRef} className="relative">
           {msg?.replyTo?.texto && (
             <div
-              className={`mb-2 rounded-lg px-2 py-1 text-xs ${mine ? "bg-blue-500/25 text-white/80" : "bg-black/5 text-gray-700 dark:text-gray-200"
+              className={`mb-2 rounded-lg px-2 py-1 text-xs ${mine ? "bg-blue-500/25 text-white/80" : "bg-black/5 text-gray-700"
                 }`}
             >
               <div className="truncate">{escapeHTML(msg.replyTo.texto)}</div>
@@ -290,7 +290,7 @@ export default function MessageMobile({
 
           {!!msg?.texto && (
             <div
-              className={`text-[15px] leading-snug ${mine ? "text-white" : "text-gray-800 dark:text-gray-100"
+              className={`text-[15px] leading-snug ${mine ? "text-white" : "text-gray-800"
                 } emoji-text ${emojiOnly ? "emoji-only" : ""}`}
               dangerouslySetInnerHTML={{ __html: html }}
             />
@@ -415,7 +415,7 @@ export default function MessageMobile({
         <div
           className={`mt-1 text-[11px] ${mine
               ? "text-white/80"
-              : "text-gray-500 dark:text-gray-400"
+              : "text-gray-500"
             } flex items-center gap-1`}
         >
           {pinned && <span title="Fijado">📌</span>}
@@ -429,7 +429,7 @@ export default function MessageMobile({
 function MenuItem({ icon, label, onClick }) {
   return (
     <button
-      className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 text-gray-800 dark:text-gray-100 hover:bg-gray-50 "
+      className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 text-gray-800 hover:bg-gray-50 "
       onClick={onClick}
     >
       {icon && (

@@ -158,10 +158,10 @@ export default function MessageInputDesktop() {
         <div className="mx-2 mb-2 rounded-xl border bg-white/85 dark:bg-zinc-800/85 dark:border-zinc-700 px-3 py-2 flex items-start gap-2">
           <div className="w-1.5 h-8 rounded bg-blue-400 mt-0.5" />
           <div className="min-w-0 flex-1">
-            <div className="text-xs font-semibold text-blue-700 dark:text-blue-300">
+            <div className="text-xs font-semibold text-blue-700">
               Respondiendo a {replyTo.autor?.nickname || replyTo.autor?.nombre || "mensaje"}
             </div>
-            <div className="text-xs text-gray-600 dark:text-gray-300 line-clamp-2">{replyTo.texto || "Contenido"}</div>
+            <div className="text-xs text-gray-600 line-clamp-2">{replyTo.texto || "Contenido"}</div>
           </div>
           <button className="ml-2 text-xs px-2 py-1 rounded-md border hover:bg-gray-50 dark:hover:bg-zinc-700" onClick={() => setReplyTo(null)} title="Cancelar">✕</button>
         </div>
@@ -177,7 +177,7 @@ export default function MessageInputDesktop() {
       >
         {/* Emoji */}
         <div className="relative" ref={pickerWrapRef}>
-          <button type="button" title="Emoji" onClick={() => setShowEmoji((s) => !s)} className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 dark:text-gray-200 border border-gray-200 dark:border-zinc-600">
+          <button type="button" title="Emoji" onClick={() => setShowEmoji((s) => !s)} className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 border border-gray-200 dark:border-zinc-600">
             <FaSmile className="text-[18px]" />
           </button>
           {showEmoji && (
@@ -196,7 +196,7 @@ export default function MessageInputDesktop() {
             onKeyDown={onKeyDown}
             placeholder="Escribe un mensaje…"
             rows={1}
-            className="w-full min-h-[40px] max-h-[120px] bg-transparent outline-none px-2 resize-none overflow-auto text-[15px] text-gray-800 dark:text-gray-100 placeholder-gray-400"
+            className="w-full min-h-[40px] max-h-[120px] bg-transparent outline-none px-2 resize-none overflow-auto text-[15px] text-gray-800 placeholder-gray-400"
             style={{ height: 40 }}
           />
           {/* Previews más grandes en PC */}
@@ -217,7 +217,7 @@ export default function MessageInputDesktop() {
         {/* Botonera */}
         <div className="flex flex-col gap-2">
           <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
-          <button type="button" onClick={() => fileRef.current?.click()} title="Adjuntar desde archivos" className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 dark:text-gray-200 border border-gray-200 dark:border-zinc-600">
+          <button type="button" onClick={() => fileRef.current?.click()} title="Adjuntar desde archivos" className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 border border-gray-200 dark:border-zinc-600">
             <FaImages className="text-[18px]" />
           </button>
           <button

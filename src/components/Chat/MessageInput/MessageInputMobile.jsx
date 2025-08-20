@@ -212,7 +212,7 @@ export default function MessageInputMobile() {
     <div className="px-2 pb-2 relative">
 
       {replyTo && (
-        <div ref={replyBarRef} className="mx-1 mb-2 rounded-xl border border-blue-200 border-l-4 border-l-blue-500 bg-white/95 dark:border-zinc-700 px-3 py-2 text-[12px] text-blue-900 dark:text-blue-100 flex items-center gap-2 shadow-sm">
+        <div ref={replyBarRef} className="mx-1 mb-2 rounded-xl border border-blue-200 border-l-4 border-l-blue-500 bg-white/95 dark:border-zinc-700 px-3 py-2 text-[12px] text-blue-900 flex items-center gap-2 shadow-sm">
           <img src="/icons/icon-responder.png" alt="Responder" className="w-4 h-4 shrink-0" />
           <div className="min-w-0 flex-1">
             <div className="truncate text-[12px] opacity-90">
@@ -233,7 +233,7 @@ export default function MessageInputMobile() {
 
       <div className="flex items-center gap-2 h-14 rounded-2xl border bg-white/95 dark:border-zinc-700 shadow-[0_4px_16px_rgba(0,0,0,0.06)] px-2">
         <div className="relative" ref={pickerWrapRef}>
-          <button type="button" title="Emoji" onClick={() => setShowEmoji((s) => !s)} className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-zinc-600">
+          <button type="button" title="Emoji" onClick={() => setShowEmoji((s) => !s)} className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200 dark:border-zinc-600">
             <FaSmile className="text-[18px]" />
           </button>
           {showEmoji && (
@@ -253,19 +253,19 @@ export default function MessageInputMobile() {
           onBlur={() => setShowCamera(true)}
           placeholder="Escribe un mensaje…"
           rows={1}
-          className="flex-1 h-10 max-h-10 min-h-0 bg-transparent outline-none px-2 resize-none overflow-hidden whitespace-nowrap text-ellipsis text-[15px] text-gray-800 dark:text-gray-100 placeholder-gray-400"
+          className="flex-1 h-10 max-h-10 min-h-0 bg-transparent outline-none px-2 resize-none overflow-hidden whitespace-nowrap text-ellipsis text-[15px] text-gray-800 placeholder-gray-400"
         />
 
         <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onPickFiles} />
         <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={onPickFiles} />
 
         {showCamera && (
-          <button type="button" onClick={() => cameraRef.current?.click()} title="Tomar foto" className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-zinc-600">
+          <button type="button" onClick={() => cameraRef.current?.click()} title="Tomar foto" className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200 dark:border-zinc-600">
             <span className="text-[18px]">📷</span>
           </button>
         )}
 
-        <button type="button" onClick={() => galleryRef.current?.click()} title="Adjuntar desde galería" className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-zinc-600">
+        <button type="button" onClick={() => galleryRef.current?.click()} title="Adjuntar desde galería" className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200 dark:border-zinc-600">
           <FaPaperclip className="text-[18px]" />
         </button>
 

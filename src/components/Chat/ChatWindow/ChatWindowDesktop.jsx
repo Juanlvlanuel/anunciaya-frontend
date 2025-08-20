@@ -12,7 +12,7 @@ function ConfirmModal({ open, title, message, onConfirm, onCancel, confirmText =
       <div className="absolute inset-0 bg-black/45" onClick={onCancel} />
       <div className="relative w-[min(520px,92vw)] bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border dark:border-zinc-700 p-6">
         <div className="text-base font-semibold mb-1">{title}</div>
-        <div className="text-sm text-gray-600 dark:text-gray-300 mb-4">{message}</div>
+        <div className="text-sm text-gray-600 mb-4">{message}</div>
         <div className="flex justify-end gap-2">
           <button onClick={onCancel} className="px-3 py-2 rounded-md border dark:border-zinc-700 hover:bg-gray-50 dark:hover:bg-zinc-800">{cancelText}</button>
           <button onClick={onConfirm} className="px-3 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">{confirmText}</button>
@@ -211,7 +211,7 @@ export default function ChatWindowDesktop({ theme = "light", bgUrl = "" }) {
   };
 
   if (!activeChatId) {
-    return <div className="flex-1 grid place-items-center text-[13px] text-gray-500 dark:text-gray-400">Selecciona un chat</div>;
+    return <div className="flex-1 grid place-items-center text-[13px] text-gray-500">Selecciona un chat</div>;
   }
 
   return (
@@ -273,7 +273,7 @@ export default function ChatWindowDesktop({ theme = "light", bgUrl = "" }) {
         })}
 
         {typingMap[activeChatId] && (
-          <div className="text:[13px] text-gray-500 dark:text-gray-400 mt-2 px-1">Escribiendo…</div>
+          <div className="text:[13px] text-gray-500 mt-2 px-1">Escribiendo…</div>
         )}
         <div ref={tailRef} />
       </div>
@@ -286,7 +286,7 @@ export default function ChatWindowDesktop({ theme = "light", bgUrl = "" }) {
           aria-label="Ir al último mensaje"
           title="Ir al último mensaje"
         >
-          <svg viewBox="0 0 24 24" className="w-5 h-5 text-gray-700 dark:text-gray-200" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+          <svg viewBox="0 0 24 24" className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
         </button>
       )}
 

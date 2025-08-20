@@ -183,7 +183,7 @@ export default function ChatListDesktop({ onToggleFavorite, onSelectChat }) {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Buscar por nombre o mensaje…"
-            className="w-full rounded-lg border px-9 h-11 text-sm outline-none focus:ring-2 focus:ring-blue-500/30 dark:bg-zinc-800 dark:text-white"
+            className="w-full rounded-lg border px-9 h-11 text-sm outline-none focus:ring-2 focus:ring-blue-500/30 dark:bg-zinc-800"
           />
           <svg
             viewBox="0 0 24 24"

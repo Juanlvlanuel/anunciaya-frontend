@@ -25,7 +25,7 @@ export default function MessageDesktop({
 
   const bubbleClasses = mine
     ? "bg-blue-600 text-white border-blue-600"
-    : "bg-white dark:bg-zinc-800 dark:text-gray-100 dark:border-zinc-700";
+    : "bg-white dark:bg-zinc-800 dark:border-zinc-700";
 
   return (
     <div className={`group flex ${mine ? "justify-end" : "justify-start"} px-2`} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
@@ -41,7 +41,7 @@ export default function MessageDesktop({
 
         {/* Texto */}
         {msg?.texto && (
-          <div className={`text-[15px] leading-relaxed ${mine ? "text-white" : "text-gray-800 dark:text-gray-100"}`}>
+          <div className={`text-[15px] leading-relaxed ${mine ? "text-white" : "text-gray-800"}`}>
             <EmojiText text={String(msg.texto)} />
           </div>
         )}
@@ -69,7 +69,7 @@ export default function MessageDesktop({
         )}
 
         {/* Hora + estado */}
-        <div className={`mt-1 text-[11px] ${mine ? "text-white/80" : "text-gray-500 dark:text-gray-400"} flex items-center gap-1`}>
+        <div className={`mt-1 text-[11px] ${mine ? "text-white/80" : "text-gray-500"} flex items-center gap-1`}>
           {pinned && <span title="Fijado">📌</span>}
           <span>{time}</span>
         </div>
@@ -85,7 +85,7 @@ function IconBtn({ children, title, onClick, danger }) {
       onClick={onClick}
       className={`h-7 px-2 rounded-md border text-xs backdrop-blur bg-white/90 hover:bg-white shadow-sm
         ${danger ? "border-red-200 text-red-600 hover:bg-red-50" : "border-gray-200 text-gray-700"}
-        dark:bg-zinc-900/90 dark:border-zinc-700 dark:text-gray-200 dark:hover:bg-zinc-800`}
+        dark:bg-zinc-900/90 dark:border-zinc-700 dark:hover:bg-zinc-800`}
     >
       {children}
     </button>
