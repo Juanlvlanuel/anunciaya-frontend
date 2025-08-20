@@ -99,3 +99,23 @@ html, body { background: transparent !important; }
   .pb-bottom-safe { padding-bottom: var(--safe-bottom-offset); }/* contenedores */
   .mb-bottom-safe { margin-bottom: var(--safe-bottom-offset); } /* márgenes */
 }
+
+
+/* ====== FORZAR TEMA CLARO EN TODOS LOS DISPOSITIVOS ====== */
+:root { color-scheme: light; }
+
+/* Fondo y color de texto base SIEMPRE claros (anula el transparent anterior) */
+html, body {
+  background: #ffffff !important;
+  color: #111111;
+}
+
+/* Por si el SO intenta dark-mode */
+@media (prefers-color-scheme: dark) {
+  html, body { background: #ffffff !important; color: #111111 !important; }
+}
+
+/* Contenedores comunes (por si algún wrapper aplica herencias) */
+#root, .app-root, [data-chat-scroll], .chat-panel, .chat-window {
+  background: #ffffff !important;
+}

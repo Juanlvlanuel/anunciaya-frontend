@@ -1,4 +1,3 @@
-// ChatPanelMobile.jsx (actualizado sin presets inactivos y limpieza menor)
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { FaMoon, FaSun, FaImage, FaLink, FaTrash, FaPalette, FaSearch, FaBan, FaUnlockAlt, FaTimes } from "react-icons/fa";
@@ -13,13 +12,11 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
   const { chats, activeChatId, currentUserId, setActiveChatId, loadChats, loadMessages, statusMap, blockChat, unblockChat } = useChat();
   const boxRef = useRef(null);
 
-  // ===== Cierre =====
   const handleClose = () => {
     setActiveChatId(null);
     onClose?.();
   };
 
-  // Swipe-down para cerrar
   const closeRef = useRef(() => { });
   useEffect(() => { closeRef.current = handleClose; }, []);
   useEffect(() => {
@@ -59,7 +56,6 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
     };
   }, []);
 
-  // Overlay click / ESC
   useEffect(() => {
     const onDocClick = (e) => {
       if (!boxRef.current) return;
@@ -77,12 +73,9 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
     };
   }, [onClose]);
 
-  // ===== Estado responsive móvil =====
   const [showListMobile, setShowListMobile] = useState(true);
-  // ==== Partner / estado + bloqueo ====
   const [partnerHint, setPartnerHint] = useState(null);
 
-  // Chat activo
   const currentChat = useMemo(() => {
     if (!activeChatId) return null;
     try {
@@ -92,19 +85,16 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
     }
   }, [chats, activeChatId]);
 
-  // El “otro” participante del chat
   const partner = useMemo(() => {
     const c = currentChat;
     if (!c) return partnerHint || null;
 
-    // 1) Esquema moderno: participantes[]
     if (Array.isArray(c.participantes) && c.participantes.length) {
       const mine = String(currentUserId || "");
       const p = c.participantes.find(u => String(u?._id || u?.id || u) !== mine);
       return p ? (typeof p === "string" ? { _id: p } : p) : (partnerHint || null);
     }
 
-    // 2) Esquema legacy: usuarioA/usuarioB
     if (c.usuarioA && c.usuarioB) {
       const a = String(c.usuarioA?._id || c.usuarioA);
       const b = String(c.usuarioB?._id || c.usuarioB);
@@ -118,7 +108,6 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
 
   const partnerId = partner ? String(partner._id || partner.id || partner) : null;
 
-  // Presencia legible del partner
   const rawStatus = partnerId ? statusMap?.[partnerId] : null;
   const statusText = (() => {
     const map = { online: "Conectado", away: "Ausente", idle: "Ausente", offline: "Desconectado" };
@@ -126,18 +115,14 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
   })();
   const dotClass = (rawStatus === "online") ? "bg-green-500" : ((rawStatus === "away" || rawStatus === "idle") ? "bg-yellow-500" : "bg-gray-400");
 
-  // === Bloqueo: ¿YO tengo bloqueado este chat?
   const isBlocked = useMemo(() => {
     const c = currentChat;
     if (!c) return false;
-    // Si el backend ya trae isBlocked, úsalo
     if (typeof c.isBlocked === "boolean") return c.isBlocked;
-    // Si no, deriva de blockedBy
     const arr = Array.isArray(c.blockedBy) ? c.blockedBy.map(String) : [];
     return arr.includes(String(currentUserId));
   }, [currentChat, currentUserId]);
 
-  // Alternar bloqueo/desbloqueo
   const onToggleBlock = useCallback(async () => {
     if (!currentChat?._id) return;
     try {
@@ -151,8 +136,6 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
     }
   }, [currentChat, isBlocked, blockChat, unblockChat]);
 
-
-  // ===== Tema / Fondo =====
   const [theme, setTheme] = useState(() => localStorage.getItem("chatTheme") || "light");
   const [bgUrl, setBgUrl] = useState(() => {
     const data = localStorage.getItem("chatBgDataUrl");
@@ -167,7 +150,6 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
     localStorage.setItem("chatTheme", theme);
   }, [theme]);
 
-  // ===== Búsqueda usuarios =====
   const [query, setQuery] = useState("");
   const [resul, setResul] = useState([]);
   const [loadingSearch, setLoadingSearch] = useState(false);
@@ -212,7 +194,7 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
       });
 
       const chat = await ensurePrivado(currentUserId, user._id, null);
-      await loadChats(); // siempre refrescar
+      await loadChats();
 
       setActiveChatId(chat._id);
       await loadMessages(chat._id);
@@ -227,12 +209,10 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
     }
   };
 
-  // ===== Fondo: subir/URL/custom =====
   const fileRef = useRef(null);
   const [showBgMenu, setShowBgMenu] = useState(false);
   const bgMenuRef = useRef(null);
 
-  // Mis fondos (persisten localmente)
   const [customBgs, setCustomBgs] = useState(() => {
     try { return JSON.parse(localStorage.getItem("chatBgCustomList") || "[]"); }
     catch { return []; }
@@ -275,7 +255,6 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
       localStorage.setItem("chatBgDataUrl", dataUrl);
       localStorage.removeItem("chatBgUrl");
       localStorage.setItem("chatBgOrigin", "data");
-      // Guardar en "Mis fondos"
       const name = (f.name || "Mi fondo").replace(/\.[^.]+$/, "");
       setCustomBgs((prev) => [{ name, url: dataUrl, origin: "data" }, ...prev.filter(b => b.url !== dataUrl)].slice(0, 30));
       setShowBgMenu(false);
@@ -284,7 +263,6 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
     } finally { if (fileRef.current) fileRef.current.value = ""; }
   };
 
-  // 🔄 Modal UX para URL de fondo
   const [urlModalOpen, setUrlModalOpen] = useState(false);
   const [bgUrlTemp, setBgUrlTemp] = useState("");
   const [bgUrlError, setBgUrlError] = useState("");
@@ -320,7 +298,6 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
 
   const removeCustom = (idx) => setCustomBgs((prev) => prev.filter((_, i) => i !== idx));
 
-  // Favoritos → refrescar lista
   const handleFavoriteToggled = async () => {
     try { await loadChats(); } catch { }
   };
@@ -335,7 +312,7 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
   const normalize = (v) => (typeof v === "number" ? `${v}px` : v);
 
   return (
-    <div className={`fixed inset-0 z-50 flex items-end justify-center ${theme === 'dark' ? 'dark' : ''}`}>
+    <div className={`fixed inset-0 z-50 flex items-end justify-center`}>
       {/* Overlay */}
       <motion.div
         className="absolute inset-0 bg-black/35"
@@ -346,14 +323,14 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
       <motion.div
         ref={boxRef}
         onClick={(e) => e.stopPropagation()}
-        className="relative flex w-[100vw] bg-white dark:bg-zinc-900 border dark:border-zinc-700 rounded-t-2xl overflow-hidden shadow-2xl"
+        className="relative flex w-[100vw] bg-white border border-zinc-200 rounded-t-2xl overflow-hidden shadow-2xl"
         style={{ height: `min(${normalize(panelHeight)}, 92vh)` }}
         initial="initial" animate="animate" exit="exit" variants={panelVariants}
         transition={{ type: 'spring', stiffness: 220, damping: 22 }}
       >
         {showListMobile ? (
           <div className="w-full h-full flex flex-col">
-            <div className="sticky top-0 z-30 border-b dark:border-zinc-700">
+            <div className="sticky top-0 z-30 border-b border-zinc-200">
               <div className="bg-gradient-to-t from-blue-600  to-blue-900 text-white px-4 pt-3 pb-4">
                 <div className="relative flex items-center justify-center">
                   <div className="flex items-center gap-2">
@@ -369,7 +346,6 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
                   </button>
                 </div>
                 <div className="mt-2">
-                  {/* Búsqueda móvil */}
                   <SearchBox
                     query={query}
                     onChangeQuery={onChangeQuery}
@@ -393,7 +369,6 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
           </div>
         ) : (
           <div className="flex flex-col flex-1 min-w-0">
-            {/* Header conversación */}
             <HeaderBar
               partner={partner}
               statusText={statusText} dotClass={dotClass}
@@ -414,13 +389,11 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
               onBack={() => { setActiveChatId(null); setShowListMobile(true); }}
             />
 
-            {/* Mensajes + Input */}
             <ChatWindow theme={theme} bgUrl={bgUrl} height={windowHeight} />
-            <div className="sticky bottom-[var(--bottom-nav-h)] bg-white dark:bg-zinc-900 border-t dark:border-zinc-700 pb-[max(8px,env(safe-area-inset-bottom))]">
+            <div className="sticky bottom-[var(--bottom-nav-h)] bg-white border-t border-zinc-200 pb-[max(8px,env(safe-area-inset-bottom))]">
               <MessageInput />
             </div>
 
-            {/* === Modal para pegar URL del fondo === */}
             {urlModalOpen && (
               <div
                 className="fixed inset-0 z-[100000] flex items-center justify-center"
@@ -428,19 +401,16 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
                 role="dialog"
                 onClick={() => setUrlModalOpen(false)}
               >
-                {/* Overlay */}
                 <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
-
-                {/* Card */}
                 <div
-                  className="relative z-10 w-[92%] max-w-md bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-100 rounded-2xl shadow-2xl border border-slate-200/70 dark:border-zinc-700 p-4"
+                  className="relative z-10 w-[92%] max-w-md bg-white text-slate-800 rounded-2xl shadow-2xl border border-slate-200/70 p-4"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-[15px] font-semibold">Fondo del chat por URL</h3>
                     <button
                       onClick={() => setUrlModalOpen(false)}
-                      className="h-8 w-8 inline-flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg:white/10"
+                      className="h-8 w-8 inline-flex items-center justify-center rounded-full hover:bg-black/5"
                       aria-label="Cerrar"
                     >
                       <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -456,7 +426,7 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
                     placeholder="https://ejemplo.com/imagen.jpg"
                     value={bgUrlTemp}
                     onChange={(e) => { setBgUrlTemp(e.target.value); setBgUrlError(""); }}
-                    className="w-full h-10 rounded-lg border border-slate-300 dark:border-zinc-700 bg:white dark:bg-zinc-800 px-3 outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 outline-none focus:ring-2 focus:ring-blue-500"
                   />
 
                   <div className="mt-1 min-h-[20px]">
@@ -470,7 +440,7 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
                   {bgUrlTemp && (
                     <div className="mt-2">
                       <div className="text-xs mb-1 text-slate-500">Vista previa</div>
-                      <div className="rounded-lg overflow-hidden border border-slate-200 dark:border-zinc-700">
+                      <div className="rounded-lg overflow-hidden border border-slate-200">
                         <img
                           src={bgUrlTemp}
                           alt="Vista previa"
@@ -491,7 +461,7 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
                         localStorage.removeItem("chatBgOrigin");
                         setUrlModalOpen(false);
                       }}
-                      className="h-9 px-3 rounded-lg border border-slate-300 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc:800 text-sm"
+                      className="h-9 px-3 rounded-lg border border-slate-300 hover:bg-slate-50 text-sm"
                     >
                       Quitar
                     </button>
@@ -500,7 +470,7 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
                         const val = (bgUrlTemp || "").trim();
                         if (!val) { setBgUrlError("Escribe una URL válida o usa Quitar."); return; }
                         try {
-                          new URL(val); // valida formato
+                          new URL(val);
                           setBgUrl(val);
                           setBgOrigin("url");
                           localStorage.setItem("chatBgUrl", val);
@@ -519,15 +489,12 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
                 </div>
               </div>
             )}
-            {/* === Fin modal === */}
           </div>
         )}
       </motion.div>
     </div>
   );
 }
-
-/* ========= Subcomponentes reusables ========= */
 
 function SearchBox({ query, onChangeQuery, loadingSearch, resul, showResults, searchBoxRef, runSearch, onPickUser, statusMap }) {
   return (
@@ -550,7 +517,7 @@ function SearchBox({ query, onChangeQuery, loadingSearch, resul, showResults, se
       </div>
 
       {showResults && (
-        <div className="absolute left-0 right-0 mt-2 max-h-64 overflow-auto bg-white dark:bg-zinc-900 border dark:border-zinc-700 rounded-xl shadow-2xl z-30">
+        <div className="absolute left-0 right-0 mt-2 max-h-64 overflow-auto bg-white border rounded-xl shadow-2xl z-30">
           {loadingSearch ? (
             <div className="p-3 text-sm text-gray-500">Buscando…</div>
           ) : resul.length === 0 ? (
@@ -561,11 +528,11 @@ function SearchBox({ query, onChangeQuery, loadingSearch, resul, showResults, se
                 key={u._id}
                 type="button"
                 onClick={() => onPickUser(u)}
-                className="w-full px-3 py-2 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-zinc-800"
+                className="w-full px-3 py-2 flex items-center gap-3 hover:bg-gray-50"
               >
                 <Avatar nickname={u.nickname || u.nombre} fotoPerfil={u.fotoPerfil} />
                 <div className="text-left">
-                  <div className="text-sm font-medium dark:text-zinc-100">
+                  <div className="text-sm font-medium">
                     {u.nickname || u.nombre}
                   </div>
                   <div className="flex items-center gap-1 text-[11px] whitespace-nowrap">
@@ -576,12 +543,12 @@ function SearchBox({ query, onChangeQuery, loadingSearch, resul, showResults, se
                       return (
                         <>
                           <span className={`inline-block align-middle w-2.5 h-2.5 rounded-full ${dot}`} />
-                          <span className="align-middle text-gray-500 dark:text-zinc-400">{label}</span>
+                          <span className="align-middle text-gray-500">{label}</span>
                         </>
                       );
                     })()}
                   </div>
-                  <div className="text-xs text-gray-500 dark:text-zinc-400">{u.correo}</div>
+                  <div className="text-xs text-gray-500">{u.correo}</div>
                 </div>
               </button>
             ))
@@ -600,52 +567,48 @@ function HeaderBar({
   onBack, isBlocked, onToggleBlock
 }) {
   return (
-    <div className="sticky top-0 z-10 h-14 px-3 border-b bg-white/90 dark:bg-zinc-900/90 dark:border-zinc-700 backdrop-blur flex items-center gap-3">
-      {/* Back móvil */}
+    <div className="sticky top-0 z-10 h-14 px-3 border-b bg-white border-zinc-200 backdrop-blur flex items-center gap-3">
       <button
         type="button"
-        className="mr-1 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-700 transition"
+        className="mr-1 p-2 rounded-full hover:bg-gray-100 transition"
         onClick={onBack}
         aria-label="Volver a chats" title="Volver"
       >
-        <svg viewBox="0 0 24 24" className="w-5 h-5 text-gray-700 dark:text-gray-200" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+        <svg viewBox="0 0 24 24" className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
       </button>
 
       <Avatar nickname={partner?.nickname || partner?.nombre} fotoPerfil={partner?.fotoPerfil} />
       <div className="leading-tight min-w-0">
-        <div className="text-sm font-medium truncate dark:text-zinc-100">
+        <div className="text-sm font-medium">
           {partner?.nickname || partner?.nombre || "Contacto"}
         </div>
-        {/* Estado debajo del nombre, con alineación horizontal (círculo + texto) */}
         <div className="mt-0.5 flex items-center gap-1 text-[11px] whitespace-nowrap leading-[1.1]">
           <span className={`inline-block align-middle w-2.5 h-2.5 rounded-full ${dotClass}`} />
-          <span className="align-middle text-gray-500 dark:text-zinc-400">{statusText}</span>
+          <span className="align-middle text-gray-500">{statusText}</span>
         </div>
       </div>
 
-      {/* Controles */}
       <div className="ml-auto flex items-center gap-1">
         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPickBgFile} />
         <div className="relative" ref={bgMenuRef}>
           <button
             type="button"
-            className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-700 transition"
+            className="p-2 rounded-full hover:bg-gray-100 transition"
             onClick={() => setShowBgMenu((s) => !s)} title="Elegir fondo"
           >
-            <FaPalette className="text-gray-700 dark:text-gray-200" />
+            <FaPalette className="text-gray-700" />
           </button>
           {showBgMenu && (
-            <div className="absolute right-0 mt-2 w-[320px] max-h:[70vh] overflow-auto bg-white dark:bg-zinc-900 border dark:border-zinc-700 rounded-xl shadow-xl p-3 z-30" 
+            <div className="absolute right-0 mt-2 w-[320px] max-h:[70vh] overflow-auto bg-white border border-zinc-200 rounded-xl shadow-xl p-3 z-30" 
             style={{ left: -200, right: "auto", maxWidth: "95vw" }}
             >
-              {/* Mis fondos */}
               {customBgs?.length > 0 && (
                 <>
-                  <div className="text-xs font-semibold mb-2 text-gray-600 dark:text-zinc-300">Mis fondos</div>
+                  <div className="text-xs font-semibold mb-2 text-gray-600">Mis fondos</div>
                   <div className="grid grid-cols-3 gap-2 mb-3">
                     {customBgs.map((bg, i) => (
                       <div key={`${bg.url}-${i}`} className="relative group">
-                        <button type="button" onClick={() => applyCustom(bg)} className="w-full h-20 rounded-lg overflow-hidden border dark:border-zinc-700">
+                        <button type="button" onClick={() => applyCustom(bg)} className="w-full h-20 rounded-lg overflow-hidden border border-zinc-200">
                           <img src={bg.url} alt={bg.name || "Fondo"} className="w-full h-full object-cover" />
                         </button>
                         <button
@@ -659,24 +622,23 @@ function HeaderBar({
                       </div>
                     ))}
                   </div>
-                  <hr className="my-2 border-gray-200 dark:border-zinc-700" />
+                  <hr className="my-2 border-gray-200" />
                 </>
               )}
 
-              {/* Acciones */}
               <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => fileRef.current?.click()}
-                  className="col-span-1 flex items-center justify-center gap-2 text-sm rounded-lg border dark:border-zinc-700 px-3 py-2 hover:bg-gray-50 dark:hover:bg-zinc-800"
+                  className="col-span-1 flex items-center justify-center gap-2 text-sm rounded-lg border border-zinc-200 px-3 py-2 hover:bg-gray-50"
                   title="Subir desde tu dispositivo"
                 >
                   <FaImage /> Subir
                 </button>
-                <button type="button" onClick={pickBgFromUrl} className="col-span-1 flex items-center justify-center gap-2 text-sm rounded-lg border dark:border-zinc-700 px-3 py-2 hover:bg-gray-50 dark:hover:bg-zinc-800" title="Pegar URL">
+                <button type="button" onClick={pickBgFromUrl} className="col-span-1 flex items-center justify-center gap-2 text-sm rounded-lg border border-zinc-200 px-3 py-2 hover:bg-gray-50" title="Pegar URL">
                   <FaLink /> URL
                 </button>
-                <button type="button" onClick={clearBg} className="col-span-1 flex items-center justify-center gap-2 text-sm rounded-lg border dark:border-zinc-700 px-3 py-2 hover:bg-gray-50 dark:hover:bg-zinc-800" title="Quitar fondo">
+                <button type="button" onClick={clearBg} className="col-span-1 flex items-center justify-center gap-2 text-sm rounded-lg border border-zinc-200 px-3 py-2 hover:bg-gray-50" title="Quitar fondo">
                   <FaTrash /> Quitar
                 </button>
               </div>
@@ -686,7 +648,7 @@ function HeaderBar({
 
         <button
           type="button"
-          className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-700 transition ${isBlocked ? "text-red-600" : "text-gray-700 dark:text-gray-200"}`}
+          className={`p-2 rounded-full hover:bg-gray-100 transition ${isBlocked ? "text-red-600" : "text-gray-700"}`}
           onClick={onToggleBlock}
           title={isBlocked ? "Desbloquear chat" : "Bloquear chat"}
           aria-label={isBlocked ? "Desbloquear chat" : "Bloquear chat"}
@@ -696,28 +658,27 @@ function HeaderBar({
 
         <button
           type="button"
-          className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-700 transition"
+          className="p-2 rounded-full hover:bg-gray-100 transition"
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           title={theme === "dark" ? "Modo claro" : "Modo oscuro"}
         >
-          {theme === "dark" ? <FaSun className="text-gray-700 dark:text-gray-200" /> : <FaMoon className="text-gray-700" />}
+          {theme === "dark" ? <FaSun className="text-gray-700" /> : <FaMoon className="text-gray-700" />}
         </button>
 
         <button
           type="button"
-          className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-700 transition"
+          className="p-2 rounded-full hover:bg-gray-100 transition"
           onClick={() => onBack()} aria-label="Volver"
           title="Volver a chats"
         >
-          <svg viewBox="0 0 24 24" className="w-5 h-5 text-gray-700 dark:text-gray-200" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
+          <svg viewBox="0 0 24 24" className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
         </button>
       </div>
     </div>
   );
 }
 
-
-
+import ReactDOM from "react-dom";
 
 function Avatar({ nickname = "", fotoPerfil }) {
   const initials = (nickname || "")
@@ -749,7 +710,7 @@ function Avatar({ nickname = "", fotoPerfil }) {
   const tryOpen = () => {
     if (hasPhoto) {
       const img = new Image();
-      img.src = src; // precarga
+      img.src = src;
       setSrcFull(src);
     } else {
       setSrcFull("");
@@ -800,7 +761,7 @@ function Avatar({ nickname = "", fotoPerfil }) {
         <img
           src={src}
           alt={nickname}
-          className="w-8 h-8 rounded-full object-cover border dark:border-zinc-600 cursor-pointer"
+          className="w-8 h-8 rounded-full object-cover border border-zinc-300 cursor-pointer"
           onClick={tryOpen}
           loading="lazy"
         />
@@ -817,13 +778,6 @@ function Avatar({ nickname = "", fotoPerfil }) {
     </>
   );
 }
-
-
-
-
-
-// ===== Lanzador global para overlay móvil =====
-import ReactDOM from "react-dom";
 
 export function ChatPanelMobilePortal() {
   const [open, setOpen] = useState(false);

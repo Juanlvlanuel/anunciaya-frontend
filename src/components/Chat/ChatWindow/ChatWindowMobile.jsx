@@ -1,4 +1,3 @@
-// src/components/Chat/ChatWindow/ChatWindowMobile-1.jsx
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useChat } from "../../../context/ChatContext";
 import MessageMobile from "../Message/MessageMobile";
@@ -11,11 +10,11 @@ function ConfirmModal({ open, title, message, onConfirm, onCancel, confirmText =
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
-      <div className="relative w-[min(360px,85vw)] bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border dark:border-zinc-700 p-5">
+      <div className="relative w-[min(360px,85vw)] bg-white rounded-2xl shadow-2xl border border-zinc-200 p-5">
         <div className="text-base font-semibold mb-1">{title}</div>
-        <div className="text-sm text-gray-600 dark:text-gray-300 mb-4">{message}</div>
+        <div className="text-sm text-gray-600 mb-4">{message}</div>
         <div className="flex justify-end gap-2">
-          <button onClick={onCancel} className="px-3 py-2 rounded-md border dark:border-zinc-700 hover:bg-gray-50 dark:hover:bg-zinc-800">{cancelText}</button>
+          <button onClick={onCancel} className="px-3 py-2 rounded-md border border-zinc-200 hover:bg-gray-50">{cancelText}</button>
           <button onClick={onConfirm} className="px-3 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">{confirmText}</button>
         </div>
       </div>
@@ -69,12 +68,12 @@ function EditModal({
   return (
     <div className="fixed inset-0 z-[210] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={onCancel} />
-      <div className="relative w-[min(520px,92vw)] bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border dark:border-zinc-700 p-5">
+      <div className="relative w-[min(520px,92vw)] bg-white rounded-2xl shadow-2xl border border-zinc-200 p-5">
         <div className="flex items-center justify-between mb-3">
           <div className="text-lg font-semibold">Editar mensaje</div>
           <button
             onClick={onCancel}
-            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800"
+            className="p-1.5 rounded-lg hover:bg-gray-100"
             aria-label="Cerrar"
           >
             <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2">
@@ -85,37 +84,37 @@ function EditModal({
 
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Texto</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Texto</label>
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
               placeholder="Escribe el mensaje…"
               rows={4}
-              className="w-full rounded-xl border dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
           <div>
             <div className="flex items-center justify-between">
-              <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Imagen (opcional)</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Imagen (opcional)</label>
               {previewUrl ? (
                 <button onClick={onRemove} className="text-xs text-red-600 hover:underline">Quitar imagen</button>
               ) : null}
             </div>
 
             {previewUrl ? (
-              <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden border dark:border-zinc-700">
+              <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden border border-zinc-200">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={previewUrl} alt="Preview" className="w-full h-full object-contain bg-gray-50 dark:bg-zinc-800" />
+                <img src={previewUrl} alt="Preview" className="w-full h-full object-contain bg-gray-50" />
               </div>
             ) : (
-              <div className="w-full rounded-xl border-dashed border-2 border-gray-300 dark:border-zinc-700 p-4 text-center text-xs text-gray-500 dark:text-gray-400">
+              <div className="w-full rounded-xl border-dashed border-2 border-gray-300 p-4 text-center text-xs text-gray-500">
                 No hay imagen. Puedes adjuntar una nueva.
               </div>
             )}
 
             <div className="mt-2">
-              <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border dark:border-zinc-700 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-zinc-800">
+              <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-zinc-200 text-sm cursor-pointer hover:bg-gray-50">
                 <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M12 5v14M5 12h14" />
                 </svg>
@@ -127,7 +126,7 @@ function EditModal({
         </div>
 
         <div className="mt-4 flex justify-end gap-2">
-          <button onClick={onCancel} className="px-3 py-2 rounded-md border dark:border-zinc-700 hover:bg-gray-50 dark:hover:bg-zinc-800">Cancelar</button>
+          <button onClick={onCancel} className="px-3 py-2 rounded-md border border-zinc-200 hover:bg-gray-50">Cancelar</button>
           <button onClick={handleSave} className="px-3 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Guardar</button>
         </div>
       </div>
@@ -136,9 +135,7 @@ function EditModal({
 }
 
 /**
- * ChatWindowMobile-1 (mejora de UX para Editar)
- * - Modal de edición moderno (texto + imagen).
- * - Mantiene todo lo demás intacto.
+ * ChatWindowMobile-1 (mejora de UX para Editar y tema claro fijo)
  */
 export default function ChatWindowMobile({ theme = "light", bgUrl = "", height = null }) {
   const getToken = () => {
@@ -168,7 +165,6 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
   const tailRef = useRef(null);
   const prevLenRef = useRef(0);
 
-  // ---- chat activo e indicador de bloqueo
   const activeChat = useMemo(() => {
     try { return (chats || []).find(c => String(c?._id) === String(activeChatId)) || null; } catch { return null; }
   }, [chats, activeChatId]);
@@ -183,7 +179,6 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
     } catch { return false; }
   }, [activeChat, currentUserId]);
 
-  // ---- fijados
   const [pinned, setPinned] = useState([]);
   const pinnedIds = useMemo(() => new Set(pinned.map((m) => String(m._id))), [pinned]);
   const fetchPins = useCallback(async () => {
@@ -195,7 +190,6 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
     } catch { setPinned([]); }
   }, [activeChatId]);
 
-  // ---- stick to bottom
   const [isPinnedAtBottom, setIsPinnedAtBottom] = useState(true);
   const nearBottom = useCallback((t = 80) => {
     const el = scrollRef.current; if (!el) return true;
@@ -203,7 +197,6 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
   }, []);
   const setPinnedFromScroll = useCallback(() => { setIsPinnedAtBottom(nearBottom()); }, [nearBottom]);
 
-  // ---- Reenviar
   const [forwardOf, setForwardOf] = useState(null);
   const [forwardOpen, setForwardOpen] = useState(false);
   const [forwardQuery, setForwardQuery] = useState("");
@@ -233,7 +226,6 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
     return () => document.removeEventListener("mousedown", onDoc);
   }, [forwardOpen]);
 
-  // ---- reply / pin / delete / edit
   const replyTo = (msg) => { window.dispatchEvent(new CustomEvent("chat:reply", { detail: { message: msg } })); };
   const onTogglePin = async (messageId, willPin) => {
     try {
@@ -259,7 +251,6 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
     } catch (e) { alert(e?.message || "No se pudo borrar el mensaje"); }
   };
 
-  // ---- Estado y modal de edición
   const [editState, setEditState] = useState({ open: false, msg: null, initialText: "", initialImageUrl: null });
 
   const onEdit = async (msg) => {
@@ -291,7 +282,7 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
       } else {
         const body = { texto: String(newText ?? "") };
         if (removeImage) body.eliminarImagen = true;
-        res = await chatAPI.editMessage(msg._id, body, token);
+        res = await chatAPI.editMessage(msg.__id, body, token);
       }
       try { editMessageLive?.(msg._id, String(newText ?? ""), () => { }); } catch { }
       await loadMessages(activeChatId);
@@ -301,7 +292,6 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
     }
   };
 
-  // ---- cargar mensajes/pins
   useEffect(() => {
     if (!activeChatId) return;
     loadMessages(activeChatId);
@@ -309,10 +299,8 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
     requestAnimationFrame(() => tailRef.current?.scrollIntoView({ behavior: "auto", block: "end" }));
     setIsPinnedAtBottom(true);
     prevLenRef.current = (messages[activeChatId] || []).length;
-    // eslint-disable-next-line react-hooks/explicit-module-boundary-types, react-hooks/exhaustive-deps
   }, [activeChatId]);
 
-  // ---- lista de mensajes
   const list = useMemo(() => {
     const arr = Array.isArray(messages?.[activeChatId]) ? messages[activeChatId].slice() : [];
     arr.sort((a, b) => (new Date(a?.createdAt || 0) - new Date(b?.createdAt || 0)));
@@ -324,7 +312,6 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
     return out;
   }, [messages, activeChatId]);
 
-  // ---- typing remoto (no yo)
   const typingValue = typingMap?.[activeChatId];
   const otherTyping = useMemo(() => {
     if (!typingValue) return false;
@@ -338,7 +325,6 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
     return false;
   }, [typingValue, currentUserId]);
 
-  // ==== AUTO-SCROLL ROBUSTO ====
   useEffect(() => {
     const prev = prevLenRef.current;
     const curr = list.length;
@@ -364,7 +350,6 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
   const onScroll = useCallback(() => { setPinnedFromScroll(); }, [setPinnedFromScroll]);
   const scrollToBottom = () => tailRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
 
-  // ---- refs por mensaje
   const msgRefs = useRef(new Map());
   useEffect(() => { msgRefs.current = new Map(); }, [activeChatId]);
   const scrollToMsg = (id) => {
@@ -375,14 +360,13 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
   };
 
   if (!activeChatId) {
-    return <div className={(height ? "" : "flex-1 ") + "grid place-items-center text-sm text-gray-500 dark:text-gray-400"} style={height ? { height } : undefined}>Selecciona un chat</div>;
+    return <div className={(height ? "" : "flex-1 ") + "grid place-items-center text-sm text-gray-500"} style={height ? { height } : undefined}>Selecciona un chat</div>;
   }
 
   const baseStyle = bgUrl ? { backgroundImage: `url(${bgUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : {};
   const fixedStyle = height ? { ...baseStyle, height } : baseStyle;
-  const containerClass = (height ? "" : "flex-1 min-h-0 ") + `overflow-y-auto ${theme === "dark" ? "bg-zinc-900" : "bg-gray-50"} transition-colors`;
+  const containerClass = (height ? "" : "flex-1 min-h-0 ") + `overflow-y-auto bg-gray-50 transition-colors`;
 
-  // ====== padding inferior mínimo (sin hueco visible) ======
   const bottomGapClass = "pb-[max(8px,env(safe-area-inset-bottom))]";
 
   return (
@@ -398,22 +382,22 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
       }}
     >
       {pinned.length > 0 && (
-        <div className="sticky top-0 z-10 px-3 pt-2 pb-2 backdrop-blur bg-white/70 dark:bg-zinc-900/60 border-b dark:border-zinc-700">
+        <div className="sticky top-0 z-10 px-3 pt-2 pb-2 backdrop-blur bg-white/70 border-b border-zinc-200">
           <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">MENSAJES FIJADOS</div>
           <div className="flex flex-wrap gap-2">
             {pinned.map((m) => (
-              <button key={`pin-${m._id}`} onClick={() => scrollToMsg(m._id)} className="px-2.5 py-1.5 rounded-lg border bg-white/90 text-[13px] hover:bg-white dark:bg-zinc-800/90 dark:border-zinc-700">
+              <button key={`pin-${m._id}`} onClick={() => scrollToMsg(m._id)} className="px-2.5 py-1.5 rounded-lg border bg-white/90 text-[13px] hover:bg-white border-zinc-200">
                 {m?.texto?.trim() ? (m.texto.length > 40 ? m.texto.slice(0, 38) + "…" : m.texto) : "📎 Mensaje"}
                 <span onClick={(e) => { e.stopPropagation(); onTogglePin(m._id, false); }} className="ml-2 inline-block text-blue-600 hover:underline">Desanclar</span>
               </button>
             ))}
           </div>
         </div>
-      )} {/* ✅ cierre del bloque de pinned */}
+      )}
 
       {isBlocked && (
         <div className="sticky top-0 z-10 px-3 pt-2 pb-2 backdrop-blur">
-          <div className="w-full flex items-start gap-3 rounded-xl bg-yellow-50 border border-yellow-200 border-l-4 border-l-yellow-400 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-100 dark:border-yellow-700 px-3 py-2 shadow-sm">
+          <div className="w-full flex items-start gap-3 rounded-xl bg-yellow-50 border border-yellow-200 border-l-4 border-l-yellow-400 text-yellow-800 px-3 py-2 shadow-sm">
             <svg viewBox="0 0 24 24" className="w-5 h-5 mt-[2px]" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M12 9v4m0 4h.01" />
               <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
@@ -427,7 +411,7 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
             <button
               type="button"
               onClick={() => { try { unblockChat?.(activeChat?._id); } catch(e){} }}
-              className="shrink-0 px-3 py-1.5 rounded-md text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-900 dark:bg-yellow-800/40 dark:hover:bg-yellow-800/60 dark:text-yellow-100 border border-yellow-200 dark:border-yellow-700"
+              className="shrink-0 px-3 py-1.5 rounded-md text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-900 border border-yellow-200"
               title="Desbloquear chat"
             >
               Desbloquear
@@ -461,7 +445,7 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
         })}
 
         {otherTyping && (
-          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 px-1">
+          <div className="text-xs text-gray-500 mt-1 px-1">
             Escribiendo…
           </div>
         )}
@@ -470,8 +454,8 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
       </div>
 
       {!isPinnedAtBottom && (
-        <button onClick={scrollToBottom} className="fixed bottom-[calc(var(--bottom-nav-h)+env(safe-area-inset-bottom)+8px)] right-4 z-20 rounded-full shadow-md border bg-white/95 dark:bg-zinc-800/95 dark:border-zinc-600 backdrop-blur p-2" aria-label="Ir al último mensaje" title="Ir al último mensaje">
-          <svg viewBox="0 0 24 24" className="w-5 h-5 text-gray-700 dark:text-gray-200" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+        <button onClick={scrollToBottom} className="fixed bottom-[calc(var(--bottom-nav-h)+env(safe-area-inset-bottom)+8px)] right-4 z-20 rounded-full shadow-md border bg-white/95 border-zinc-300 backdrop-blur p-2" aria-label="Ir al último mensaje" title="Ir al último mensaje">
+          <svg viewBox="0 0 24 24" className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
         </button>
       )}
 
