@@ -38,9 +38,9 @@ export default function MessageInputMobile() {
   const focusComposer = () => {
     const el = replyInputRef.current || document.getElementById("chat-mobile-input");
     if (!el) return;
-    try { el.focus(); } catch(e){}
-    requestAnimationFrame(() => { try { el.focus(); } catch(e){} });
-    setTimeout(() => { try { el.focus(); } catch(e){} }, 60);
+    try { el.focus(); } catch (e) { }
+    requestAnimationFrame(() => { try { el.focus(); } catch (e) { } });
+    setTimeout(() => { try { el.focus(); } catch (e) { } }, 60);
   };
 
   useEffect(() => {
@@ -122,7 +122,7 @@ export default function MessageInputMobile() {
     };
   }, []);
 
-  
+
 
   async function uploadImage(file) {
     if (!file.type.startsWith("image/")) throw new Error("Solo se permiten imágenes.");
@@ -137,7 +137,7 @@ export default function MessageInputMobile() {
       throw new Error(msg || "Error al subir la imagen.");
     }
     const json = await res.json();
-    const raw = json.url;                  // puede venir relativo (/uploads/...)
+    const raw = json.url; // puede venir relativo (/uploads/...)
     const thumbUrl = json.thumbUrl || null;
     const url = /^https?:\/\//i.test(raw) ? raw : `${API_BASE}${raw}`;
     const mime = json.mimeType || file.type || "image/*";
@@ -212,7 +212,7 @@ export default function MessageInputMobile() {
     <div className="px-2 pb-2 relative">
 
       {replyTo && (
-        <div ref={replyBarRef} className="mx-1 mb-2 rounded-xl border border-blue-200 border-l-4 border-l-blue-500 bg-white/95 dark:bg-zinc-800/95 dark:border-zinc-700 px-3 py-2 text-[12px] text-blue-900 dark:text-blue-100 flex items-center gap-2 shadow-sm">
+        <div ref={replyBarRef} className="mx-1 mb-2 rounded-xl border border-blue-200 border-l-4 border-l-blue-500 bg-white/95 dark:border-zinc-700 px-3 py-2 text-[12px] text-blue-900 dark:text-blue-100 flex items-center gap-2 shadow-sm">
           <img src="/icons/icon-responder.png" alt="Responder" className="w-4 h-4 shrink-0" />
           <div className="min-w-0 flex-1">
             <div className="truncate text-[12px] opacity-90">
@@ -222,7 +222,7 @@ export default function MessageInputMobile() {
           <button
             type="button"
             onClick={() => setReplyTo(null)}
-            className="ml-2 w-8 h-8 grid place-items-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-[18px]"
+            className="ml-2 w-8 h-8 grid place-items-center rounded-full hover:bg-black/5 text-[18px]"
             title="Cancelar respuesta"
             aria-label="Cancelar respuesta"
           >
@@ -231,9 +231,9 @@ export default function MessageInputMobile() {
         </div>
       )}
 
-      <div className="flex items-center gap-2 h-14 rounded-2xl border bg-white/95 dark:bg-zinc-800/95 dark:border-zinc-700 shadow-[0_4px_16px_rgba(0,0,0,0.06)] px-2">
+      <div className="flex items-center gap-2 h-14 rounded-2xl border bg-white/95 dark:border-zinc-700 shadow-[0_4px_16px_rgba(0,0,0,0.06)] px-2">
         <div className="relative" ref={pickerWrapRef}>
-          <button type="button" title="Emoji" onClick={() => setShowEmoji((s) => !s)} className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 dark:text-gray-200 border border-gray-200 dark:border-zinc-600">
+          <button type="button" title="Emoji" onClick={() => setShowEmoji((s) => !s)} className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-zinc-600">
             <FaSmile className="text-[18px]" />
           </button>
           {showEmoji && (
@@ -260,12 +260,12 @@ export default function MessageInputMobile() {
         <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={onPickFiles} />
 
         {showCamera && (
-          <button type="button" onClick={() => cameraRef.current?.click()} title="Tomar foto" className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 dark:text-gray-200 border border-gray-200 dark:border-zinc-600">
+          <button type="button" onClick={() => cameraRef.current?.click()} title="Tomar foto" className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-zinc-600">
             <span className="text-[18px]">📷</span>
           </button>
         )}
 
-        <button type="button" onClick={() => galleryRef.current?.click()} title="Adjuntar desde galería" className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 dark:text-gray-200 border border-gray-200 dark:border-zinc-600">
+        <button type="button" onClick={() => galleryRef.current?.click()} title="Adjuntar desde galería" className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-zinc-600">
           <FaPaperclip className="text-[18px]" />
         </button>
 
@@ -284,7 +284,7 @@ export default function MessageInputMobile() {
       {uploads.length > 0 && (
         <div className="flex flex-wrap gap-2 mt-2 px-1">
           {uploads.map((f, i) => (
-            <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border bg-white dark:bg-zinc-800 dark:border-zinc-700" title={f.name}>
+            <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border bg-white dark:border-zinc-700" title={f.name}>
               <img src={f.thumbUrl || f.url} alt={f.name} className="w-full h-full object-cover" />
               {f.pending && <div className="absolute inset-0 bg-black/30 flex items-center justify-center text-white text-xs">Subiendo...</div>}
               {f.error && <div className="absolute inset-0 bg-red-600/70 flex items-center justify-center text-white text-xs">Error</div>}

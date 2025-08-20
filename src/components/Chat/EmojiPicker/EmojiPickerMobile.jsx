@@ -21,10 +21,10 @@ export default function EmojiPickerMobile({ onPick, onClose }) {
   }, [onClose]);
 
   return (
-    <div ref={ref} className="bg-white dark:bg-zinc-900 rounded-xl shadow-lg border dark:border-zinc-700 overflow-hidden">
+    <div ref={ref} className="bg-white rounded-xl shadow-lg border dark:border-zinc-700 overflow-hidden">
       <EmojiPicker
         onEmojiClick={(e) => onPick?.(e.emoji)}
-        emojiStyle={EmojiStyle.APPLE}    // estilo WhatsApp
+        emojiStyle={EmojiStyle.APPLE} // estilo WhatsApp
         theme={Theme.LIGHT}
         lazyLoadEmojis
         width={320}

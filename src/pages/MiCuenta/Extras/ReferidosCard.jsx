@@ -17,7 +17,7 @@ export default function ReferidosCard({ onInvite }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
       onInvite?.(referralLink);
-    } catch {}
+    } catch { }
   };
 
   return (
@@ -32,11 +32,11 @@ export default function ReferidosCard({ onInvite }) {
           type="text"
           readOnly
           value={referralLink}
-          className="w-full text-xs px-3 py-2 rounded-lg border bg-white dark:bg-zinc-900 dark:border-zinc-700"
+          className="w-full text-xs px-3 py-2 rounded-lg border bg-white dark:border-zinc-700"
         />
         <button
           onClick={copy}
-          className="text-sm px-3 py-2 rounded-xl border hover:bg-gray-50 dark:hover:bg-zinc-800 whitespace-nowrap"
+          className="text-sm px-3 py-2 rounded-xl border hover:bg-gray-50 whitespace-nowrap"
         >
           Copiar
         </button>

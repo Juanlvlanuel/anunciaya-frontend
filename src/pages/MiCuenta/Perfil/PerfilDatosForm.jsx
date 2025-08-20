@@ -91,7 +91,7 @@ export default function PerfilDatosForm({ initial = {}, onSubmit }) {
           name="nombre"
           value={form.nombre}
           onChange={handle}
-          className="w-full px-3 py-2 rounded-lg border bg-white dark:bg-zinc-900 dark:border-zinc-700"
+          className="w-full px-3 py-2 rounded-lg border bg-white dark:border-zinc-700"
         />
       </Field>
       <Field label="Teléfono">
@@ -99,7 +99,7 @@ export default function PerfilDatosForm({ initial = {}, onSubmit }) {
           name="telefono"
           value={form.telefono}
           onChange={handle}
-          className="w-full px-3 py-2 rounded-lg border bg-white dark:bg-zinc-900 dark:border-zinc-700"
+          className="w-full px-3 py-2 rounded-lg border bg-white dark:border-zinc-700"
         />
       </Field>
       <Field label="Dirección">
@@ -107,7 +107,7 @@ export default function PerfilDatosForm({ initial = {}, onSubmit }) {
           name="direccion"
           value={form.direccion}
           onChange={handle}
-          className="w-full px-3 py-2 rounded-lg border bg-white dark:bg-zinc-900 dark:border-zinc-700"
+          className="w-full px-3 py-2 rounded-lg border bg-white dark:border-zinc-700"
         />
       </Field>
 

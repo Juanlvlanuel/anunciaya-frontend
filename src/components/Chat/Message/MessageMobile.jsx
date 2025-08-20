@@ -62,15 +62,15 @@ export default function MessageMobile({
 }) {
   const myId = String(
     (typeof currentUserId !== "undefined" && currentUserId) ||
-      msg?.currentUserId ||
-      (((getAuthSession && getAuthSession())?.user?._id) || "")
+    msg?.currentUserId ||
+    (((getAuthSession && getAuthSession())?.user?._id) || "")
   );
 
   const senderId = String(
     msg?.emisorId ||
-      (typeof msg?.emisor === "string"
-        ? msg.emisor
-        : (msg?.emisor?._id || ""))
+    (typeof msg?.emisor === "string"
+      ? msg.emisor
+      : (msg?.emisor?._id || ""))
   );
 
   const mine =
@@ -254,21 +254,19 @@ export default function MessageMobile({
   return (
     <div className={`flex ${mine ? "justify-end" : "justify-start"} px-1`}>
       <div
-        className={`max-w-[82%] relative rounded-2xl ${
-          emojiOnly
+        className={`max-w-[82%] relative rounded-2xl ${emojiOnly
             ? "bg-transparent border-0 shadow-none px-0 py-0"
             : "px-3 py-2 shadow-sm border"
-        }
-        ${
-          mine
+          }
+ ${mine
             ? emojiOnly
               ? ""
               : "bg-blue-600 text-white border-blue-600"
             : emojiOnly
-            ? ""
-            : "bg-white dark:bg-zinc-800 dark:text-gray-100 dark:border-zinc-700"
-        }
-        ${pinned ? "ring-2 ring-amber-300" : ""}`}
+              ? ""
+              : "bg-white dark:text-gray-100 dark:border-zinc-700"
+          }
+ ${pinned ? "ring-2 ring-amber-300" : ""}`}
         onTouchStart={startLongPress}
         onTouchEnd={cancelLongPress}
         onTouchMove={cancelLongPress}
@@ -283,9 +281,8 @@ export default function MessageMobile({
         <div ref={bubbleRef} className="relative">
           {msg?.replyTo?.texto && (
             <div
-              className={`mb-2 rounded-lg px-2 py-1 text-xs ${
-                mine ? "bg-blue-500/25 text-white/80" : "bg-black/5 text-gray-700 dark:bg-white/5 dark:text-gray-200"
-              }`}
+              className={`mb-2 rounded-lg px-2 py-1 text-xs ${mine ? "bg-blue-500/25 text-white/80" : "bg-black/5 text-gray-700 dark:text-gray-200"
+                }`}
             >
               <div className="truncate">{escapeHTML(msg.replyTo.texto)}</div>
             </div>
@@ -293,9 +290,8 @@ export default function MessageMobile({
 
           {!!msg?.texto && (
             <div
-              className={`text-[15px] leading-snug ${
-                mine ? "text-white" : "text-gray-800 dark:text-gray-100"
-              } emoji-text ${emojiOnly ? "emoji-only" : ""}`}
+              className={`text-[15px] leading-snug ${mine ? "text-white" : "text-gray-800 dark:text-gray-100"
+                } emoji-text ${emojiOnly ? "emoji-only" : ""}`}
               dangerouslySetInnerHTML={{ __html: html }}
             />
           )}
@@ -363,7 +359,7 @@ export default function MessageMobile({
           {menuOpen && menuPos && (
             <div
               ref={menuRef}
-              className="fixed z-50 w-32 max-w-[92vw] rounded-xl border bg-white dark:bg-zinc-900 dark:border-zinc-700 shadow-xl overflow-hidden"
+              className="fixed z-50 w-32 max-w-[92vw] rounded-xl border bg-white dark:border-zinc-700 shadow-xl overflow-hidden"
               style={{ left: menuPos.x, top: menuPos.y }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -417,11 +413,10 @@ export default function MessageMobile({
         </div>
 
         <div
-          className={`mt-1 text-[11px] ${
-            mine
+          className={`mt-1 text-[11px] ${mine
               ? "text-white/80"
               : "text-gray-500 dark:text-gray-400"
-          } flex items-center gap-1`}
+            } flex items-center gap-1`}
         >
           {pinned && <span title="Fijado">📌</span>}
           <span>{time}</span>
@@ -434,7 +429,7 @@ export default function MessageMobile({
 function MenuItem({ icon, label, onClick }) {
   return (
     <button
-      className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-zinc-800"
+      className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 text-gray-800 dark:text-gray-100 hover:bg-gray-50 "
       onClick={onClick}
     >
       {icon && (

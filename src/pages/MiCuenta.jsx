@@ -85,7 +85,7 @@ export default function MiCuenta() {
   const navigate = useNavigate();
   useEffect(() => {
     if (!cargando && autenticado === false) {
-      try { setSuppressLoginOnce(true); } catch {}
+      try { setSuppressLoginOnce(true); } catch { }
       navigate("/", { replace: true, state: { showLogin: false } });
     }
   }, [cargando, autenticado, navigate]);
@@ -143,7 +143,7 @@ export default function MiCuenta() {
           </div>
 
           {/* Tabs Strip */}
-          <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur supports-[backdrop-filter]:backdrop-blur-md border-t border-gray-200 dark:border-zinc-800">
+          <div className="bg-white/80 backdrop-blur supports-[backdrop-filter]:backdrop-blur-md border-t border-gray-200 dark:border-zinc-800">
             <div className="px-3 sm:px-4">
               <div className="relative flex gap-2 overflow-x-auto no-scrollbar py-2">
                 {/* Moving underline */}
@@ -161,8 +161,8 @@ export default function MiCuenta() {
                       key={t.key}
                       onClick={() => setActive(t.key)}
                       className={`relative z-10 inline-flex items-center gap-2 px-3 sm:px-4 py-2 text-sm rounded-xl transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400
-                        ${isActive
-                          ? "text-gray-900 dark:text-zinc-100 bg-white dark:bg-zinc-900 shadow-sm border border-gray-200 dark:border-zinc-700"
+ ${isActive
+                          ? "text-gray-900 dark:text-zinc-100 bg-white shadow-sm border border-gray-200 dark:border-zinc-700"
                           : "text-gray-600 dark:text-zinc-300 hover:text-gray-900 hover:bg-white/70 dark:hover:bg-zinc-800/70"
                         }`}
                     >
@@ -176,7 +176,7 @@ export default function MiCuenta() {
         </div>
 
         {/* Content Card */}
-        <div className="bg-white dark:bg-zinc-900 rounded-3xl border border-gray-200 dark:border-zinc-800 shadow-lg shadow-gray-200/40 dark:shadow-black/10">
+        <div className="bg-white rounded-3xl border border-gray-200 dark:border-zinc-800 shadow-lg shadow-gray-200/40 dark:shadow-black/10">
           {active === "perfil" && <PerfilSection key={safeUser?._id || "fallback"} user={safeUser} onSave={actualizarPerfil} />}
           {active === "seguridad" && <SeguridadSection />}
           {active === "historial" && <HistorialSection user={safeUser} onUpgrade={goUpgrade} />}
@@ -229,22 +229,22 @@ function PerfilSection({ user, onSave }) {
     <div className="p-5 sm:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-6">
       {/* Columna izquierda */}
       <div className="lg:col-span-1 space-y-4 lg:space-y-5">
-        <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-5 shadow-sm">
+        <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white p-4 sm:p-5 shadow-sm">
           <PerfilHeader user={mergedUser} onUpdate={handleSave} />
         </div>
 
-        <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-5 shadow-sm">
-          <VerificacionCorreoStatus verificado={mergedUser.verificado} onReenviar={() => {}} />
+        <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white p-4 sm:p-5 shadow-sm">
+          <VerificacionCorreoStatus verificado={mergedUser.verificado} onReenviar={() => { }} />
         </div>
 
-        <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-5 shadow-sm">
-          <ReferidosCard onInvite={() => {}} />
+        <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white p-4 sm:p-5 shadow-sm">
+          <ReferidosCard onInvite={() => { }} />
         </div>
       </div>
 
       {/* Columna derecha */}
       <div className="lg:col-span-2">
-        <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-6 shadow-sm">
+        <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white p-4 sm:p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <div className="text-base sm:text-lg font-semibold">Datos personales</div>
           </div>
@@ -262,33 +262,33 @@ function PerfilSection({ user, onSave }) {
 function SeguridadSection() {
   return (
     <div className="p-5 sm:p-6 lg:p-8 grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
-      <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-6 shadow-sm">
+      <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white p-4 sm:p-6 shadow-sm">
         <div className="font-semibold mb-3">Contraseña</div>
         <PasswordChangeForm onSubmit={async (values) => {
-            try {
-              const { actualizarPerfil } = require("../context/AuthContext");
-            } catch {}
-          }} />
+          try {
+            const { actualizarPerfil } = require("../context/AuthContext");
+          } catch { }
+        }} />
       </div>
 
-      <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-6 shadow-sm">
+      <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white p-4 sm:p-6 shadow-sm">
         <div className="font-semibold mb-3">Conexiones (OAuth)</div>
-        <OAuthConnections onLink={() => {}} onUnlink={() => {}} />
+        <OAuthConnections onLink={() => { }} onUnlink={() => { }} />
       </div>
 
-      <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-6 shadow-sm">
+      <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white p-4 sm:p-6 shadow-sm">
         <div className="font-semibold mb-3">Sesiones y dispositivos</div>
-        <SessionsList onSignOutAll={() => {}} />
+        <SessionsList onSignOutAll={() => { }} />
       </div>
 
-      <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-6 shadow-sm">
+      <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white p-4 sm:p-6 shadow-sm">
         <div className="font-semibold mb-3">Verificación en dos pasos (2FA)</div>
-        <TwoFactorSetup onToggle={() => {}} />
+        <TwoFactorSetup onToggle={() => { }} />
       </div>
 
       <div className="md:col-span-2">
-        <div className="rounded-2xl border border-red-200 dark:border-red-900 bg-red-50/70 dark:bg-red-950 p-4 sm:p-6 shadow-sm">
-          <DangerZone onDelete={() => {}} />
+        <div className="rounded-2xl border border-red-200 dark:border-red-900 bg-red-50/70 p-4 sm:p-6 shadow-sm">
+          <DangerZone onDelete={() => { }} />
         </div>
       </div>
     </div>
@@ -301,16 +301,16 @@ function HistorialSection({ user, onUpgrade }) {
   if (!esComerciante) {
     return (
       <div className="p-5 sm:p-6 lg:p-8 grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
-        <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-6 shadow-sm">
+        <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white p-4 sm:p-6 shadow-sm">
           <ComprasHistorial />
         </div>
-        <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-6 shadow-sm">
+        <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white p-4 sm:p-6 shadow-sm">
           <GuardadosGrid />
         </div>
-        <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-6 shadow-sm md:col-span-2">
+        <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white p-4 sm:p-6 shadow-sm md:col-span-2">
           <ChatsRecientes />
         </div>
-        <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-6 shadow-sm md:col-span-2">
+        <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white p-4 sm:p-6 shadow-sm md:col-span-2">
           <ParticipacionesRifasSubastas />
         </div>
       </div>
@@ -319,7 +319,7 @@ function HistorialSection({ user, onUpgrade }) {
 
   return (
     <div className="p-5 sm:p-6 lg:p-8 grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
-      <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-6 shadow-sm md:col-span-2">
+      <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white p-4 sm:p-6 shadow-sm md:col-span-2">
         <IfFeature
           flag="stats"
           fallback={<UpsellCard title="Estadísticas no incluidas" message="Para ver estadísticas necesitas el plan Negocio o superior." onUpgrade={onUpgrade} />}
@@ -327,17 +327,17 @@ function HistorialSection({ user, onUpgrade }) {
           <EstadisticasCards />
         </IfFeature>
       </div>
-      <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-6 shadow-sm md:col-span-2">
+      <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white p-4 sm:p-6 shadow-sm md:col-span-2">
         <MisAnunciosTable />
       </div>
-      <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-6 shadow-sm md:col-span-2">
+      <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white p-4 sm:p-6 shadow-sm md:col-span-2">
         <PromocionesActivas />
       </div>
       <IfCan
         action="anuncio:publish"
         fallback={<UpsellCard title="No puedes publicar todavía" message="Activa la habilidad para publicar anuncios actualizando tu plan." onUpgrade={onUpgrade} />}
       >
-        <CrearPublicacionCTA onCreate={() => {}} />
+        <CrearPublicacionCTA onCreate={() => { }} />
       </IfCan>
     </div>
   );
@@ -346,10 +346,10 @@ function HistorialSection({ user, onUpgrade }) {
 function NotificacionesSection() {
   return (
     <div className="p-5 sm:p-6 lg:p-8 grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
-      <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-6 shadow-sm">
+      <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white p-4 sm:p-6 shadow-sm">
         <NotifPreferences />
       </div>
-      <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-6 shadow-sm">
+      <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white p-4 sm:p-6 shadow-sm">
         <NotifChannels />
       </div>
     </div>
@@ -359,13 +359,13 @@ function NotificacionesSection() {
 function PlanSection({ user }) {
   return (
     <div className="p-5 sm:p-6 lg:p-8 grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6">
-      <div className="md:col-span-2 rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-6 shadow-sm">
+      <div className="md:col-span-2 rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white p-4 sm:p-6 shadow-sm">
         <PlanActualCard plan={{ nombre: user.plan, estado: "Activo", vence: "—" }} />
       </div>
-      <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-6 shadow-sm">
+      <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white p-4 sm:p-6 shadow-sm">
         <PagosHistorial />
       </div>
-      <div className="md:col-span-3 rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-6 shadow-sm">
+      <div className="md:col-span-3 rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white p-4 sm:p-6 shadow-sm">
         <UpgradeComparativa />
       </div>
     </div>
@@ -375,16 +375,16 @@ function PlanSection({ user }) {
 function SoporteSection() {
   return (
     <div className="p-5 sm:p-6 lg:p-8 grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
-      <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-6 shadow-sm">
+      <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white p-4 sm:p-6 shadow-sm">
         <FAQList />
       </div>
-      <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-6 shadow-sm">
+      <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white p-4 sm:p-6 shadow-sm">
         <SoporteContacto />
       </div>
-      <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-6 shadow-sm md:col-span-2">
+      <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white p-4 sm:p-6 shadow-sm md:col-span-2">
         <TutorialesGrid />
       </div>
-      <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-6 shadow-sm md:col-span-2">
+      <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white p-4 sm:p-6 shadow-sm md:col-span-2">
         <ReportarProblemaForm />
       </div>
     </div>
