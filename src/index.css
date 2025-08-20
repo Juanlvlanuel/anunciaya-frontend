@@ -119,3 +119,48 @@ html, body {
 #root, .app-root, [data-chat-scroll], .chat-panel, .chat-window {
   background: #ffffff !important;
 }
+
+
+
+/* ===== Overrides extra para neutralizar variantes Tailwind bajo .dark ===== */
+html.dark, body.dark { color-scheme: light !important; }
+
+/* Fondos oscuros comunes → blanco */
+.dark .bg-zinc-900,
+.dark .bg-zinc-800,
+.dark .bg-gray-900,
+.dark .bg-neutral-900,
+.dark .bg-black {
+  background-color: #ffffff !important;
+}
+
+/* Fondos intermedios → gris muy claro */
+.dark .bg-zinc-700,
+.dark .bg-gray-800,
+.dark .bg-neutral-800 {
+  background-color: #f8fafc !important;
+}
+
+/* Bordes oscuros → gris claro */
+.dark .border-zinc-700,
+.dark .border-zinc-600,
+.dark .border-gray-700,
+.dark .border-neutral-700 {
+  border-color: #e5e7eb !important; /* Tailwind gray-200 */
+}
+
+/* Texto claro forzado a oscuro legible */
+.dark .text-white,
+.dark .text-zinc-100,
+.dark .text-zinc-200,
+.dark .text-gray-100,
+.dark .text-neutral-100 {
+  color: #111111 !important;
+}
+
+/* Hovers que antes se iban a oscuro */
+.dark .hover\:bg-zinc-800:hover,
+.dark .hover\:bg-gray-800:hover,
+.dark .hover\:bg-neutral-800:hover {
+  background-color: #f3f4f6 !important; /* gray-100 */
+}
