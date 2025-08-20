@@ -149,23 +149,34 @@ const GoogleLoginButtonDesktop = ({
       });
       limpiarEstadoTemporal();
     } catch (err) {
-      const mensaje =
-        err?.response?.data?.mensaje ||
-        err?.message ||
-        "Error con autenticación Google";
-
+      const rawMsg = (err && err.response && err.response.data && err.response.data.mensaje)
+        ? err.response.data.mensaje
+        : (err && err.message) ? err.message : "Error con autenticación Google";
+      const mensaje = String(rawMsg || "").trim();
       limpiarEstadoTemporal();
-
-      Swal.fire({
-        icon: "info",
-        title:
-          mensaje.toLowerCase().includes("registrada") ||
-            mensaje.toLowerCase().includes("existe")
-            ? "Cuenta ya existente"
-            : "Aviso",
-        text: mensaje,
-        customClass: { popup: "rounded-md" },
-      });
+      const lower = mensaje.toLowerCase();
+      if (lower.includes("no existe") || lower.includes("no existe ninguna cuenta")) {
+        Swal.fire({
+          icon: "info",
+          title: "Aún no tienes cuenta",
+          text: mensaje || "No encontramos una cuenta con este correo. Regístrate para continuar.",
+          confirmButtonColor: "#1745CF"
+        });
+      } else if (lower.includes("registrada") || lower.includes("existe")) {
+        Swal.fire({
+          icon: "info",
+          title: "Cuenta ya existente",
+          text: mensaje,
+          customClass: { popup: "rounded-md" }
+        });
+      } else {
+        Swal.fire({
+          icon: "error",
+          title: "Google Login",
+          text: mensaje,
+          customClass: { popup: "rounded-md" }
+        });
+      }
     }
   };
 

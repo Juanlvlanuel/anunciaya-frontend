@@ -9,6 +9,8 @@ import facebookIcon from "../assets/facebook-icon.png";
 import { motion, AnimatePresence } from "framer-motion";
 import { setAuthSession, removeFlag } from "../utils/authStorage";
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 const overlayVariants = {
   hidden: { opacity: 0 },
   visible: { opacity: 1, transition: { duration: 0.4 } },
@@ -45,6 +47,17 @@ const LoginModal = ({ isOpen, onClose }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // Validación rápida: si parece correo (tiene '@') pero no es válido → mensaje claro
+    const v = (correo || '').trim();
+    if (v.includes('@') && !EMAIL_RE.test(v)) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Correo inválido',
+        text: 'Ingresa un correo electrónico válido (ej. usuario@dominio.com).',
+        confirmButtonColor: '#A40E0E',
+      });
+      return;
+    }
     try {
       await login({ correo, contraseña }); // 👈 centralizado (usa API_BASE adentro)
       limpiarEstadoTemporal();

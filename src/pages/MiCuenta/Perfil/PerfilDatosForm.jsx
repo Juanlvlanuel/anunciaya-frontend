@@ -1,55 +1,77 @@
-
 import { useState, useEffect } from "react";
 
 /**
  * Formulario de datos personales. Permite editar y enviar:
  * { nombre, telefono, direccion }
- * onSubmit(values) -> Promise
+ * onSubmit(values) -> Promise(usuarioActualizado | {usuario})
  */
 const PERFIL_DRAFT_KEY = "perfilDraft";
+
 export default function PerfilDatosForm({ initial = {}, onSubmit }) {
   const [form, setForm] = useState({
-    nombre: initial.nombre || "",
-    telefono: initial.telefono || "",
-    direccion: initial.direccion || "",
+    nombre: initial?.nombre ?? "",
+    telefono: initial?.telefono ?? "",
+    direccion: initial?.direccion ?? "",
   });
   const [saving, setSaving] = useState(false);
   const [ok, setOk] = useState(false);
   const [err, setErr] = useState("");
 
+  // Sincroniza el formulario cuando cambian los props "initial" (p.ej. tras guardar o hidratar sesión)
   useEffect(() => {
-    // Cargar borrador guardado si existe
+    let next = {
+      nombre: initial?.nombre ?? "",
+      telefono: initial?.telefono ?? "",
+      direccion: initial?.direccion ?? "",
+    };
     try {
       const raw = localStorage.getItem(PERFIL_DRAFT_KEY);
       if (raw) {
         const draft = JSON.parse(raw);
-        if (draft && typeof draft === 'object') {
-          initial = { ...initial, ...draft };
-        }
+        // Solo usa el borrador si tiene contenido útil (evita sobreescribir con vacíos)
+        const hasUseful =
+          draft &&
+          typeof draft === "object" &&
+          (String(draft.nombre || "").trim() !== "" ||
+            String(draft.telefono || "").trim() !== "" ||
+            String(draft.direccion || "").trim() !== "");
+        if (hasUseful) next = { ...next, ...draft };
       }
     } catch {}
-    
-    setForm({
-      nombre: initial.nombre || "",
-      telefono: initial.telefono || "",
-      direccion: initial.direccion || "",
-    });
+    setForm(next);
+    setOk(false);
+    setErr("");
   }, [initial?.nombre, initial?.telefono, initial?.direccion]);
 
   const handle = (e) => {
     const next = { ...form, [e.target.name]: e.target.value };
     setForm(next);
-    try { localStorage.setItem(PERFIL_DRAFT_KEY, JSON.stringify(next)); } catch {}
+    try {
+      localStorage.setItem(PERFIL_DRAFT_KEY, JSON.stringify(next));
+    } catch {}
+    if (ok) setOk(false);
+    if (err) setErr("");
   };
 
   const submit = async (e) => {
     e.preventDefault();
-    setErr(""); setOk(false);
+    setErr("");
+    setOk(false);
     try {
       setSaving(true);
-      await onSubmit?.(form);
+      const result = await onSubmit?.(form);
+      // Normaliza respuesta del backend/contexto
+      const u = (result && (result.usuario || result)) || {};
+      const updated = {
+        nombre: u.nombre ?? form.nombre ?? "",
+        telefono: u.telefono ?? form.telefono ?? "",
+        direccion: u.direccion ?? form.direccion ?? "",
+      };
+      setForm(updated);
+      try {
+        localStorage.removeItem(PERFIL_DRAFT_KEY);
+      } catch {}
       setOk(true);
-      try { localStorage.removeItem(PERFIL_DRAFT_KEY); } catch {}
     } catch (e) {
       setErr(e?.message || "No se pudo guardar");
     } finally {

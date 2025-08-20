@@ -1,7 +1,7 @@
-// src/context/AuthContext-1.jsx
+// src/context/AuthContext.jsx
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { API_BASE, getJSON } from "../services/api";
+import { API_BASE, getJSON, patch } from "../services/api";
 import { setAuthSession, getAuthSession, clearAuthSession, clearKnownFlags, setSuppressLoginOnce, setFlag, getFlag } from "../utils/authStorage";
 
 import { FEATURES_BY_PLAN } from "../config/features";
@@ -22,20 +22,6 @@ const limpiarEstadoTemporal = () => {
 
 const PERFIL_DRAFT_KEY = "perfilDraft";
 
-function leerBorradorPerfil() {
-  try {
-    const raw = localStorage.getItem(PERFIL_DRAFT_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === "object") return parsed;
-  } catch {}
-  return null;
-}
-
-function limpiarBorradorPerfil() {
-  try { localStorage.removeItem(PERFIL_DRAFT_KEY); } catch {}
-}
-
 function enriquecerUsuario(base) {
   if (!base || typeof base !== "object") return base;
   const accountType = base.accountType ?? base.tipo ?? "usuario";
@@ -52,10 +38,8 @@ const AuthProvider = ({ children }) => {
   const [cargando, setCargando] = useState(true);
   const [mounted, setMounted] = useState(false);
 
-
   // Hidratación inicial (NO bajar cargando todavía)
   useEffect(() => {
-    // 1) Hidratar desde helper centralizado (sin causar re-renders infinitos)
     try {
       const stored = (typeof getAuthSession === "function") ? getAuthSession() : null;
       if (stored && (stored.accessToken || stored.user)) {
@@ -79,7 +63,6 @@ const AuthProvider = ({ children }) => {
       setAutenticado(false);
       setUsuario(null);
     }
-    // Mantener cargando=true hasta terminar checkSession
     setMounted(true);
   }, []);
 
@@ -93,13 +76,12 @@ const AuthProvider = ({ children }) => {
         const token = localStorage.getItem("token");
         const hadSession = localStorage.getItem("wasLoggedIn") === "1";
 
-        // Si no hay token pero sí hubo sesión previa, intenta refresh primero
         if (!token && hadSession) {
           try {
             const r = await fetch(`${API_BASE}/api/usuarios/auth/refresh`, {
               method: "POST",
               credentials: "include",
-              headers: { "Content-Type": "application/json", ...( (typeof localStorage!=="undefined" && localStorage.getItem("token")) ? { Authorization: `Bearer ${localStorage.getItem("token")}` } : {}) },
+              headers: { "Content-Type": "application/json" },
               body: "{}",
             });
             if (r.ok) {
@@ -110,7 +92,6 @@ const AuthProvider = ({ children }) => {
           } catch {}
         }
 
-        // Pide la sesión (si 401 y no hay cookie, se ignora)
         const data = await getJSON(`/api/usuarios/session`, {
           headers: {},
           credentials: "include",
@@ -122,8 +103,7 @@ const AuthProvider = ({ children }) => {
           setAutenticado(true);
           try { localStorage.setItem("usuario", JSON.stringify(enriquecido)); } catch {}
         }
-      } catch (_) {
-        // Ignorar 401 cuando no hay sesión
+      } catch {
       } finally {
         if (!cancelled) setCargando(false);
       }
@@ -137,43 +117,51 @@ const AuthProvider = ({ children }) => {
     try {
       localStorage.setItem("token", token);
       localStorage.setItem("wasLoggedIn", "1");
-    } catch {};
+    } catch {}
     try { setAuthSession({ accessToken: token, user: usuarioRecibido || null }); } catch {}
+
     if (usuarioRecibido) {
-      const enriquecido = enriquecerUsuario(usuarioRecibido);
-      try { localStorage.setItem("usuario", JSON.stringify(enriquecido)); } catch {}
-      setUsuario(enriquecerUsuario(usuarioRecibido));
+      const prelim = enriquecerUsuario(usuarioRecibido);
+      try { localStorage.setItem("usuario", JSON.stringify(prelim)); } catch {}
+      setUsuario(prelim);
       setAutenticado(true);
-      try { setAuthSession({ accessToken: token, user: enriquecido }); } catch {}
+      try { setAuthSession({ accessToken: token, user: prelim }); } catch {}
       limpiarEstadoTemporal();
+
+      // Hidratación completa desde /session
+      try {
+        const data = await getJSON(`/api/usuarios/session`, { headers: {}, credentials: "include" });
+        if (data && data.usuario) {
+          const full = enriquecerUsuario(data.usuario);
+          setUsuario(full);
+          try { localStorage.setItem("usuario", JSON.stringify(full)); } catch {}
+          try { setAuthSession({ accessToken: token, user: full }); } catch {}
+        }
+      } catch {}
       return;
     }
+
     try {
-      const data = await getJSON(`/api/usuarios/session`, {
-        headers: {},
-        credentials: "include",
-      });
+      const data = await getJSON(`/api/usuarios/session`, { headers: {}, credentials: "include" });
       if (data?.usuario) {
         const enriquecido = enriquecerUsuario(data.usuario);
         setUsuario(enriquecerUsuario(data.usuario));
         try { localStorage.setItem("usuario", JSON.stringify(enriquecido)); } catch {}
         setAutenticado(true);
-        try { setAuthSession({ accessToken: (typeof localStorage!=="undefined" && localStorage.getItem("token")) || null, user: enriquecido }); } catch {}
+        try { setAuthSession({ accessToken: localStorage.getItem("token") || null, user: enriquecido }); } catch {}
       }
     } catch {}
     limpiarEstadoTemporal();
   };
 
   const cerrarSesion = async () => {
-    // Flush de borrador de perfil antes de cerrar sesión
     try {
       const rawDraft = (typeof localStorage !== "undefined" && localStorage.getItem("perfilDraft")) || "";
       const draft = rawDraft ? JSON.parse(rawDraft) : null;
       if (draft && typeof draft === "object" && Object.keys(draft).length > 0) {
-        const __t = (typeof localStorage !== "undefined" && localStorage.getItem("token")) || "";
         await getJSON(`/api/usuarios/me`, {
           method: "PATCH",
-          headers: { "Content-Type": "application/json", ...( __t ? { Authorization: `Bearer ${__t}` } : {}) },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(draft),
           credentials: "include",
         });
@@ -184,7 +172,7 @@ const AuthProvider = ({ children }) => {
     try {
       await getJSON(`/api/usuarios/logout`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...( (typeof localStorage!=="undefined" && localStorage.getItem("token")) ? { Authorization: `Bearer ${localStorage.getItem("token")}` } : {}) },
+        headers: { "Content-Type": "application/json" },
         body: "{}",
         credentials: "include",
       });
@@ -200,16 +188,27 @@ const AuthProvider = ({ children }) => {
 
   const login = async ({ correo, contraseña }) => {
     limpiarEstadoTemporal();
-    const res = await axios.post(
-      `${API_BASE}/api/usuarios/login`,
-      { correo, contraseña },
-      { withCredentials: true, headers: { "Content-Type": "application/json" } }
-    );
-    await iniciarSesion(res.data?.token, res.data?.usuario);
+    try {
+      const res = await axios.post(
+        `${API_BASE}/api/usuarios/login`,
+        { correo, contraseña },
+        { withCredentials: true, headers: { "Content-Type": "application/json" } }
+      );
+      await iniciarSesion(res.data?.token, res.data?.usuario);
+      return res.data;
+    } catch (err) {
+      const mensaje = (err && err.response && err.response.data && err.response.data.mensaje)
+        ? err.response.data.mensaje
+        : (err && err.message) ? err.message : "Error al iniciar sesión";
+      try { localStorage.removeItem("token"); } catch {}
+      try { localStorage.removeItem("wasLoggedIn"); } catch {}
+      try { setAuthSession && setAuthSession({ accessToken: null, user: null }); } catch {}
+      setAutenticado(false);
+      throw new Error(mensaje);
+    }
   };
 
   const registrar = async ({ nombre, correo, contraseña, nickname }) => {
-    // 1) Flags (authStorage) primero
     let tipo = null;
     let perfilValor = null;
     try {
@@ -219,7 +218,6 @@ const AuthProvider = ({ children }) => {
       else perfilValor = p;
     } catch {}
 
-    // 2) Respaldo: localStorage (compat)
     if (!tipo || perfilValor == null) {
       try {
         tipo = tipo || localStorage.getItem("tipoCuentaRegistro") || localStorage.getItem("tipoCuentaIntentada") || null;
@@ -246,15 +244,16 @@ const AuthProvider = ({ children }) => {
   };
 
   const actualizarPerfil = async (partial) => {
-    const data = await getJSON(`/api/usuarios/me`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", ...( (typeof localStorage!=="undefined" && localStorage.getItem("token")) ? { Authorization: `Bearer ${localStorage.getItem("token")}` } : {}) },
-      body: JSON.stringify(partial || {}),
-      credentials: "include",
-    });
+    const data = await patch(`/api/usuarios/me`, {}, partial || {});
     const actualizado = enriquecerUsuario(data?.usuario || data);
+
     setUsuario(actualizado);
     try { localStorage.setItem("usuario", JSON.stringify(actualizado)); } catch {}
+    try {
+      const tk = (typeof localStorage !== "undefined" && localStorage.getItem("token")) || null;
+      setAuthSession && setAuthSession({ accessToken: tk, user: actualizado });
+    } catch {}
+
     return actualizado;
   };
 

@@ -1,5 +1,4 @@
 import { getAuthSession, setAuthSession } from "../utils/authStorage";
-// services/api.js (parcheado)
 
 function normalizeBase(s = "") {
   return s ? s.trim().replace(/\/+$/, "") : "";
@@ -38,43 +37,51 @@ export const API_BASE = normalizeBase(resolved);
 /* =============== Auto-refresh (single-flight) =============== */
 const REFRESH_ENDPOINT_PATH = "/api/usuarios/auth/refresh";
 const SESSION_ENDPOINT_PATH = "/api/usuarios/session";
-var _refreshingPromise = null;
+let _refreshingPromise = null;
 
 async function refreshAccessToken() {
   if (_refreshingPromise) return _refreshingPromise;
   _refreshingPromise = (async () => {
-    try {
-      const res = await fetch(`${API_BASE}${REFRESH_ENDPOINT_PATH}`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
-      });
-      if (!res.ok) {
-        let msg = "";
-        try { const j = await res.json(); msg = j?.mensaje || j?.error || ""; } catch {}
-        throw new Error(msg || `refresh_failed ${res.status}`);
-      }
-      const data = await res.json().catch(() => ({}));
-      const newToken = data && typeof data.token === "string" ? data.token : null;
-      if (newToken) {
-        try {
-          if (typeof localStorage !== "undefined") localStorage.setItem("token", newToken);
-        } catch {}
-        try {
-          const sess = (typeof getAuthSession === "function") ? getAuthSession() : null;
-          const user = (sess && typeof sess === "object") ? sess.user : null;
-          if (typeof setAuthSession === "function") setAuthSession({ accessToken: newToken, user });
-        } catch {}
-      }
-      return newToken;
-    } finally {
+    const res = await fetch(`${API_BASE}${REFRESH_ENDPOINT_PATH}`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    if (!res.ok) {
+      let msg = "";
+      try { const j = await res.json(); msg = j?.mensaje || j?.error || ""; } catch {}
       _refreshingPromise = null;
+      throw new Error(msg || `refresh_failed ${res.status}`);
     }
+    const data = await res.json().catch(() => ({}));
+    const newToken = data && typeof data.token === "string" ? data.token : null;
+    if (newToken) {
+      try { localStorage.setItem("token", newToken); } catch {}
+      try {
+        const sess = (typeof getAuthSession === "function") ? getAuthSession() : null;
+        const user = (sess && typeof sess === "object") ? sess.user : null;
+        if (typeof setAuthSession === "function") setAuthSession({ accessToken: newToken, user });
+      } catch {}
+    }
+    _refreshingPromise = null;
+    return newToken;
   })();
   return _refreshingPromise;
 }
 
+function withAuthHeader(headers = {}) {
+  const h = { ...headers };
+  const hasAuth = Object.keys(h).some((k) => k.toLowerCase() === "authorization");
+  if (!hasAuth) {
+    try {
+      const sess = (typeof getAuthSession === "function") ? getAuthSession() : null;
+      const token = sess?.accessToken || (typeof localStorage !== "undefined" ? localStorage.getItem("token") : null);
+      if (token) h["Authorization"] = `Bearer ${token}`;
+    } catch {}
+  }
+  return h;
+}
 
 async function _json(path, opts = {}) {
   const method = (opts.method || "GET").toUpperCase();
@@ -83,26 +90,17 @@ async function _json(path, opts = {}) {
       ? {}
       : { "Content-Type": "application/json" };
 
-  const incoming = opts.headers || {};
-  const headers = { ...baseHeaders, ...incoming };
+  // credentials por defecto: include (cookies para refresh)
+  const cred = opts.credentials ?? "include";
 
-  try {
-    const hasAuth = Object.keys(headers).some((k) => k.toLowerCase() === "authorization");
-    if (!hasAuth) {
-      try {
-        const sess = (typeof getAuthSession === "function") ? getAuthSession() : null;
-        const token = sess?.accessToken || (typeof localStorage !== "undefined" ? localStorage.getItem("token") : null);
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-      } catch {}
-    }
-  } catch {}  // <-- este catch faltaba
+  const incoming = opts.headers || {};
+  let headers = withAuthHeader({ ...baseHeaders, ...incoming });
 
   const url = `${API_BASE}${path}`;
   const isRefreshCall =
     String(path).includes(REFRESH_ENDPOINT_PATH) ||
     String(url).includes(REFRESH_ENDPOINT_PATH);
 
-  // ⛔ Guard: si es /session y no hay token local, no golpees al backend
   const isSessionCall =
     String(path).includes(SESSION_ENDPOINT_PATH) ||
     String(url).includes(SESSION_ENDPOINT_PATH);
@@ -110,7 +108,7 @@ async function _json(path, opts = {}) {
     let hasToken = false;
     try { hasToken = !!localStorage.getItem("token"); } catch {}
     if (!hasToken) {
-      // Emulamos respuesta vacía para que el caller no reciba 401
+      // Emulamos respuesta vacía para que el caller no reciba 401 innecesario
       return {};
     }
   }
@@ -119,6 +117,7 @@ async function _json(path, opts = {}) {
     const res = await fetch(url, {
       method,
       ...opts,
+      credentials: cred,
       headers: hdrs,
     });
     return res;
@@ -127,19 +126,16 @@ async function _json(path, opts = {}) {
   let res = await doFetch(headers);
 
   if (res.status === 401 && !isRefreshCall) {
-    // Solo intentar refresh si ya hubo un token guardado (sesión previa)
-    let hadToken = false;
-    try { hadToken = !!localStorage.getItem("token"); } catch {}
-    if (hadToken) {
-      try {
-        const newToken = await refreshAccessToken();
-        if (newToken) {
-          const hdrs2 = { ...headers, Authorization: `Bearer ${newToken}` };
-          res = await doFetch(hdrs2);
-        }
-      } catch (e) {
-        // continuar con el 401 original
+    // Intentar refresh aunque el header inicial no trajera token,
+    // siempre que exista refresh cookie
+    try {
+      const newToken = await refreshAccessToken();
+      if (newToken) {
+        const hdrs2 = { ...headers, Authorization: `Bearer ${newToken}` };
+        res = await doFetch(hdrs2);
       }
+    } catch {
+      // continuar con el 401 original
     }
   }
 

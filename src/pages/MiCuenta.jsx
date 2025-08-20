@@ -1,6 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import React, { useMemo, useEffect } from "react";
-import { useState } from "react";
+import React, { useMemo, useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { setSuppressLoginOnce } from "../utils/authStorage";
 
@@ -86,10 +85,10 @@ export default function MiCuenta() {
   const navigate = useNavigate();
   useEffect(() => {
     if (!cargando && autenticado === false) {
-      try { setSuppressLoginOnce(true); } catch {} navigate("/", { replace: true, state: { showLogin: false } });
+      try { setSuppressLoginOnce(true); } catch {}
+      navigate("/", { replace: true, state: { showLogin: false } });
     }
   }, [cargando, autenticado, navigate]);
-
 
   // fallback seguro para evitar crasheo en carga inicial
   const safeUser = user ?? {
@@ -193,16 +192,49 @@ export default function MiCuenta() {
 /* ---------- Secciones ---------- */
 
 function PerfilSection({ user, onSave }) {
+  // Mantiene valores "vivos" para re-render inmediato después de guardar
+  const [initial, setInitial] = useState({
+    nombre: user?.nombre || "",
+    telefono: user?.telefono || "",
+    direccion: user?.direccion || "",
+  });
+
+  // Si cambia el usuario global (p.ej., por login o fetch sesión), refrescar el formulario
+  useEffect(() => {
+    setInitial({
+      nombre: user?.nombre || "",
+      telefono: user?.telefono || "",
+      direccion: user?.direccion || "",
+    });
+  }, [user?.nombre, user?.telefono, user?.direccion]);
+
+  const handleSave = async (values) => {
+    const actualizado = await onSave?.(values);
+    // Forzar que el form muestre lo recién guardado SIN refresh
+    const src = actualizado?.usuario || actualizado || {};
+    setInitial({
+      nombre: src?.nombre ?? values.nombre ?? "",
+      telefono: src?.telefono ?? values.telefono ?? "",
+      direccion: src?.direccion ?? values.direccion ?? "",
+    });
+  };
+
+  // Unificar la vista: combinamos el user global con los valores guardados recientemente
+  const mergedUser = {
+    ...user,
+    ...initial,
+  };
+
   return (
     <div className="p-5 sm:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-6">
       {/* Columna izquierda */}
       <div className="lg:col-span-1 space-y-4 lg:space-y-5">
         <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-5 shadow-sm">
-          <PerfilHeader user={user} onUpdate={onSave} />
+          <PerfilHeader user={mergedUser} onUpdate={handleSave} />
         </div>
 
         <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-5 shadow-sm">
-          <VerificacionCorreoStatus verificado={user.verificado} onReenviar={() => {}} />
+          <VerificacionCorreoStatus verificado={mergedUser.verificado} onReenviar={() => {}} />
         </div>
 
         <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-5 shadow-sm">
@@ -217,10 +249,9 @@ function PerfilSection({ user, onSave }) {
             <div className="text-base sm:text-lg font-semibold">Datos personales</div>
           </div>
           <PerfilDatosForm
-            initial={{ nombre: user.nombre, telefono: user.telefono, direccion: user.direccion }}
-            onSubmit={async (values) => {
-              await onSave?.(values);
-            }}
+            key={`${initial.nombre}|${initial.telefono}|${initial.direccion}`}
+            initial={initial}
+            onSubmit={handleSave}
           />
         </div>
       </div>

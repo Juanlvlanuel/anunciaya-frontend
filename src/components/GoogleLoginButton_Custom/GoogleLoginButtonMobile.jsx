@@ -53,7 +53,7 @@ const genNonce = () => {
 const GoogleLoginButtonMobile = ({
   onClose,
   onRegistroExitoso,
-  modo = "registro", // "login" o "registro"
+  modo = "login", // "login" o "registro"
   tipo,
   perfil,
 }) => {
@@ -156,13 +156,20 @@ const GoogleLoginButtonMobile = ({
       }
 
     } catch (err) {
-      const mensaje = err?.response?.data?.mensaje || err?.message || "Error con autenticación Google";
+      const rawMsg = (err && err.response && err.response.data && err.response.data.mensaje)
+        ? err.response.data.mensaje
+        : (err && err.message) ? err.message : "Error con autenticación Google";
+      const mensaje = String(rawMsg || "").trim();
       limpiarEstadoTemporal();
-      if (
-        typeof mensaje === "string" &&
-        (mensaje.toLowerCase().includes("registrada") || mensaje.toLowerCase().includes("existe"))
-      ) {
-        // ✅ iniciarSesion completado, ahora sí mostrar Swal
+      const lower = mensaje.toLowerCase();
+      if (lower.includes("no existe") || lower.includes("no existe ninguna cuenta")) {
+        Swal.fire({
+          icon: "info",
+          title: "Aún no tienes cuenta",
+          text: mensaje || "No encontramos una cuenta con este correo. Regístrate para continuar.",
+          confirmButtonColor: "#1745CF"
+        });
+      } else if (lower.includes("registrada") || lower.includes("existe")) {
         Swal.fire({
           icon: "info",
           title: "Cuenta ya existente",
@@ -170,7 +177,6 @@ const GoogleLoginButtonMobile = ({
           customClass: { popup: "rounded-md" }
         });
       } else {
-        // ✅ iniciarSesion completado, ahora sí mostrar Swal
         Swal.fire({
           icon: "error",
           title: "Google Login",
