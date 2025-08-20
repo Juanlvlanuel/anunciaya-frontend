@@ -7,7 +7,7 @@ import { API_BASE, searchUsers, ensurePrivado } from "../../../services/api";
 import logoChatYA from "../../../assets/logo-chatya.png"; // coloca tu PNG aquí
 import ChatList from "../ChatList/ChatList";
 import ChatWindow from "../ChatWindow/ChatWindowMobile";
-import MessageInput from "../MessageInput/MessageInput";
+import MessageInput from "../MessageInput/MessageInputMobile";
 
 export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeight = null }) {
   const { chats, activeChatId, currentUserId, setActiveChatId, loadChats, loadMessages, statusMap, blockChat, unblockChat } = useChat();
@@ -120,10 +120,11 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
 
   // Presencia legible del partner
   const rawStatus = partnerId ? statusMap?.[partnerId] : null;
-  const statusText = rawStatus === "online" ? "Conectado"
-    : rawStatus === "away" ? "Ausente"
-      : rawStatus === "offline" ? "Desconectado"
-        : "";
+  const statusText = (() => {
+    const map = { online: "Conectado", away: "Ausente", idle: "Ausente", offline: "Desconectado" };
+    return map[rawStatus] ?? (rawStatus ? String(rawStatus) : "Desconectado");
+  })();
+  const dotClass = (rawStatus === "online") ? "bg-green-500" : ((rawStatus === "away" || rawStatus === "idle") ? "bg-yellow-500" : "bg-gray-400");
 
   // === Bloqueo: ¿YO tengo bloqueado este chat?
   const isBlocked = useMemo(() => {
@@ -395,7 +396,7 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
             {/* Header conversación */}
             <HeaderBar
               partner={partner}
-              statusText={statusText}
+              statusText={statusText} dotClass={dotClass}
               theme={theme}
               setTheme={setTheme}
               fileRef={fileRef}
@@ -439,7 +440,7 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
                     <h3 className="text-[15px] font-semibold">Fondo del chat por URL</h3>
                     <button
                       onClick={() => setUrlModalOpen(false)}
-                      className="h-8 w-8 inline-flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10"
+                      className="h-8 w-8 inline-flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg:white/10"
                       aria-label="Cerrar"
                     >
                       <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -455,7 +456,7 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
                     placeholder="https://ejemplo.com/imagen.jpg"
                     value={bgUrlTemp}
                     onChange={(e) => { setBgUrlTemp(e.target.value); setBgUrlError(""); }}
-                    className="w-full h-10 rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full h-10 rounded-lg border border-slate-300 dark:border-zinc-700 bg:white dark:bg-zinc-800 px-3 outline-none focus:ring-2 focus:ring-blue-500"
                   />
 
                   <div className="mt-1 min-h-[20px]">
@@ -480,7 +481,7 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
                     </div>
                   )}
 
-                  <div className="mt-4 flex items-center justify-end gap-2">
+                  <div className="mt-4 flex items-center justify:end gap-2">
                     <button
                       onClick={() => {
                         setBgUrl("");
@@ -490,7 +491,7 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
                         localStorage.removeItem("chatBgOrigin");
                         setUrlModalOpen(false);
                       }}
-                      className="h-9 px-3 rounded-lg border border-slate-300 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-800 text-sm"
+                      className="h-9 px-3 rounded-lg border border-slate-300 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc:800 text-sm"
                     >
                       Quitar
                     </button>
@@ -567,15 +568,15 @@ function SearchBox({ query, onChangeQuery, loadingSearch, resul, showResults, se
                   <div className="text-sm font-medium dark:text-zinc-100">
                     {u.nickname || u.nombre}
                   </div>
-                  <div className="flex items-center gap-1 text-[11px]">
+                  <div className="flex items-center gap-1 text-[11px] whitespace-nowrap">
                     {(() => {
                       const raw = statusMap?.[String(u?._id || u?.id || u)];
                       const label = raw === "online" ? "Conectado" : (raw === "away" || raw === "idle") ? "Ausente" : "Desconectado";
                       const dot = raw === "online" ? "bg-green-500" : (raw === "away" || raw === "idle") ? "bg-yellow-500" : "bg-gray-400";
                       return (
                         <>
-                          <span className={`w-2.5 h-2.5 rounded-full ${dot}`} />
-                          <span className="text-gray-500 dark:text-zinc-400">{label}</span>
+                          <span className={`inline-block align-middle w-2.5 h-2.5 rounded-full ${dot}`} />
+                          <span className="align-middle text-gray-500 dark:text-zinc-400">{label}</span>
                         </>
                       );
                     })()}
@@ -592,7 +593,7 @@ function SearchBox({ query, onChangeQuery, loadingSearch, resul, showResults, se
 }
 
 function HeaderBar({
-  partner, statusText, theme, setTheme,
+  partner, statusText, dotClass, theme, setTheme,
   fileRef, showBgMenu, setShowBgMenu, bgMenuRef,
   onPickBgFile, pickBgFromUrl, clearBg,
   customBgs, applyCustom, removeCustom,
@@ -615,9 +616,10 @@ function HeaderBar({
         <div className="text-sm font-medium truncate dark:text-zinc-100">
           {partner?.nickname || partner?.nombre || "Contacto"}
         </div>
-        <div className="flex items-center gap-1 text-[11px]">
-          <span className={`w-2.5 h-2.5 rounded-full ${statusText === "Conectado" ? "bg-green-500" : statusText === "Ausente" ? "bg-yellow-500" : "bg-gray-400"}`} />
-          <span className="text-gray-500 dark:text-zinc-400">{statusText}</span>
+        {/* Estado debajo del nombre, con alineación horizontal (círculo + texto) */}
+        <div className="mt-0.5 flex items-center gap-1 text-[11px] whitespace-nowrap leading-[1.1]">
+          <span className={`inline-block align-middle w-2.5 h-2.5 rounded-full ${dotClass}`} />
+          <span className="align-middle text-gray-500 dark:text-zinc-400">{statusText}</span>
         </div>
       </div>
 
@@ -633,7 +635,7 @@ function HeaderBar({
             <FaPalette className="text-gray-700 dark:text-gray-200" />
           </button>
           {showBgMenu && (
-            <div className="absolute right-0 mt-2 w-[320px] max-h-[70vh] overflow-auto bg-white dark:bg-zinc-900 border dark:border-zinc-700 rounded-xl shadow-xl p-3 z-30" 
+            <div className="absolute right-0 mt-2 w-[320px] max-h:[70vh] overflow-auto bg-white dark:bg-zinc-900 border dark:border-zinc-700 rounded-xl shadow-xl p-3 z-30" 
             style={{ left: -200, right: "auto", maxWidth: "95vw" }}
             >
               {/* Mis fondos */}
@@ -714,23 +716,110 @@ function HeaderBar({
   );
 }
 
+
+
+
 function Avatar({ nickname = "", fotoPerfil }) {
   const initials = (nickname || "")
     .split(" ")
-    .map((p) => p[0])
+    .map((p) => p && p[0])
+    .filter(Boolean)
     .slice(0, 2)
     .join("")
     .toUpperCase();
-  if (fotoPerfil) {
-    const src = fotoPerfil.startsWith("http") ? fotoPerfil : `${API_BASE}${fotoPerfil}`;
-    return <img src={src} alt={nickname} className="w-8 h-8 rounded-full object-cover border dark:border-zinc-600" />;
-  }
+
+  const hasPhoto = !!fotoPerfil;
+  const src = hasPhoto ? (fotoPerfil.startsWith("http") ? fotoPerfil : `${API_BASE}${fotoPerfil}`) : "";
+
+  const [open, setOpen] = useState(false);
+  const [srcFull, setSrcFull] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
+  const tryOpen = () => {
+    if (hasPhoto) {
+      const img = new Image();
+      img.src = src; // precarga
+      setSrcFull(src);
+    } else {
+      setSrcFull("");
+    }
+    setOpen(true);
+  };
+
+  const Overlay = open
+    ? ReactDOM.createPortal(
+        <div className="fixed inset-0 z-[10000]" data-avatar-overlay onMouseDown={(e)=>e.stopPropagation()} onClick={(e)=>e.stopPropagation()}>
+          <div className="absolute inset-0 bg-black/85 backdrop-blur-sm" onMouseDown={(e)=>{e.stopPropagation();}} onClick={(e)=>{e.stopPropagation(); setOpen(false);}} />
+          <div className="absolute inset-0 flex items-center justify-center" onMouseDown={(e)=>e.stopPropagation()} onClick={(e)=>e.stopPropagation()}>
+            {srcFull ? (
+              <img src={srcFull} alt={nickname} className="w-[100vw] h-[100vh] object-contain" />
+            ) : (
+              <div className="w-[220px] h-[220px] rounded-full grid place-items-center bg-blue-600 text-white text-6xl font-bold shadow-2xl">
+                {initials || "?"}
+              </div>
+            )}
+            <button
+              aria-label="Cerrar"
+              className="absolute top-3 right-3 rounded-full bg-white/90 hover:bg-white p-2 shadow"
+              onMouseDown={(e)=>{e.stopPropagation();}} onClick={(e)=>{e.stopPropagation(); setOpen(false);}}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="20"
+                height="20"
+                stroke="currentColor"
+                strokeWidth="2"
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+        </div>,
+        document.body
+      )
+    : null;
+
   return (
-    <div className="w-8 h-8 rounded-full grid place-items-center bg-blue-600 text-white text-xs font-semibold select-none">
-      {initials || "?"}
-    </div>
+    <>
+      {hasPhoto ? (
+        <img
+          src={src}
+          alt={nickname}
+          className="w-8 h-8 rounded-full object-cover border dark:border-zinc-600 cursor-pointer"
+          onClick={tryOpen}
+          loading="lazy"
+        />
+      ) : (
+        <div
+          className="w-8 h-8 rounded-full grid place-items-center bg-blue-600 text-white text-xs font-semibold select-none cursor-pointer"
+          onClick={tryOpen}
+          title={initials || "Avatar"}
+        >
+          {initials || "?"}
+        </div>
+      )}
+      {Overlay}
+    </>
   );
 }
+
+
+
 
 
 // ===== Lanzador global para overlay móvil =====

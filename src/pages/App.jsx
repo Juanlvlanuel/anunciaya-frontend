@@ -1,4 +1,4 @@
-// src/pages/App.jsx
+// ✅ src/pages/App-1.jsx (FastUX: prefetch de MiCuenta tras login)
 import { useState, useEffect, useContext, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
@@ -12,7 +12,6 @@ import AppRoutes from "../routes";
 import MobileBottomNav from "../components/NavsLogeado/MobileBottomNav";
 import { ChatPanelPortal } from "../components/Chat/ChatPanelPortal";
 
-
 function App() {
   const { cargando, autenticado } = useContext(AuthContext);
   const [modalAbierto, setModalAbierto] = useState(false);
@@ -21,22 +20,18 @@ function App() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // ✅ Hook declarado DENTRO del componente (Nunca fuera)
   const handledKeyRef = useRef(null);
 
-  // Helper consistente para abrir login manual
   const openLogin = () => {
     try { clearSuppressLoginOnce(); } catch {}
     setEsLogin(true);
     setModalAbierto(true);
   };
 
-  // Exponer para llamadas globales/legacy
   if (typeof window !== "undefined") {
     window.openLogin = openLogin;
   }
 
-  // Delegación (opcional) por data-open-login
   useEffect(() => {
     const handler = (e) => {
       const el = e.target.closest?.("[data-open-login]");
@@ -49,7 +44,6 @@ function App() {
     return () => document.removeEventListener("click", handler);
   }, []);
 
-  // Evitar auto-open tras logout explícito (una sola vez)
   useEffect(() => {
     try {
       if (getSuppressLoginOnce()) {
@@ -59,22 +53,20 @@ function App() {
         }
       }
     } catch {}
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 🧯 Rollback estable: NO abrir LoginModal automático desde location.state
   useEffect(() => {
     const st = location.state;
     if (st?.showLogin) {
       navigate(location.pathname, { replace: true, state: {} });
       handledKeyRef.current = location.key;
     }
-    // Si necesitas reactivar el auto-open, aquí iría, con guards.
   }, [location.key, navigate]);
 
-  // Tras login exitoso, si hay "retAfterLogin", navegar allí y cerrar modal
+  // 🚀 Prefetch del chunk de /mi-cuenta cuando el usuario se autentica
   useEffect(() => {
     if (autenticado) {
+      try { import("../pages/MiCuenta"); } catch {}
       try {
         const ret = getFlag(FLAGS.retAfterLogin);
         if (ret) {

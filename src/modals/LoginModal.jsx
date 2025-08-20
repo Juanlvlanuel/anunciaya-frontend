@@ -1,8 +1,10 @@
-// ✅ src/components/LoginModal.jsx (limpia inputs al abrir/cerrar)
-import React, { useState, useContext, useEffect } from "react";
+
+// ✅ src/components/LoginModal-1.jsx (optimizado con FastUX Toolkit)
+// - GoogleLoginButton se carga en lazy + Suspense solo cuando el modal está abierto
+import React, { useState, useContext, useEffect, lazy, Suspense } from "react";
 import { FaTimes, FaEye, FaEyeSlash } from "react-icons/fa";
 import Swal from "sweetalert2";
-import GoogleLoginButton from "../components/GoogleLoginButton_Custom";
+const GoogleLoginButton = lazy(() => import("../components/GoogleLoginButton_Custom"));
 import { AuthContext } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import facebookIcon from "../assets/facebook-icon.png";
@@ -36,10 +38,8 @@ const LoginModal = ({ isOpen, onClose }) => {
   useEffect(() => {
     if (isOpen) {
       limpiarEstadoTemporal();
-      // Asegura que al abrir el modal el formulario esté limpio
       resetForm();
     } else {
-      // También al cerrar (cuando isOpen pasa a false) limpia los campos
       resetForm();
     }
     return () => limpiarEstadoTemporal();
@@ -47,7 +47,6 @@ const LoginModal = ({ isOpen, onClose }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // Validación rápida: si parece correo (tiene '@') pero no es válido → mensaje claro
     const v = (correo || '').trim();
     if (v.includes('@') && !EMAIL_RE.test(v)) {
       Swal.fire({
@@ -59,7 +58,7 @@ const LoginModal = ({ isOpen, onClose }) => {
       return;
     }
     try {
-      await login({ correo, contraseña }); // 👈 centralizado (usa API_BASE adentro)
+      await login({ correo, contraseña });
       limpiarEstadoTemporal();
       resetForm();
       onClose && onClose();
@@ -101,10 +100,7 @@ const LoginModal = ({ isOpen, onClose }) => {
           const res = await fetch(`${import.meta.env.VITE_API_URL}/api/usuarios/facebook`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              token: accessToken,
-              tipo: "login",
-            }),
+            body: JSON.stringify({ token: accessToken, tipo: "login" }),
           });
 
           const data = await res.json();
@@ -138,7 +134,6 @@ const LoginModal = ({ isOpen, onClose }) => {
             limpiarEstadoTemporal();
           }
         } catch (error) {
-          console.error("❌ Error al autenticar con Facebook:", error);
           Swal.fire({
             icon: "error",
             title: "Error de red",
@@ -185,11 +180,8 @@ const LoginModal = ({ isOpen, onClose }) => {
             exit={{ y: 40, opacity: 0 }}
             transition={{ duration: 0.33, ease: "easeOut" }}
             onClick={(e) => e.stopPropagation()}
-            style={{
-              boxShadow: "0 6px 32px 0 rgba(16,30,54,0.13)"
-            }}
+            style={{ boxShadow: "0 6px 32px 0 rgba(16,30,54,0.13)" }}
           >
-            {/* Botón cerrar */}
             <button
               onClick={() => { limpiarEstadoTemporal(); resetForm(); onClose && onClose(); }}
               className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 bg-gray-100 rounded-full p-2 transition"
@@ -239,7 +231,20 @@ const LoginModal = ({ isOpen, onClose }) => {
             </form>
             <div className="my-3 border-t border-gray-200" />
             <div className="flex flex-col gap-2">
-              <GoogleLoginButton modo="login" onClose={() => { limpiarEstadoTemporal(); resetForm(); onClose && onClose(); }} />
+              <Suspense
+                fallback={
+                  <button
+                    type="button"
+                    disabled
+                    className="relative flex items-center justify-center bg-white border border-gray-300 text-gray-400 text-base py-3 px-4 rounded-xl w-full"
+                  >
+                    Cargando Google…
+                  </button>
+                }
+              >
+                <GoogleLoginButton modo="login" onClose={() => { limpiarEstadoTemporal(); resetForm(); onClose && onClose(); }} />
+              </Suspense>
+
               <button
                 onClick={handleFacebookLogin}
                 className="relative flex items-center justify-center bg-white border border-gray-300 text-gray-900 text-base py-3 px-4 rounded-xl hover:bg-gray-100 transition w-full"

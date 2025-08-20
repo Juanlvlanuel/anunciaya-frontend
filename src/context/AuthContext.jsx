@@ -1,4 +1,6 @@
-// src/context/AuthContext.jsx
+
+// ✅ src/context/AuthContext-1.jsx (FastUX)
+// - Mantiene tu API y lógica, pero hidrata en segundo plano tras iniciar sesión para no bloquear la UI.
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { API_BASE, getJSON, patch } from "../services/api";
@@ -20,8 +22,6 @@ const limpiarEstadoTemporal = () => {
   } catch {}
 };
 
-const PERFIL_DRAFT_KEY = "perfilDraft";
-
 function enriquecerUsuario(base) {
   if (!base || typeof base !== "object") return base;
   const accountType = base.accountType ?? base.tipo ?? "usuario";
@@ -38,7 +38,7 @@ const AuthProvider = ({ children }) => {
   const [cargando, setCargando] = useState(true);
   const [mounted, setMounted] = useState(false);
 
-  // Hidratación inicial (NO bajar cargando todavía)
+  // Hidratación inicial (no bloquea la app)
   useEffect(() => {
     try {
       const stored = (typeof getAuthSession === "function") ? getAuthSession() : null;
@@ -112,6 +112,21 @@ const AuthProvider = ({ children }) => {
     return () => { cancelled = true; };
   }, []);
 
+  // Hidrata en segundo plano (no bloquear UX)
+  const hidratarEnSegundoPlano = (token) => {
+    (async () => {
+      try {
+        const data = await getJSON(`/api/usuarios/session`, { headers: {}, credentials: "include" });
+        if (data && data.usuario) {
+          const full = enriquecerUsuario(data.usuario);
+          setUsuario(full);
+          try { localStorage.setItem("usuario", JSON.stringify(full)); } catch {}
+          try { setAuthSession({ accessToken: token || localStorage.getItem("token") || null, user: full }); } catch {}
+        }
+      } catch {}
+    })();
+  };
+
   const iniciarSesion = async (token, usuarioRecibido) => {
     if (!token) return;
     try {
@@ -128,29 +143,13 @@ const AuthProvider = ({ children }) => {
       try { setAuthSession({ accessToken: token, user: prelim }); } catch {}
       limpiarEstadoTemporal();
 
-      // Hidratación completa desde /session
-      try {
-        const data = await getJSON(`/api/usuarios/session`, { headers: {}, credentials: "include" });
-        if (data && data.usuario) {
-          const full = enriquecerUsuario(data.usuario);
-          setUsuario(full);
-          try { localStorage.setItem("usuario", JSON.stringify(full)); } catch {}
-          try { setAuthSession({ accessToken: token, user: full }); } catch {}
-        }
-      } catch {}
+      // 🔸 antes se esperaba a /session; ahora se hace en segundo plano
+      hidratarEnSegundoPlano(token);
       return;
     }
 
-    try {
-      const data = await getJSON(`/api/usuarios/session`, { headers: {}, credentials: "include" });
-      if (data?.usuario) {
-        const enriquecido = enriquecerUsuario(data.usuario);
-        setUsuario(enriquecerUsuario(data.usuario));
-        try { localStorage.setItem("usuario", JSON.stringify(enriquecido)); } catch {}
-        setAutenticado(true);
-        try { setAuthSession({ accessToken: localStorage.getItem("token") || null, user: enriquecido }); } catch {}
-      }
-    } catch {}
+    // Caso sin usuarioRecibido: intenta hidratar directo desde /session (no bloquea otros flujos)
+    hidratarEnSegundoPlano(token);
     limpiarEstadoTemporal();
   };
 

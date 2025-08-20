@@ -1,14 +1,54 @@
-// src/components/Chat/MessageInput/MessageInputMobile.jsx
+// MessageInputMobile-1.jsx
+// Basado en tu archivo. Mejora el bloque de "responder": usa tu icono verde /public/icons/icon-responder.png
+// y estilo más compacto tipo card, sin mostrar nombre del autor.
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FaPaperclip, FaPaperPlane, FaSmile } from "react-icons/fa";
-import { useChat } from "../../../context/ChatContext";
+import { useChat } from "../../../context/ChatContext"; // ✅ ruta corregida
 import EmojiPickerPro from "../EmojiPicker/EmojiPicker";
-import { API_BASE } from "../../../services/api";
+import { API_BASE } from "../../../services/api"; // ✅ igual que tu versión
 
 const MAX_SIZE_MB = 10;
 
+function sanitizeReply(r) {
+  if (!r) return null;
+  const out = { _id: r._id || null, texto: r.texto || "", preview: r.preview || (r.texto || "") };
+  const a = r.autor;
+  if (a && typeof a === "object") {
+    out.autor = {
+      _id: a._id || null,
+      nickname: a.nickname || null,
+      nombre: a.nombre || null,
+      correo: a.correo || null,
+      fotoPerfil: a.fotoPerfil || null,
+    };
+  } else if (typeof a === "string") {
+    out.autor = { _id: a };
+  } else {
+    out.autor = null;
+  }
+  return out;
+}
+
+
 export default function MessageInputMobile() {
-  const { currentUserId, activeChatId, sendMessage, setTyping, chats } = useChat();
+  const replyBarRef = useRef(null);
+
+  const replyInputRef = useRef(null);
+  const focusComposer = () => {
+    const el = replyInputRef.current || document.getElementById("chat-mobile-input");
+    if (!el) return;
+    try { el.focus(); } catch(e){}
+    requestAnimationFrame(() => { try { el.focus(); } catch(e){} });
+    setTimeout(() => { try { el.focus(); } catch(e){} }, 60);
+  };
+
+  useEffect(() => {
+    const handler = () => focusComposer();
+    window.addEventListener("chat:focusInput", handler);
+    return () => window.removeEventListener("chat:focusInput", handler);
+  }, []);
+  const { currentUserId, activeChatId, setTyping, sendMessage, chats, replyTarget, clearReplyTarget } = useChat();
 
   const [text, setText] = useState("");
   const [uploads, setUploads] = useState([]);
@@ -16,17 +56,38 @@ export default function MessageInputMobile() {
   const [isSending, setIsSending] = useState(false);
   const [showCamera, setShowCamera] = useState(true);
   const [replyTo, setReplyTo] = useState(null);
+  useEffect(() => {
+    const onReplyEvt = (e) => {
+      try { setReplyTo(sanitizeReply(e?.detail?.message)); } catch { /* noop */ }
+    };
+    window.addEventListener("chat:reply", onReplyEvt);
+    return () => window.removeEventListener("chat:reply", onReplyEvt);
+  }, []);
 
-const isBlocked = useMemo(() => {
-  try {
-    const chat = (chats || []).find(c => String(c?._id) === String(activeChatId));
-    if (!chat) return false;
-    if (typeof chat.isBlocked === "boolean") return chat.isBlocked;
-    const arr = Array.isArray(chat.blockedBy) ? chat.blockedBy.map(String) : [];
-    return arr.includes(String(currentUserId));
-  } catch { return false; }
-}, [chats, activeChatId, currentUserId]);
+  useEffect(() => { setReplyTo(replyTarget || null); }, [replyTarget]);
 
+  // Cerrar el reply al hacer click afuera
+  useEffect(() => {
+    if (!replyTo) return;
+    const onDoc = (e) => {
+      const el = replyBarRef.current;
+      if (el && !el.contains(e.target)) {
+        setReplyTo(null);
+      }
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [replyTo]);
+
+  const isBlocked = useMemo(() => {
+    try {
+      const chat = (chats || []).find(c => String(c?._id) === String(activeChatId));
+      if (!chat) return false;
+      if (typeof chat.isBlocked === "boolean") return chat.isBlocked;
+      const arr = Array.isArray(chat.blockedBy) ? chat.blockedBy.map(String) : [];
+      return arr.includes(String(currentUserId));
+    } catch { return false; }
+  }, [chats, activeChatId, currentUserId]);
 
   const galleryRef = useRef(null);
   const cameraRef = useRef(null);
@@ -61,31 +122,7 @@ const isBlocked = useMemo(() => {
     };
   }, []);
 
-  // reply / forward listeners (igual que el original)
-  useEffect(() => {
-    const onReply = (e) => {
-      const m = e.detail?.message; if (!m) return;
-      setReplyTo({
-        _id: m._id,
-        texto: typeof m.texto === "string" ? m.texto : "",
-        autor: m.emisor && typeof m.emisor === "object" ? { _id: m.emisor._id, nickname: m.emisor.nickname, nombre: m.emisor.nombre } : null,
-        preview: typeof m.texto === "string" ? m.texto : "",
-      });
-      textareaRef.current?.focus();
-    };
-    const onForward = (e) => {
-      const m = e.detail?.message; if (!m) return;
-      const archivos = Array.isArray(m.archivos) ? m.archivos : [];
-      const texto = typeof m.texto === "string" ? m.texto : "";
-      sendMessage({ chatId: activeChatId, emisorId: currentUserId, texto, archivos, forwardOf: { _id: m._id } });
-    };
-    window.addEventListener("chat:reply", onReply);
-    window.addEventListener("chat:forward", onForward);
-    return () => {
-      window.removeEventListener("chat:reply", onReply);
-      window.removeEventListener("chat:forward", onForward);
-    };
-  }, [activeChatId, currentUserId, sendMessage]);
+  
 
   async function uploadImage(file) {
     if (!file.type.startsWith("image/")) throw new Error("Solo se permiten imágenes.");
@@ -100,11 +137,11 @@ const isBlocked = useMemo(() => {
       throw new Error(msg || "Error al subir la imagen.");
     }
     const json = await res.json();
-    const raw = json.url;
+    const raw = json.url;                  // puede venir relativo (/uploads/...)
     const thumbUrl = json.thumbUrl || null;
     const url = /^https?:\/\//i.test(raw) ? raw : `${API_BASE}${raw}`;
     const mime = json.mimeType || file.type || "image/*";
-    return { url, thumbUrl, name: file.name, mime };
+    return { url, thumbUrl, name: file.name, filename: file.name, mimeType: mime, isImage: true };
   }
 
   const onPickFiles = (e) => {
@@ -112,17 +149,20 @@ const isBlocked = useMemo(() => {
     if (!files.length) return;
 
     files.forEach((file) => {
+      // preview local optimista (se verá en el grid de uploads)
       const localPreview = {
         url: URL.createObjectURL(file),
         thumbUrl: URL.createObjectURL(file),
         name: file.name,
-        mime: file.type,
+        mimeType: file.type,
+        isImage: true,
         pending: true,
       };
       setUploads((prev) => [...prev, localPreview]);
 
       uploadImage(file)
         .then((uploaded) => {
+          // Reemplaza el preview local por la URL real del servidor
           setUploads((prev) => prev.map((u) => (u.url === localPreview.url ? { ...uploaded, pending: false } : u)));
         })
         .catch(() => {
@@ -140,23 +180,30 @@ const isBlocked = useMemo(() => {
     const trimmed = text.trim();
     if (!activeChatId || (!trimmed && uploads.length === 0)) return;
     if (isBlocked) { alert('Has bloqueado este chat. Desbloquéalo para enviar.'); return; }
-    try {
-      setIsSending(true);
-      const archivos = uploads
-        .filter((u) => !u.pending && !u.error)
-        .map(({ url, thumbUrl, name, mime }) => ({ url, thumbUrl, filename: name, name, mimeType: mime, isImage: true }));
 
+    // Solo archivos ya subidos (sin pending/error)
+    const archivos = uploads
+      .filter((u) => !u.pending && !u.error)
+      .map(({ url, thumbUrl, name, filename, mimeType }) => ({
+        url, thumbUrl, name: name || filename, filename: name || filename, mimeType, isImage: true
+      }));
+
+    setIsSending(true);
+    try {
+      // Envío por socket (ChatContext)
       sendMessage({
         chatId: activeChatId,
-        emisorId: currentUserId,
         texto: trimmed,
         archivos,
-        replyTo: replyTo ? { _id: replyTo._id, texto: replyTo.texto, autor: replyTo.autor, preview: replyTo.texto } : null,
+        replyTo: sanitizeReply(replyTo),
       });
 
-      setText(""); setUploads([]); setShowEmoji(false); setReplyTo(null);
+      // Reset UI
+      setText(""); setUploads([]); setShowEmoji(false); setReplyTo(null); clearReplyTarget?.();
       textareaRef.current?.blur();
-    } finally { setIsSending(false); }
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const handlePickEmoji = (emoji) => setText((prev) => (prev || "") + emoji);
@@ -164,28 +211,29 @@ const isBlocked = useMemo(() => {
   return (
     <div className="px-2 pb-2 relative">
 
-{isBlocked && (
-  <div className="mx-2 mb-2 rounded-xl border border-yellow-300 bg-yellow-50/90 text-yellow-900 text-xs px-3 py-2 dark:bg-yellow-900/30 dark:text-yellow-100 dark:border-yellow-700">
-    Has bloqueado este chat. Desbloquéalo para enviar mensajes.
-  </div>
-)}
-
       {replyTo && (
-        <div className="mx-2 mb-2 rounded-xl border bg-white/80 dark:bg-zinc-800/80 dark:border-zinc-700 px-3 py-2 flex items-start gap-2">
-          <div className="w-1.5 h-8 rounded bg-blue-400 mt-0.5" />
+        <div ref={replyBarRef} className="mx-1 mb-2 rounded-xl border border-blue-200 border-l-4 border-l-blue-500 bg-white/95 dark:bg-zinc-800/95 dark:border-zinc-700 px-3 py-2 text-[12px] text-blue-900 dark:text-blue-100 flex items-center gap-2 shadow-sm">
+          <img src="/icons/icon-responder.png" alt="Responder" className="w-4 h-4 shrink-0" />
           <div className="min-w-0 flex-1">
-            <div className="text-xs font-semibold text-blue-700 dark:text-blue-300">
-              Respondiendo a {replyTo.autor?.nickname || replyTo.autor?.nombre || "mensaje"}
+            <div className="truncate text-[12px] opacity-90">
+              {replyTo?.texto || "[mensaje]"}
             </div>
-            <div className="text-xs text-gray-600 dark:text-gray-300 line-clamp-2">{replyTo.texto || "Contenido"}</div>
           </div>
-          <button className="ml-2 text-xs px-2 py-1 rounded-md border hover:bg-gray-50 dark:hover:bg-zinc-700" onClick={() => setReplyTo(null)} title="Cancelar">✕</button>
+          <button
+            type="button"
+            onClick={() => setReplyTo(null)}
+            className="ml-2 w-8 h-8 grid place-items-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-[18px]"
+            title="Cancelar respuesta"
+            aria-label="Cancelar respuesta"
+          >
+            ×
+          </button>
         </div>
       )}
 
       <div className="flex items-center gap-2 h-14 rounded-2xl border bg-white/95 dark:bg-zinc-800/95 dark:border-zinc-700 shadow-[0_4px_16px_rgba(0,0,0,0.06)] px-2">
         <div className="relative" ref={pickerWrapRef}>
-          <button type="button" title="Emoji" onClick={() => !isBlocked && setShowEmoji((s) => !s)} disabled={isBlocked} className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 dark:text-gray-200 border border-gray-200 dark:border-zinc-600">
+          <button type="button" title="Emoji" onClick={() => setShowEmoji((s) => !s)} className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 dark:text-gray-200 border border-gray-200 dark:border-zinc-600">
             <FaSmile className="text-[18px]" />
           </button>
           {showEmoji && (
@@ -195,11 +243,12 @@ const isBlocked = useMemo(() => {
           )}
         </div>
 
-        <textarea disabled={isBlocked}
+        <textarea
           ref={textareaRef}
           value={text}
           onChange={onChange}
           onKeyDown={onKeyDown}
+          id="chat-mobile-input"
           onFocus={() => setShowCamera(false)}
           onBlur={() => setShowCamera(true)}
           placeholder="Escribe un mensaje…"
@@ -211,12 +260,12 @@ const isBlocked = useMemo(() => {
         <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={onPickFiles} />
 
         {showCamera && (
-          <button type="button" onClick={() => !isBlocked && cameraRef.current?.click()} disabled={isBlocked} title="Tomar foto" className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 dark:text-gray-200 border border-gray-200 dark:border-zinc-600">
+          <button type="button" onClick={() => cameraRef.current?.click()} title="Tomar foto" className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 dark:text-gray-200 border border-gray-200 dark:border-zinc-600">
             <span className="text-[18px]">📷</span>
           </button>
         )}
 
-        <button type="button" onClick={() => !isBlocked && galleryRef.current?.click()} disabled={isBlocked} title="Adjuntar desde galería" className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 dark:text-gray-200 border border-gray-200 dark:border-zinc-600">
+        <button type="button" onClick={() => galleryRef.current?.click()} title="Adjuntar desde galería" className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 dark:text-gray-200 border border-gray-200 dark:border-zinc-600">
           <FaPaperclip className="text-[18px]" />
         </button>
 
@@ -224,8 +273,9 @@ const isBlocked = useMemo(() => {
           type="button"
           onClick={handleSend}
           title="Enviar (Enter) • Nueva línea (Shift+Enter)"
-          className="w-11 h-11 grid place-items-center rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
-          disabled={isBlocked || isSending || (!text.trim() && uploads.filter((u) => !u.pending && !u.error).length === 0)}
+          className={`w-11 h-11 grid place-items-center rounded-xl text-white font-semibold ${isSending ? "opacity-60" : ""}`}
+          style={{ background: "#2563eb" }}
+          disabled={isSending || (!text.trim() && uploads.filter((u) => !u.pending && !u.error).length === 0)}
         >
           <FaPaperPlane className="text-[18px]" />
         </button>

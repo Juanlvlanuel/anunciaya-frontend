@@ -148,7 +148,7 @@ export default function ChatListMobile({ onSelectChat }) {
     if (page > maxPage) setPage(maxPage);
   }, [filtered.length]);
 
-const selectChat = (id) => { setActiveChatId(id); onSelectChat?.(id); };
+  const selectChat = (id) => { setActiveChatId(id); onSelectChat?.(id); };
   const prefetched = useRef(new Set());
   const prefetch = (id) => {
     if (!id || prefetched.current.has(id)) return;
@@ -217,7 +217,8 @@ const selectChat = (id) => { setActiveChatId(id); onSelectChat?.(id); };
     const active = chat._id === activeChatId;
 
     const [openMenu, setOpenMenu] = useState(false);
-    const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+    // 👉 Evita parpadeo: no hay coordenadas hasta que se calculan
+    const [menuPos, setMenuPos] = useState(null);
     const rowRef = useRef(null);
     const kebabBtnRef = useRef(null);
     const menuPanelRef = useRef(null);
@@ -235,6 +236,7 @@ const selectChat = (id) => { setActiveChatId(id); onSelectChat?.(id); };
     // Calcular posición al abrir
     useEffect(() => {
       if (!openMenu) return;
+
       try { rowRef.current?.scrollIntoView({ block: "center", behavior: "smooth" }); } catch {}
 
       const btn = kebabBtnRef.current;
@@ -253,6 +255,7 @@ const selectChat = (id) => { setActiveChatId(id); onSelectChat?.(id); };
       const estH = APPROX_MENU_H;
       if (spaceBelow < estH + MENU_MARGIN) top = Math.max(r.top - estH - MENU_MARGIN - MENU_OFFSET_Y_UP, MENU_MARGIN);
 
+      // Primer set: coordenadas estimadas (ya evita (0,0))
       setMenuPos({ top, left });
 
       // Ajuste fino tras render para usar altura real del menú
@@ -311,7 +314,12 @@ const selectChat = (id) => { setActiveChatId(id); onSelectChat?.(id); };
           <button
             ref={kebabBtnRef}
             type="button"
-            onClick={(e) => { e.stopPropagation(); setOpenMenu(s => !s); }}
+            onClick={(e) => { 
+              e.stopPropagation(); 
+              // Reinicia coordenadas para forzar recálculo limpio
+              setMenuPos(null);
+              setOpenMenu(s => !s); 
+            }}
             className="w-8 h-8 grid place-items-center rounded-md hover:bg-gray-50"
             aria-label="Más opciones"
             title="Más opciones"
@@ -324,8 +332,8 @@ const selectChat = (id) => { setActiveChatId(id); onSelectChat?.(id); };
           </button>
         </div>
 
-        {/* Menú kebab fijo en viewport */}
-        {openMenu && (
+        {/* Menú kebab fijo en viewport (solo cuando ya hay coordenadas) */}
+        {openMenu && menuPos && (
           <div
             ref={menuPanelRef}
             className="fixed z-50 w-44 bg-white rounded-xl shadow-xl border py-1 max-h-[60vh] overflow-auto"

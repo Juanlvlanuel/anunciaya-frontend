@@ -1,17 +1,19 @@
-// ✅ src/modals/RegistroModal-1.jsx
-// Cambios mínimos: lee tipo/perfil desde authStorage flags (getFlag) y usa localStorage solo como respaldo.
-// Mantiene diseño y flujo original sin borrar lógica existente.
-
-import React, { useState, useEffect, useContext } from "react";
+// ✅ src/modals/RegistroModal-1.jsx (FastUX)
+// - GoogleLoginButton en lazy + Suspense (solo se carga cuando el modal está abierto)
+// - Precarga en idle del módulo para primera apertura más rápida
+import React, { useState, useEffect, useContext, lazy, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FaTimes, FaEye, FaEyeSlash } from "react-icons/fa";
 import Swal from "sweetalert2";
 import axios from "axios";
 import { API_BASE } from "../services/api";
-import GoogleLoginButton from "../components/GoogleLoginButton_Custom";
+const GoogleLoginButton = lazy(() => import("../components/GoogleLoginButton_Custom"));
 import FacebookLoginButton from "../components/FacebookLoginButton";
 import { AuthContext } from "../context/AuthContext";
 import { getFlag, removeFlag } from "../utils/authStorage";
+
+// Polyfill mínimo para requestIdleCallback
+const ric = (typeof window !== "undefined" && window.requestIdleCallback) || ((cb) => setTimeout(cb, 300));
 
 // Limpia posibles llaves usadas en intentos previos
 const limpiarEstadoTemporal = () => {
@@ -88,13 +90,15 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
     setMostrarPassword(false);
   };
 
+  // Precarga en idle del módulo del botón (mejora la primera apertura)
   useEffect(() => {
-    if (isOpen) {
-      resetForm();
-    } else {
-      resetForm();
-    }
-    // eslint-disable-next-line
+    if (!isOpen) return;
+    const id = ric(() => { try { import("../components/GoogleLoginButton_Custom"); } catch {} });
+    return () => { if (typeof id === "number") try { clearTimeout(id); } catch {} };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) { resetForm(); } else { resetForm(); }
   }, [isOpen]);
 
   const handleClose = () => {
@@ -115,52 +119,23 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
     const correoOk = (correo || "").trim();
     const passOk = (password || "").trim();
 
-    if (
-      !nombreOk ||
-      !correoOk ||
-      !passOk ||
-      !tipoEfectivo ||
-      !perfilEfectivo ||
-      !perfilEfectivo.perfil
-    ) {
-      Swal.fire({
-        icon: "warning",
-        title: "Datos incompletos",
-        text: "Por favor completa todos los campos y selecciona un perfil.",
-      });
+    if (!nombreOk || !correoOk || !passOk || !tipoEfectivo || !perfilEfectivo || !perfilEfectivo.perfil) {
+      Swal.fire({ icon: "warning", title: "Datos incompletos", text: "Por favor completa todos los campos y selecciona un perfil." });
       return;
     }
 
     try {
       const res = await axios.post(
         `${API_BASE}/api/usuarios/registro`,
-        {
-          nombre: nombreOk,
-          correo: correoOk,
-          contraseña: passOk,
-          tipo: tipoEfectivo,
-          perfil: perfilEfectivo.perfil,
-        },
-        {
-          withCredentials: true,
-          headers: { "Content-Type": "application/json" },
-        }
+        { nombre: nombreOk, correo: correoOk, contraseña: passOk, tipo: tipoEfectivo, perfil: perfilEfectivo.perfil },
+        { withCredentials: true, headers: { "Content-Type": "application/json" } }
       );
 
-      const ok =
-        (res.status === 200 || res.status === 201) &&
-        res.data?.token &&
-        res.data?.usuario;
+      const ok = (res.status === 200 || res.status === 201) && res.data?.token && res.data?.usuario;
 
       if (ok) {
         iniciarSesion(res.data.token, res.data.usuario);
-
-        await Swal.fire({
-          icon: "success",
-          title: "¡Cuenta creada!",
-          text: "Tu cuenta ha sido registrada y ya iniciaste sesión.",
-        });
-
+        await Swal.fire({ icon: "success", title: "¡Cuenta creada!", text: "Tu cuenta ha sido registrada y ya iniciaste sesión." });
         limpiarEstadoTemporal();
         resetForm();
         if (onClose) onClose();
@@ -168,7 +143,6 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
         return;
       }
 
-      // Fallback por si algún proxy altera el status pero envía token
       if (res.data?.token && res.data?.usuario) {
         iniciarSesion(res.data.token, res.data.usuario);
         limpiarEstadoTemporal();
@@ -178,32 +152,15 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
         return;
       }
 
-      Swal.fire({
-        icon: "warning",
-        title: "Error en el registro",
-        text: "No se recibió respuesta válida del servidor.",
-      });
+      Swal.fire({ icon: "warning", title: "Error en el registro", text: "No se recibió respuesta válida del servidor." });
     } catch (err) {
       const data = err?.response?.data || {};
-      const mensaje =
-        data?.mensaje ||
-        data?.error?.mensaje ||
-        data?.error?.message ||
-        err?.message ||
-        "Error desconocido";
-
-      Swal.fire({
-        icon: "warning",
-        title: "Error en el registro",
-        text: String(mensaje),
-      });
+      const mensaje = data?.mensaje || data?.error?.mensaje || data?.error?.message || err?.message || "Error desconocido";
+      Swal.fire({ icon: "warning", title: "Error en el registro", text: String(mensaje) });
     }
   };
 
-  const { tipo: tipoEfectivoBtn, perfil: perfilEfectivoBtn } = obtenerTipoYPerfil(
-    tipo,
-    perfil
-  );
+  const { tipo: tipoEfectivoBtn, perfil: perfilEfectivoBtn } = obtenerTipoYPerfil(tipo, perfil);
 
   return (
     <AnimatePresence>
@@ -217,12 +174,12 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
         >
           <motion.div
             className="
-    w-[calc(100vw-60px)] mx-[30px] bg-white rounded-3xl shadow-2xl
-    px-5 py-7 relative flex flex-col justify-center gap-4
-    sm:w-[420px] sm:px-8 sm:mx-0
-    mx-auto  lg:-ml-[1360px] lg:-mb-[55px]
-    mt-[-130px] sm:mt-0
-  "
+              w-[calc(100vw-60px)] mx-[30px] bg-white rounded-3xl shadow-2xl
+              px-5 py-7 relative flex flex-col justify-center gap-4
+              sm:w-[420px] sm:px-8 sm:mx-0
+              mx-auto  lg:-ml-[1360px] lg:-mb-[55px]
+              mt-[-130px] sm:mt-0
+            "
             initial={{ y: 50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 40, opacity: 0 }}
@@ -243,9 +200,7 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
               ¡Bienvenido!
             </h2>
             <div className="text-[24px] font-bold text-center -mb-0">
-              a{" "}
-              <span className="text-blue-700 font-bold">Anuncia</span>
-              <span className="text-red-600 font-bold">YA</span>
+              a <span className="text-blue-700 font-bold">Anuncia</span><span className="text-red-600 font-bold">YA</span>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-3">
@@ -295,13 +250,25 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
             <div className="my-3 border-t border-gray-200" />
 
             <div className="space-y-2">
-              <GoogleLoginButton
-                onClose={handleClose}
-                onRegistroExitoso={onRegistroExitoso}
-                modo="registro"
-                tipo={tipoEfectivoBtn}
-                perfil={perfilEfectivoBtn}
-              />
+              <Suspense
+                fallback={
+                  <button
+                    type="button"
+                    disabled
+                    className="relative flex items-center justify-center bg-white border border-gray-300 text-gray-400 text-base py-3 px-4 rounded-xl w-full"
+                  >
+                    Cargando Google…
+                  </button>
+                }
+              >
+                <GoogleLoginButton
+                  onClose={handleClose}
+                  onRegistroExitoso={onRegistroExitoso}
+                  modo="registro"
+                  tipo={tipoEfectivoBtn}
+                  perfil={perfilEfectivoBtn}
+                />
+              </Suspense>
               <FacebookLoginButton />
             </div>
           </motion.div>

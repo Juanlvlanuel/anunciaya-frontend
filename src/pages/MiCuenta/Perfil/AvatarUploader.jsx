@@ -1,15 +1,12 @@
+
 import { useRef, useState, useEffect, useMemo } from "react";
 import { useAuth } from "../../../context/AuthContext";
 import { API_BASE } from "../../../services/api";
 
 /**
- * AvatarUploader (persistente)
- * - Lee la URL inicial desde props o `usuario.fotoPerfil` (rehidratado).
- * - Sube el archivo al backend: POST /api/usuarios/me/avatar (FormData "avatar").
- * - Actualiza `AuthContext` vía `actualizarPerfil` con la URL final.
- * - Mantiene `onChange(file)` para compat hacia arriba.
- * - **Nuevo**: acepta prop opcional `beforeUpload(file) -> Promise<File|Blob|undefined>`
- *   para permitir redimensionar/optimizar la imagen antes de subirla.
+ * AvatarUploader (persistente) + Lightbox
+ * - Conserva toda tu lógica original.
+ * - Añade visor en grande al tocar la imagen.
  */
 export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload }) {
   const inputRef = useRef(null);
@@ -53,13 +50,34 @@ export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Lightbox state
+  const [showModal, setShowModal] = useState(false);
+  const [fullSrc, setFullSrc] = useState("");
+
   // Mantener preview sincronizado si cambian las fuentes
   useEffect(() => {
     setPreview(resolvedInitial);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolvedInitial]);
 
+  // Esc para cerrar modal
+  useEffect(() => {
+    if (!showModal) return;
+    const onKey = (e) => { if (e.key === "Escape") setShowModal(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [showModal]);
+
   const handlePick = () => inputRef.current?.click();
+
+  const openLightbox = () => {
+    const src = preview || resolvedInitial || "";
+    if (!src) return;
+    // Preload rápido
+    const img = new Image();
+    img.src = normalizeSrc(src);
+    setFullSrc(normalizeSrc(src));
+    setShowModal(true);
+  };
 
   const uploadToBackend = async (file) => {
     const fd = new FormData();
@@ -147,18 +165,27 @@ export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload
     <div className="relative">
       <div
         className="w-20 h-20 rounded-full bg-gray-200 dark:bg-zinc-800 overflow-hidden cursor-pointer ring-1 ring-gray-200 dark:ring-zinc-700"
-        onClick={handlePick}
-        title={loading ? "Subiendo..." : "Cambiar foto"}
+        onClick={openLightbox}
+        title={loading ? "Subiendo..." : "Ver / Cambiar foto"}
       >
         {preview ? (
-          <img src={preview} alt="Avatar" className="w-full h-full object-cover" />
+          <img src={preview} alt="Avatar" className="w-full h-full object-cover" loading="lazy" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-xs text-gray-500">Foto</div>
         )}
       </div>
 
+      {/* Botón para cambiar imagen */}
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); handlePick(); }}
+        className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[11px] text-blue-600 hover:underline"
+      >
+        Cambiar
+      </button>
+
       {error ? (
-        <div className="absolute left-0 right-0 mt-2 text-[11px] text-red-600 dark:text-red-400">{error}</div>
+        <div className="absolute left-0 right-0 mt-5 text-[11px] text-red-600 dark:text-red-400">{error}</div>
       ) : null}
 
       <input
@@ -169,6 +196,30 @@ export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload
         onChange={handleFile}
         disabled={loading}
       />
+
+      {/* Lightbox modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-[300]">
+          <div
+            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            onClick={() => setShowModal(false)}
+          />
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+            <img
+              src={fullSrc || preview}
+              alt="Avatar"
+              className="max-w-[96vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            />
+            <button
+              aria-label="Cerrar"
+              className="absolute top-3 right-3 rounded-full bg-white/90 hover:bg-white p-2 shadow"
+              onClick={() => setShowModal(false)}
+            >
+              <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

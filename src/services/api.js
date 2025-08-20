@@ -1,3 +1,4 @@
+// services/api-1.js
 import { getAuthSession, setAuthSession } from "../utils/authStorage";
 
 function normalizeBase(s = "") {
@@ -38,6 +39,13 @@ export const API_BASE = normalizeBase(resolved);
 const REFRESH_ENDPOINT_PATH = "/api/usuarios/auth/refresh";
 const SESSION_ENDPOINT_PATH = "/api/usuarios/session";
 let _refreshingPromise = null;
+
+/* =============== Mini cache para /session (FastUX) =============== */
+const SESSION_TTL_MS = 60000; // 60s
+let _sessionCache = { data: null, ts: 0 };
+export function clearSessionCache() {
+  _sessionCache = { data: null, ts: 0 };
+}
 
 async function refreshAccessToken() {
   if (_refreshingPromise) return _refreshingPromise;
@@ -85,14 +93,13 @@ function withAuthHeader(headers = {}) {
 
 async function _json(path, opts = {}) {
   const method = (opts.method || "GET").toUpperCase();
+  const isForm = typeof FormData !== "undefined" && (opts.body instanceof FormData);
   const baseHeaders =
-    method === "GET" || method === "HEAD"
+    method === "GET" || method === "HEAD" || isForm
       ? {}
       : { "Content-Type": "application/json" };
 
-  // credentials por defecto: include (cookies para refresh)
   const cred = opts.credentials ?? "include";
-
   const incoming = opts.headers || {};
   let headers = withAuthHeader({ ...baseHeaders, ...incoming });
 
@@ -104,12 +111,16 @@ async function _json(path, opts = {}) {
   const isSessionCall =
     String(path).includes(SESSION_ENDPOINT_PATH) ||
     String(url).includes(SESSION_ENDPOINT_PATH);
+
   if (isSessionCall) {
     let hasToken = false;
     try { hasToken = !!localStorage.getItem("token"); } catch {}
     if (!hasToken) {
-      // Emulamos respuesta vacía para que el caller no reciba 401 innecesario
       return {};
+    }
+    const now = Date.now();
+    if (_sessionCache.data && (now - _sessionCache.ts) < SESSION_TTL_MS) {
+      return _sessionCache.data;
     }
   }
 
@@ -126,17 +137,13 @@ async function _json(path, opts = {}) {
   let res = await doFetch(headers);
 
   if (res.status === 401 && !isRefreshCall) {
-    // Intentar refresh aunque el header inicial no trajera token,
-    // siempre que exista refresh cookie
     try {
       const newToken = await refreshAccessToken();
       if (newToken) {
         const hdrs2 = { ...headers, Authorization: `Bearer ${newToken}` };
         res = await doFetch(hdrs2);
       }
-    } catch {
-      // continuar con el 401 original
-    }
+    } catch {}
   }
 
   if (!res.ok) {
@@ -154,34 +161,41 @@ async function _json(path, opts = {}) {
     throw new Error(errText || `${res.status} ${res.statusText}`);
   }
 
+  let out;
   try {
-    return await res.json();
+    out = await res.json();
   } catch {
-    return {};
+    out = {};
   }
+
+  if (isSessionCall) {
+    _sessionCache = { data: out, ts: Date.now() };
+  }
+
+  return out;
 }
 
 export const getJSON = (p, o = {}) => _json(p, o);
 export const postJSON = (p, b, h = {}) =>
   _json(p, { method: "POST", body: JSON.stringify(b || {}), headers: h });
 export const del = (p, h = {}) => _json(p, { method: "DELETE", headers: h });
-export const patch = (p, h = {}, b = undefined) => _json(p, { method: "PATCH", headers: h, body: b ? JSON.stringify(b) : undefined });
+export const patch = (p, h = {}, b = undefined) => {
+  const isForm = typeof FormData !== "undefined" && (b instanceof FormData);
+  return _json(p, { method: "PATCH", headers: h, body: isForm ? b : (b ? JSON.stringify(b) : undefined) });
+};
 
 /* =================== Chat API =================== */
 export const chatAPI = {
-  deleteForMe: (chatId, token) => del(`/api/chat/${chatId}/me`, {}),
-  toggleFavorite: (chatId, add, token) =>
-    add
-      ? postJSON(`/api/chat/${chatId}/favorite`, {}, { Authorization: `Bearer ${token}` })
-      : del(`/api/chat/${chatId}/favorite`, { Authorization: `Bearer ${token}` }),
-  toggleFavoritePatch: (chatId, token) => patch(`/api/chat/${chatId}/favorite`, { Authorization: `Bearer ${token}` }),
-  getPins: (chatId, token) => getJSON(`/api/chat/${chatId}/pins`, { headers: {} }),
-  togglePin: (messageId, add, token) =>
-    add
-      ? postJSON(`/api/chat/messages/${messageId}/pin`, {}, { Authorization: `Bearer ${token}` })
-      : del(`/api/chat/messages/${messageId}/pin`, { Authorization: `Bearer ${token}` }),
-  editMessage: (messageId, body, token) => patch(`/api/chat/messages/${messageId}`, { Authorization: `Bearer ${token}` }, body),
-  deleteMessage: (messageId, token) => del(`/api/chat/messages/${messageId}`, { Authorization: `Bearer ${token}` }),
+  sendMessage: (chatId, body) => postJSON(`/api/chat/${chatId}/mensajes`, body),
+  deleteForMe: (chatId) => del(`/api/chat/${chatId}/me`, {}),
+  toggleFavorite: (chatId, add) =>
+    add ? postJSON(`/api/chat/${chatId}/favorite`, {}, {}) : del(`/api/chat/${chatId}/favorite`, {}),
+  toggleFavoritePatch: (chatId) => patch(`/api/chat/${chatId}/favorite`, {}),
+  getPins: (chatId) => getJSON(`/api/chat/${chatId}/pins`, { headers: {} }),
+  togglePin: (messageId, add) =>
+    add ? postJSON(`/api/chat/messages/${messageId}/pin`, {}, {}) : del(`/api/chat/messages/${messageId}/pin`, {}),
+  editMessage: (messageId, body) => patch(`/api/chat/messages/${messageId}`, {}, body),
+  deleteMessage: (messageId) => del(`/api/chat/messages/${messageId}`, {}),
 };
 
 /* =================== Usuarios =================== */

@@ -79,6 +79,10 @@ export default function ChatProvider({ children }) {
   const [typingMap, setTypingMap] = useState({});
   const [statusMap, setStatusMap] = useState({});
 
+  // Reply target (compartido)
+  const [replyTarget, setReplyTarget] = useState(null);
+  const clearReplyTarget = () => setReplyTarget(null);
+
   const me = useMemo(() => {
     if (usuario?._id) return String(usuario._id);
     try { const u = JSON.parse(localStorage.getItem("usuario") || "{}"); if (u && u._id) return String(u._id); } catch {}
@@ -125,7 +129,8 @@ export default function ChatProvider({ children }) {
       s.on("chat:newMessage", ({ chatId, mensaje }) => {
         const incoming = { ...mensaje };
         if (!incoming.replyTo && incoming.reply) incoming.replyTo = incoming.reply;
-        setMessages((m) => {
+        clearReplyTarget();
+      setMessages((m) => {
           const list = m[chatId] || [];
           const idx = list.findIndex((x) => String(x?._id) === String(incoming?._id));
           const next = idx >= 0 ? [...list.slice(0, idx), incoming, ...list.slice(idx + 1)] : [...list, incoming];
@@ -142,13 +147,15 @@ export default function ChatProvider({ children }) {
       s.on("message:new", ({ chatId, message }) => { s.emit("chat:newMessage", { chatId, mensaje: message }); });
       s.on("chat:typing", ({ chatId, usuarioId, typing }) => { setTypingMap((t) => ({ ...t, [chatId]: typing ? usuarioId : null })); });
       s.on("chat:messageEdited", ({ chatId, mensaje }) => {
-        setMessages((m) => {
+        clearReplyTarget();
+      setMessages((m) => {
           const list = m[chatId] || []; const idx = list.findIndex((x) => String(x?._id) === String(mensaje?._id));
           if (idx === -1) return m; const next = list.slice(); next[idx] = { ...list[idx], ...mensaje }; return { ...m, [chatId]: next };
         });
       });
       s.on("chat:messageDeleted", ({ chatId, messageId }) => {
-        setMessages((m) => { const list = m[chatId] || []; const next = list.filter((x) => String(x?._id) !== String(messageId)); return { ...m, [chatId]: next }; });
+        clearReplyTarget();
+      setMessages((m) => { const list = m[chatId] || []; const next = list.filter((x) => String(x?._id) !== String(messageId)); return { ...m, [chatId]: next }; });
       });
 
       socketRef.current = s; setSocket(s);
@@ -218,6 +225,7 @@ export default function ChatProvider({ children }) {
       }
       if (!res.ok) { console.error("[loadMessages] HTTP", res.status); return; }
       const data = await res.json();
+      clearReplyTarget();
       setMessages((m) => {
         const list = m[chatId] || []; const prevById = new Map(list.map((x) => [String(x?._id), x]));
         const server = Array.isArray(data) ? data : [];
@@ -254,6 +262,17 @@ export default function ChatProvider({ children }) {
     await loadChats(); return true;
   }, [getAuthHeaders, loadChats, tryRefresh]);
 
+
+  function normalizeReply(replyTo) {
+    if (!replyTo) return null;
+    const _id = replyTo._id || null;
+    const texto = replyTo.texto || replyTo.preview || "";
+    let autor = replyTo.autor;
+    if (autor && typeof autor !== "object") autor = { _id: String(autor) };
+    if (!autor && replyTo.emisor) autor = { _id: String(replyTo.emisor) };
+    return { _id, texto, preview: replyTo.preview || texto || "", autor: autor || null };
+  }
+
   // --- funciones que se referencian en value (declararlas ANTES del useMemo) ---
   const sendMessage = useCallback(({ chatId, emisorId, texto, archivos = [], replyTo = null, forwardOf = null }) => {
     const meId = me;
@@ -268,6 +287,7 @@ export default function ChatProvider({ children }) {
     setMessages((m) => ({ ...m, [chatId]: [...(m[chatId] || []), optimistic] }));
     const payload = { chatId, emisorId: sender, texto, archivos, replyTo: optimistic.replyTo, forwardOf: optimistic.forwardOf };
     socketRef.current?.emit("chat:send", payload, (ack) => {
+      clearReplyTarget();
       setMessages((m) => {
         const list = m[chatId] || []; const tmpIndex = list.findIndex((x) => x._id === tempId);
         let next = tmpIndex >= 0 ? [...list.slice(0, tmpIndex), ...list.slice(tmpIndex + 1)] : list.slice();
@@ -299,6 +319,7 @@ export default function ChatProvider({ children }) {
     loadChats, messages, loadMessages,
     sendMessage, editMessageLive, deleteMessageLive,
     typingMap, setTyping, statusMap, blockChat, unblockChat,
+    replyTarget, setReplyTarget, clearReplyTarget,
   }), [me, chats, activeChatId, messages, typingMap, statusMap, loadChats, loadMessages, blockChat, unblockChat, editMessageLive]);
 
   function setTyping(chatId, who) { setTypingMap((t) => ({ ...t, [chatId]: who })); }

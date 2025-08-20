@@ -1,19 +1,50 @@
-// GoogleLoginButtonMobile-2.jsx (nonce-enabled)
-// Basado en tu GoogleLoginButtonMobile.jsx actual.
-import React, { useContext } from "react";
-import { GoogleLogin } from "@react-oauth/google";
+
+// GoogleLoginButtonMobile-1.jsx
+// FastUX + FIX local: usa ruta relativa /api/usuarios/auth/google (proxy Vite) + withCredentials:true
+import React, { useContext, useEffect, useMemo, useState, lazy, Suspense } from "react";
 import axios from "axios";
 import Swal from "sweetalert2";
 import { AuthContext } from "../../context/AuthContext";
-import { API_BASE, getJSON } from "../../services/api"; // ✅ usar base centralizada
-import { setAuthSession, removeFlag } from "../../utils/authStorage";
+import { setAuthSession } from "../../utils/authStorage";
 
-const limpiarEstadoTemporal = () => {
-  localStorage.removeItem("tipoCuentaIntentada");
-  localStorage.removeItem("perfilCuentaIntentada");
+// 👉 Lazy-load del botón de Google
+const GoogleLoginCmp = lazy(() =>
+  import("@react-oauth/google").then((m) => ({ default: m.GoogleLogin }))
+);
+
+// Polyfill mínimo para requestIdleCallback
+const ric =
+  (typeof window !== "undefined" && window.requestIdleCallback) ||
+  ((cb) => setTimeout(() => cb({ didTimeout: false, timeRemaining: () => 16 }), 300));
+
+// Preconnect útil para reducir TTFB hacia Google endpoints
+const ensurePreconnect = () => {
+  const hrefs = [
+    "https://accounts.google.com",
+    "https://ssl.gstatic.com",
+    "https://apis.google.com",
+  ];
+  hrefs.forEach((h) => {
+    if (!document.querySelector(`link[rel="preconnect"][href="${h}"]`)) {
+      const link = document.createElement("link");
+      link.rel = "preconnect";
+      link.href = h;
+      link.crossOrigin = "";
+      document.head.appendChild(link);
+    }
+  });
 };
 
-// Obtiene tipo/perfil desde props o desde localStorage (respaldo)
+// Helpers de flujo
+const limpiarEstadoTemporal = () => {
+  try {
+    localStorage.removeItem("tipoCuentaIntentada");
+    localStorage.removeItem("perfilCuentaIntentada");
+    localStorage.removeItem("tipoCuentaRegistro");
+    localStorage.removeItem("perfilCuentaRegistro");
+  } catch {}
+};
+
 const obtenerTipoYPerfil = (propTipo, propPerfil) => {
   let t = propTipo;
   let p = propPerfil;
@@ -30,24 +61,19 @@ const obtenerTipoYPerfil = (propTipo, propPerfil) => {
         localStorage.getItem("perfilCuentaIntentada") ||
         null;
       if (crudo) {
-        try {
-          const parsed = JSON.parse(crudo);
-          p = parsed;
-        } catch {
-          p = { perfil: crudo };
-        }
+        try { p = JSON.parse(crudo); } catch { p = { perfil: crudo }; }
       }
     }
-  } catch { }
+  } catch {}
   if (p && typeof p === "string") p = { perfil: p };
   return { tipo: t, perfil: p };
 };
 
-// nonce por intento
+// Nonce por intento
 const genNonce = () => {
   const bytes = new Uint8Array(16);
   window.crypto.getRandomValues(bytes);
-  return Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
+  return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
 };
 
 const GoogleLoginButtonMobile = ({
@@ -58,152 +84,136 @@ const GoogleLoginButtonMobile = ({
   perfil,
 }) => {
   const { iniciarSesion } = useContext(AuthContext);
-  const nonce = genNonce();
+  const [busy, setBusy] = useState(false);
+  const nonce = useMemo(() => genNonce(), []);
+
+  // Precarga en idle del módulo del botón + preconnect DNS/TLS
+  useEffect(() => {
+    ensurePreconnect();
+    const id = ric(() => {
+      try { import("@react-oauth/google"); } catch {}
+    });
+    return () => { if (typeof id === "number") try { clearTimeout(id); } catch {} };
+  }, []);
 
   const handleSuccess = async (credentialResponse) => {
+    setBusy(true);
     try {
       const { tipo: tipoEfectivo, perfil: perfilEfectivo } = obtenerTipoYPerfil(tipo, perfil);
-
       const { credential } = credentialResponse || {};
-      if (!credential) {
-        throw new Error("No se recibió la credencial de Google.");
-      }
-      let body = { credential, nonce };
+      if (!credential) throw new Error("No se recibió la credencial de Google.");
+      const body = { credential, nonce };
 
-      // 🔵 SOLO manda tipo/perfil en modo REGISTRO
+      // Solo incluir tipo/perfil si es registro
       if (modo === "registro") {
         if (tipoEfectivo) body.tipo = tipoEfectivo;
-        if (perfilEfectivo && perfilEfectivo.perfil) body.perfil = perfilEfectivo.perfil;
+        if (perfilEfectivo?.perfil != null) body.perfil = perfilEfectivo.perfil;
       }
-      const res = await axios.post(`${API_BASE}/api/usuarios/google`, body);
+
+      // ✅ Ruta relativa (proxy Vite) + cookies
+      const res = await axios.post(`/api/usuarios/auth/google`, body, {
+        withCredentials: true,
+        headers: { "Content-Type": "application/json" },
+      });
 
       if (res.status === 200 && res.data?.token) {
-        if (res.data?.usuario) {
-          }
+        await iniciarSesion(res.data.token, res.data.usuario);
+        try { setAuthSession({ accessToken: res.data.token, user: res.data.usuario || null }); } catch {}
+        limpiarEstadoTemporal();
 
         const partes = res.data.usuario?.nombre?.split(" ") || [];
         const nombreMostrado = partes.slice(0, 2).join(" ") || "Usuario";
-
-        const checkSVG = `
-<svg width="54" height="54" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="27" cy="27" r="27" fill="%23e6faf0"/>
-  <path d="M16 28l7 7 15-15" stroke="%2300c853" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>
-`;
-
-        // ✅ iniciarSesion completado, ahora sí mostrar Swal
         Swal.fire({
-          icon: undefined,
-          html: `
-    <div style="display:flex; flex-direction:column; align-items:center; margin-top:-60px;">
-      <div style="margin-bottom:12px;">${checkSVG}</div>
-      <div style="
-        font-size:1.4rem;
-        color:#193573;
-        font-weight:600;
-        margin-bottom:0.35em;
-        letter-spacing:-0.01em;
-        text-shadow:0 1px 6px #fff,0 1px 0 #eaeaea;">
-        ¡Es un gusto tenerte de regreso!
-      </div>
-      <div style="
-        font-size:1.8rem;
-        font-weight:900;
-        color:#1a285b;
-        text-align:center;
-        margin-bottom:2px;
-        text-shadow:0 2px 8px #fffffff1, 0 1px 0 #f7fafc;">
-        ${nombreMostrado}
-      </div>
-    </div>
-  `,
-          showConfirmButton: false,
-          width: 300,
-          timer: 5000,
-          background: "rgba(255, 255, 255, 0.79)",
-          customClass: {
-            popup: "rounded-xl glass-swal shadow-2xl"
-          },
-          buttonsStyling: false,
-          didOpen: () => {
-            const popup = document.querySelector('.swal2-popup.glass-swal');
-            if (popup) {
-              popup.style.backdropFilter = 'blur(12px) saturate(170%)';
-              popup.style.WebkitBackdropFilter = 'blur(12px) saturate(170%)';
-              popup.style.border = '1px solid #ffffffcb';
-              popup.style.boxShadow = '0 8px 32px 0 rgba(24,37,70,0.14)';
-            }
-          }
+          icon: "success",
+          title: "¡Bienvenido!",
+          text: `Hola, ${nombreMostrado}`,
+          timer: 2000,
+          showConfirmButton: false
         });
 
-        await iniciarSesion(res.data.token, res.data.usuario);
-        try { setAuthSession({ accessToken: res.data.token, user: res.data.usuario || null }); } catch {}
-        await getJSON(`/api/usuarios/session`, { credentials: 'include' });
-        limpiarEstadoTemporal();
-        if (onClose) onClose();
-        if (onRegistroExitoso) onRegistroExitoso();
+        onClose && onClose();
+        onRegistroExitoso && onRegistroExitoso();
       } else {
-        // ✅ iniciarSesion completado, ahora sí mostrar Swal
-        Swal.fire({
-          icon: "warning",
-          title: "Error con Google",
-          text: res.data?.mensaje || "No se pudo autenticar con Google.",
-          customClass: {
-            popup: "rounded-md"
-          }
-        });
-        limpiarEstadoTemporal();
+        const mensaje = res?.data?.mensaje || "No se pudo autenticar con Google.";
+        Swal.fire({ icon: "warning", title: "Google", text: mensaje });
       }
-
     } catch (err) {
-      const rawMsg = (err && err.response && err.response.data && err.response.data.mensaje)
-        ? err.response.data.mensaje
-        : (err && err.message) ? err.message : "Error con autenticación Google";
-      const mensaje = String(rawMsg || "").trim();
-      limpiarEstadoTemporal();
-      const lower = mensaje.toLowerCase();
-      if (lower.includes("no existe") || lower.includes("no existe ninguna cuenta")) {
-        Swal.fire({
-          icon: "info",
-          title: "Aún no tienes cuenta",
-          text: mensaje || "No encontramos una cuenta con este correo. Regístrate para continuar.",
-          confirmButtonColor: "#1745CF"
-        });
+      const mensaje =
+        err?.response?.data?.mensaje ||
+        err?.message ||
+        "Error con autenticación Google";
+      const lower = String(mensaje).toLowerCase();
+      if (lower.includes("no existe")) {
+        Swal.fire({ icon: "info", title: "Aún no tienes cuenta", text: mensaje });
       } else if (lower.includes("registrada") || lower.includes("existe")) {
-        Swal.fire({
-          icon: "info",
-          title: "Cuenta ya existente",
-          text: mensaje,
-          customClass: { popup: "rounded-md" }
-        });
+        Swal.fire({ icon: "info", title: "Cuenta ya existente", text: mensaje });
       } else {
-        Swal.fire({
-          icon: "error",
-          title: "Google Login",
-          text: mensaje,
-          customClass: { popup: "rounded-md" }
-        });
+        Swal.fire({ icon: "error", title: "Google Login", text: mensaje });
       }
+    } finally {
+      setBusy(false);
     }
   };
 
+  const handleError = () => {
+    limpiarEstadoTemporal();
+    Swal.fire({
+      icon: "error",
+      title: "Google Login",
+      text: "No se pudo conectar con Google.",
+    });
+  };
+
   return (
-    <div style={{ width: "100%", display: "grid" }}>
-      <GoogleLogin
-        onSuccess={handleSuccess}
-        onError={() => {
-          limpiarEstadoTemporal();
-          // ✅ iniciarSesion completado, ahora sí mostrar Swal
-          Swal.fire({
-            icon: "error",
-            title: "Google Login",
-            text: "No se pudo conectar con Google.",
-            customClass: { popup: "rounded-3xl" }
-          });
-        }}
-        ux_mode="popup"
-        nonce={nonce} // << pasar el nonce al componente
-      />
+    <div style={{ width: "100%", display: "grid", position: "relative" }}>
+      {/* Overlay spinner minimalista */}
+      {busy && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "grid",
+            placeItems: "center",
+            background: "rgba(255,255,255,0.6)",
+            backdropFilter: "blur(2px)",
+            borderRadius: 12,
+            zIndex: 2,
+          }}
+        >
+          <div
+            style={{
+              width: 22,
+              height: 22,
+              border: "3px solid #cbd5e1",
+              borderTopColor: "#1745CF",
+              borderRadius: "50%",
+              animation: "gspin 800ms linear infinite",
+            }}
+          />
+          <style>{`@keyframes gspin{to{transform:rotate(360deg)}}`}</style>
+        </div>
+      )}
+
+      <Suspense
+        fallback={
+          <button
+            type="button"
+            disabled
+            style={{
+              height: 40,
+              borderRadius: 12,
+              border: "1px solid #e5e7eb",
+              background: "#f8fafc",
+              color: "#64748b",
+              fontSize: 15,
+            }}
+          >
+            Cargando botón de Google…
+          </button>
+        }
+      >
+        <GoogleLoginCmp onSuccess={handleSuccess} onError={handleError} ux_mode="popup" nonce={nonce} />
+      </Suspense>
     </div>
   );
 };

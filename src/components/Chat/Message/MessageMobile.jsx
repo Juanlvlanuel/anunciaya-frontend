@@ -1,7 +1,55 @@
-// MessageMobile-fixed.jsx (corrige JSX del preview y mantiene tu lógica/offsets)
+// MessageMobile-1.jsx
+// Renderiza previews de imágenes dentro del chat (miniatura + fullscreen al clic).
+// Tolerante a distintos formatos de objeto archivo: {url, thumbUrl, fileUrl, ruta, path, location, src, mimeType, contentType, type, name, filename, originalName, isImage}
+
 import { useMemo, useRef, useState, useEffect } from "react";
 import twemoji from "twemoji";
 import { getAuthSession } from "../../../utils/authStorage";
+
+const isProbablyImage = (a) => {
+  if (!a) return false;
+  // 1) bandera directa
+  if (a.isImage === true) return true;
+  // 2) por MIME / contentType
+  const mime = String(a.mimeType || a.contentType || a.type || "").toLowerCase();
+  if (mime.includes("image/")) return true;
+  // 3) por extensión del nombre
+  const name = String(a.name || a.filename || a.originalName || a.url || a.fileUrl || a.path || a.ruta || "").toLowerCase();
+  if (name.match(/\.(png|jpe?g|gif|webp|bmp|svg)$/i)) return true;
+  return false;
+};
+
+const getBestUrl = (a) => {
+  // Orden de preferencia para la miniatura
+  return (
+    a?.thumbUrl ||
+    a?.thumbnail ||
+    a?.previewUrl ||
+    a?.url ||
+    a?.fileUrl ||
+    a?.location ||
+    a?.src ||
+    a?.ruta ||
+    a?.path ||
+    ""
+  );
+};
+
+const getFullUrl = (a) => {
+  // Orden de preferencia para el fullscreen
+  return (
+    a?.url ||
+    a?.fileUrl ||
+    a?.src ||
+    a?.location ||
+    a?.ruta ||
+    a?.path ||
+    a?.thumbUrl ||
+    a?.thumbnail ||
+    a?.previewUrl ||
+    ""
+  );
+};
 
 export default function MessageMobile({
   msg,
@@ -14,31 +62,38 @@ export default function MessageMobile({
 }) {
   const myId = String(
     (typeof currentUserId !== "undefined" && currentUserId) ||
-    msg?.currentUserId ||
-    (((getAuthSession && getAuthSession())?.user?._id) || "")
+      msg?.currentUserId ||
+      (((getAuthSession && getAuthSession())?.user?._id) || "")
   );
 
   const senderId = String(
     msg?.emisorId ||
-    (typeof msg?.emisor === 'string' ? msg.emisor : (msg?.emisor?._id || ''))
+      (typeof msg?.emisor === "string"
+        ? msg.emisor
+        : (msg?.emisor?._id || ""))
   );
 
   const mine =
-    msg?.mine === true ||
-    (myId && senderId && myId === senderId);
+    msg?.mine === true || (myId && senderId && myId === senderId);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const holdTimer = useRef(null);
   const menuRef = useRef(null);
   const LONG_PRESS_MS = 360;
   const bubbleRef = useRef(null);
-  const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
+  // FIX: evitar parpadeo inicial del menú en (0,0)
+  const [menuPos, setMenuPos] = useState(null);
+
+  const [fullscreenImg, setFullscreenImg] = useState(null);
 
   useEffect(() => {
     if (!menuOpen) return;
     const onDoc = (e) => {
       if (!menuRef.current) return;
-      if (!menuRef.current.contains(e.target)) setMenuOpen(false);
+      if (!menuRef.current.contains(e.target)) {
+        setMenuOpen(false);
+        setMenuPos(null);
+      }
     };
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("touchstart", onDoc, { passive: true });
@@ -54,7 +109,7 @@ export default function MessageMobile({
 
     const MENU_W = 128; // coincide con w-32
     const MENU_H = 220;
-    const PAD = 8;      // margen dentro del chat
+    const PAD = 8;
 
     const getScrollContainer = () =>
       bubbleRef.current?.closest("[data-chat-scroll]") ||
@@ -69,16 +124,16 @@ export default function MessageMobile({
       const bubbleR = bubble.getBoundingClientRect();
       const contR = (scrollEl || document.body).getBoundingClientRect();
 
-      // posición base con tus offsets
       let x = mine ? bubbleR.left - MENU_W - 15 : bubbleR.right + 13;
       let y = mine
-        ? bubbleR.top - MENU_H + 90          // enviados
-        : bubbleR.top - MENU_H + 160;        // recibidos (más abajo)
+        ? bubbleR.top - MENU_H + 90
+        : bubbleR.top - MENU_H + 160;
 
-      // clamp horizontal
-      x = Math.max(contR.left + PAD, Math.min(x, contR.right - PAD - MENU_W));
+      x = Math.max(
+        contR.left + PAD,
+        Math.min(x, contR.right - PAD - MENU_W)
+      );
 
-      // auto-scroll si no cabe
       const ensureInView = () => {
         if (!scrollEl) return;
         let tries = 0;
@@ -88,14 +143,18 @@ export default function MessageMobile({
           const menuBottom = y + MENU_H;
           let moved = false;
           if (menuTop < contNow.top + PAD) {
-            const delta = Math.ceil((contNow.top + PAD) - menuTop);
+            const delta = Math.ceil(contNow.top + PAD - menuTop);
             scrollEl.scrollTop -= delta;
-            y += delta; moved = true;
+            y += delta;
+            moved = true;
           }
           if (menuBottom > contNow.bottom - PAD) {
-            const delta = Math.ceil(menuBottom - (contNow.bottom - PAD));
+            const delta = Math.ceil(
+              menuBottom - (contNow.bottom - PAD)
+            );
             scrollEl.scrollTop += delta;
-            y -= delta; moved = true;
+            y -= delta;
+            moved = true;
           }
           tries++;
           if (!moved) break;
@@ -103,9 +162,12 @@ export default function MessageMobile({
       };
       ensureInView();
 
-      // clamp vertical
-      const contNow = (scrollEl || document.body).getBoundingClientRect();
-      y = Math.max(contNow.top + PAD, Math.min(y, contNow.bottom - PAD - MENU_H));
+      const contNow =
+        (scrollEl || document.body).getBoundingClientRect();
+      y = Math.max(
+        contNow.top + PAD,
+        Math.min(y, contNow.bottom - PAD - MENU_H)
+      );
 
       setMenuPos({ x, y });
     };
@@ -120,10 +182,19 @@ export default function MessageMobile({
     };
   }, [menuOpen, mine]);
 
-  const archivos = useMemo(() => (Array.isArray(msg?.archivos) ? msg.archivos : []), [msg]);
+  const archivos = useMemo(() => {
+    if (Array.isArray(msg?.archivos)) return msg.archivos;
+    if (msg?.archivo) return [msg.archivo];
+    if (msg?.attachments) return msg.attachments;
+    return [];
+  }, [msg]);
+
   const time = useMemo(() => {
     const d = new Date(msg?.createdAt || msg?.fecha || Date.now());
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   }, [msg]);
 
   const escapeHTML = (s) =>
@@ -134,24 +205,22 @@ export default function MessageMobile({
       .replace(/\"/g, "&quot;")
       .replace(/'/g, "&#39;");
 
-
   const isEmojiOnly = (text) => {
-  if (!text) return false;
-  // Remove spaces, ZWJ, variation selectors, and skin tones
-  const stripped = String(text)
-    .replace(/\s+/g, '')
-    .replace(/\u200D/g, '')           // ZWJ
-    .replace(/[\uFE0E\uFE0F]/g, '')   // variation selectors
-    .replace(/[\u{1F3FB}-\u{1F3FF}]/gu, ''); // skin tones
-  if (!stripped) return false;
+    if (!text) return false;
+    const stripped = String(text)
+      .replace(/\s+/g, "")
+      .replace(/\u200D/g, "")
+      .replace(/[\uFE0E\uFE0F]/g, "")
+      .replace(/[\u{1F3FB}-\u{1F3FF}]/gu, "");
+    if (!stripped) return false;
 
-  // Consider emoji-only if the string consists solely of pictographs
-  // and/or FLAG sequences built from pairs of Regional Indicator symbols.
-  const RI = "\\p{Regional_Indicator}";
-  const pattern = new RegExp(`^(?:\\p{Extended_Pictographic}+|${RI}{2})+$`, 'u');
-  return pattern.test(stripped);
-};
-
+    const RI = "\\p{Regional_Indicator}";
+    const pattern = new RegExp(
+      `^(?:\\p{Extended_Pictographic}+|${RI}{2})+$`,
+      "u"
+    );
+    return pattern.test(stripped);
+  };
 
   const html = useMemo(() => {
     const safe = escapeHTML(String(msg?.texto || ""));
@@ -169,20 +238,36 @@ export default function MessageMobile({
 
   const startLongPress = () => {
     clearTimeout(holdTimer.current);
-    holdTimer.current = setTimeout(() => setMenuOpen(true), LONG_PRESS_MS);
+    holdTimer.current = setTimeout(
+      () => setMenuOpen(true),
+      LONG_PRESS_MS
+    );
   };
   const cancelLongPress = () => clearTimeout(holdTimer.current);
 
   const doPin = () => {
     setMenuOpen(false);
+    setMenuPos(null);
     onTogglePin?.(msg._id, !pinned);
   };
 
   return (
     <div className={`flex ${mine ? "justify-end" : "justify-start"} px-1`}>
       <div
-        className={`max-w-[82%] relative rounded-2xl ${emojiOnly ? "bg-transparent border-0 shadow-none px-0 py-0" : "px-3 py-2 shadow-sm border"}
-        ${mine ? (emojiOnly ? "" : "bg-blue-600 text-white border-blue-600") : (emojiOnly ? "" : "bg-white dark:bg-zinc-800 dark:text-gray-100 dark:border-zinc-700")}
+        className={`max-w-[82%] relative rounded-2xl ${
+          emojiOnly
+            ? "bg-transparent border-0 shadow-none px-0 py-0"
+            : "px-3 py-2 shadow-sm border"
+        }
+        ${
+          mine
+            ? emojiOnly
+              ? ""
+              : "bg-blue-600 text-white border-blue-600"
+            : emojiOnly
+            ? ""
+            : "bg-white dark:bg-zinc-800 dark:text-gray-100 dark:border-zinc-700"
+        }
         ${pinned ? "ring-2 ring-amber-300" : ""}`}
         onTouchStart={startLongPress}
         onTouchEnd={cancelLongPress}
@@ -190,92 +275,154 @@ export default function MessageMobile({
         onMouseDown={startLongPress}
         onMouseUp={cancelLongPress}
         onMouseLeave={cancelLongPress}
-        onContextMenu={(e) => { e.preventDefault(); setMenuOpen(true); }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setMenuOpen(true);
+        }}
       >
         <div ref={bubbleRef} className="relative">
-
-          {/* Preview de respuesta (seguro, sin IIFE) */}
-          {/* Preview de respuesta (mejor contraste) */}
-          {msg?.replyTo ? (
+          {msg?.replyTo?.texto && (
             <div
-              className={`mb-2 rounded-lg px-2 py-1 max-w-[260px] border-l-4 ${mine
-                  ? "bg-white/10 border-white/40"         // <-- en mis mensajes: fondo translúcido claro
-                  : "bg-gray-50 border-gray-300"          // <-- en recibidos: igual que antes
-                }`}
+              className={`mb-2 rounded-lg px-2 py-1 text-xs ${
+                mine ? "bg-blue-500/25 text-white/80" : "bg-black/5 text-gray-700 dark:bg-white/5 dark:text-gray-200"
+              }`}
             >
-              <div
-                className={`text-[11px] font-semibold ${mine ? "text-white/90" : "text-gray-800"
-                  }`}
-              >
-                {String((msg.replyTo.autor && (msg.replyTo.autor._id || msg.replyTo.autor.id || msg.replyTo.autor)) || "") === String(myId)
-                  ? "Tú"
-                  : ((msg.replyTo.autor && (msg.replyTo.autor.nombre || msg.replyTo.autor.name)) || "Mensaje")}
-              </div>
-
-              {/* 2 líneas máximo, sin plugin line-clamp */}
-              <div
-                className={`text-[11px] ${mine ? "text-white/85" : "text-gray-700"}`}
-                style={{
-                  display: "-webkit-box",
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: "vertical",
-                  overflow: "hidden",
-                }}
-              >
-                {msg.replyTo.texto || msg.replyTo.preview || "…"}
-              </div>
+              <div className="truncate">{escapeHTML(msg.replyTo.texto)}</div>
             </div>
-          ) : null}
-
+          )}
 
           {!!msg?.texto && (
             <div
-              className={`text-[15px] leading-snug ${mine ? "text-white" : "text-gray-800 dark:text-gray-100"} emoji-text ${emojiOnly ? "emoji-only" : ""}`}
+              className={`text-[15px] leading-snug ${
+                mine ? "text-white" : "text-gray-800 dark:text-gray-100"
+              } emoji-text ${emojiOnly ? "emoji-only" : ""}`}
               dangerouslySetInnerHTML={{ __html: html }}
             />
           )}
 
           {archivos.length > 0 && (
             <div className="mt-2 grid grid-cols-2 gap-2">
-              {archivos.map((a, i) => (
-                <a
-                  key={i}
-                  href={a.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block rounded-lg overflow-hidden border dark:border-zinc-700 bg-black/5"
-                >
-                  {a.isImage ? (
-                    <img src={a.thumbUrl || a.url} alt={a.name || "img"} className="w-full h-28 object-cover" />
-                  ) : (
-                    <div className="p-3 text-xs">{a.name || a.url}</div>
-                  )}
-                </a>
-              ))}
+              {archivos.map((a, i) => {
+                const isImg = isProbablyImage(a);
+                if (isImg) {
+                  const thumb = getBestUrl(a);
+                  const full = getFullUrl(a);
+                  return (
+                    <div
+                      key={i}
+                      className="block rounded-lg overflow-hidden border dark:border-zinc-700 bg-black/5 cursor-pointer"
+                      onClick={() => full && setFullscreenImg(full)}
+                      title={a.name || a.filename || a.originalName || ""}
+                    >
+                      {thumb ? (
+                        <img
+                          src={thumb}
+                          alt={a.name || a.filename || "img"}
+                          className="w-full h-28 object-cover"
+                          loading="lazy"
+                          draggable="false"
+                        />
+                      ) : (
+                        <div className="p-3 text-xs">{a.name || a.filename || "imagen"}</div>
+                      )}
+                    </div>
+                  );
+                }
+                // No imagen: archivo genérico, mantener link a nueva pestaña
+                const href = getFullUrl(a);
+                return (
+                  <a
+                    key={i}
+                    href={href || "#"}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block p-3 text-xs rounded-lg border dark:border-zinc-700"
+                  >
+                    {a.name || a.filename || a.originalName || href || "archivo"}
+                  </a>
+                );
+              })}
             </div>
           )}
 
-          {menuOpen && (
+          {fullscreenImg && (
+            <div
+              className="fixed inset-0 bg-black/90 flex items-center justify-center z-50"
+              onClick={() => setFullscreenImg(null)}
+            >
+              <img
+                src={fullscreenImg}
+                alt="full"
+                className="max-w-[95%] max-h-[95%] object-contain"
+                draggable="false"
+              />
+            </div>
+          )}
+
+          {/* FIX: Renderizar menú solo cuando tenemos coordenadas calculadas */}
+          {menuOpen && menuPos && (
             <div
               ref={menuRef}
               className="fixed z-50 w-32 max-w-[92vw] rounded-xl border bg-white dark:bg-zinc-900 dark:border-zinc-700 shadow-xl overflow-hidden"
               style={{ left: menuPos.x, top: menuPos.y }}
               onClick={(e) => e.stopPropagation()}
             >
-              <MenuItem icon="/icons/icon-responder.png" label="Responder" onClick={() => { setMenuOpen(false); onReply?.(msg); }} />
-              <MenuItem icon="/icons/icon-reenviar.png" label="Reenviar" onClick={(e) => { setMenuOpen(false); onForward?.(e); }} />
-              <MenuItem icon="/icons/icon-favorito.png" label={pinned ? "Desfijar" : "Fijar"} onClick={doPin} />
+              <MenuItem
+                icon="/icons/icon-responder.png"
+                label="Responder"
+                onClick={() => {
+                  setMenuOpen(false);
+                  setMenuPos(null);
+                  onReply?.(msg);
+                }}
+              />
+              <MenuItem
+                icon="/icons/icon-reenviar.png"
+                label="Reenviar"
+                onClick={(e) => {
+                  setMenuOpen(false);
+                  setMenuPos(null);
+                  onForward?.(e);
+                }}
+              />
+              <MenuItem
+                icon="/icons/icon-favorito.png"
+                label={pinned ? "Desfijar" : "Fijar"}
+                onClick={doPin}
+              />
               {mine && (
                 <>
-                  <MenuItem icon="/icons/icon-editar.png" label="Editar" onClick={() => { setMenuOpen(false); onEdit?.(msg); }} />
-                  <MenuItem icon="/icons/icon-borrar.png" label="Borrar" onClick={() => { setMenuOpen(false); onDelete?.(msg); }} />
+                  <MenuItem
+                    icon="/icons/icon-editar.png"
+                    label="Editar"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setMenuPos(null);
+                      onEdit?.(msg);
+                    }}
+                  />
+                  <MenuItem
+                    icon="/icons/icon-borrar.png"
+                    label="Borrar"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setMenuPos(null);
+                      onDelete?.(msg);
+                    }}
+                  />
                 </>
               )}
             </div>
           )}
         </div>
 
-        <div className={`mt-1 text-[11px] ${mine ? "text-white/80" : "text-gray-500 dark:text-gray-400"} flex items-center gap-1`}>
+        <div
+          className={`mt-1 text-[11px] ${
+            mine
+              ? "text-white/80"
+              : "text-gray-500 dark:text-gray-400"
+          } flex items-center gap-1`}
+        >
           {pinned && <span title="Fijado">📌</span>}
           <span>{time}</span>
         </div>
@@ -290,7 +437,14 @@ function MenuItem({ icon, label, onClick }) {
       className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-zinc-800"
       onClick={onClick}
     >
-      {icon && <img src={icon} alt="" className="w-4 h-4 object-contain shrink-0" draggable="false" />}
+      {icon && (
+        <img
+          src={icon}
+          alt=""
+          className="w-4 h-4 object-contain shrink-0"
+          draggable="false"
+        />
+      )}
       <span className="truncate">{label}</span>
     </button>
   );
