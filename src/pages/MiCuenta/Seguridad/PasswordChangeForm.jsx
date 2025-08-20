@@ -1,15 +1,57 @@
 import { useState } from "react";
+import { getJSON } from "../../../services/api";
+import { useAuth } from "../../../context/AuthContext";
 
 export default function PasswordChangeForm({ onSubmit }) {
+  const { autenticado } = useAuth() || {};
   const [form, setForm] = useState({ actual: "", nueva: "", confirmar: "" });
   const [show, setShow] = useState({ a: false, n: false, c: false });
+  const [loading, setLoading] = useState(false);
+  const [ok, setOk] = useState(false);
+  const [error, setError] = useState("");
 
-  const handle = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+  const handle = (e) => {
+    setOk(false);
+    setError("");
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault();
-    if (form.nueva !== form.confirmar) return alert("Las contraseñas no coinciden");
-    onSubmit?.(form);
+    setOk(false);
+    setError("");
+
+    if (!autenticado) {
+      setError("Inicia sesión para cambiar tu contraseña.");
+      return;
+    }
+    if (!form.actual || !form.nueva) {
+      setError("Completa los campos requeridos.");
+      return;
+    }
+    if (form.nueva !== form.confirmar) {
+      setError("Las contraseñas no coinciden.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Endpoint esperado: PATCH /api/usuarios/password  -> { ok: true }
+      await getJSON("/api/usuarios/password", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actual: form.actual, nueva: form.nueva }),
+        credentials: "include",
+      });
+
+      setOk(true);
+      setForm({ actual: "", nueva: "", confirmar: "" });
+      onSubmit?.({ ...form });
+    } catch (e) {
+      setError(e?.message || "No se pudo cambiar la contraseña.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const Input = ({ name, label, type, showKey }) => (
@@ -21,7 +63,8 @@ export default function PasswordChangeForm({ onSubmit }) {
           type={show[showKey] ? "text" : type}
           value={form[name]}
           onChange={handle}
-          className="w-full px-3 py-2 rounded-lg border bg-white dark:bg-zinc-900 dark:border-zinc-700 pr-10"
+          className="w-full px-3 py-2 rounded-lg border bg-white dark:bg-zinc-900 dark:border-zinc-700 pr-14"
+          autoComplete="new-password"
         />
         <button
           type="button"
@@ -39,9 +82,20 @@ export default function PasswordChangeForm({ onSubmit }) {
       <Input name="actual" label="Contraseña actual" type="password" showKey="a" />
       <Input name="nueva" label="Nueva contraseña" type="password" showKey="n" />
       <Input name="confirmar" label="Confirmar nueva contraseña" type="password" showKey="c" />
+
+      {error ? (
+        <div className="text-xs text-red-600 dark:text-red-400">{error}</div>
+      ) : null}
+      {ok ? (
+        <div className="text-xs text-green-600 dark:text-green-400">Contraseña actualizada correctamente.</div>
+      ) : null}
+
       <div className="pt-2">
-        <button className="text-sm px-3 py-2 rounded-xl bg-gray-900 text-white hover:bg-black">
-          Cambiar contraseña
+        <button
+          disabled={loading}
+          className="text-sm px-3 py-2 rounded-xl bg-gray-900 text-white hover:bg-black disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {loading ? "Guardando..." : "Cambiar contraseña"}
         </button>
       </div>
     </form>

@@ -1,34 +1,35 @@
 import { useState, useEffect } from "react";
+import { useAuth } from "../../../context/AuthContext";
 
 /**
  * Formulario de datos personales. Permite editar y enviar:
  * { nombre, telefono, direccion }
  * onSubmit(values) -> Promise(usuarioActualizado | {usuario})
+ * Si no se pasa onSubmit, usa actualizarPerfil del AuthContext.
  */
 const PERFIL_DRAFT_KEY = "perfilDraft";
 
 export default function PerfilDatosForm({ initial = {}, onSubmit }) {
-  const [form, setForm] = useState({
-    nombre: initial?.nombre ?? "",
-    telefono: initial?.telefono ?? "",
-    direccion: initial?.direccion ?? "",
+  const { usuario, actualizarPerfil } = useAuth() || {};
+
+  const computeInitial = () => ({
+    nombre: (initial?.nombre ?? usuario?.nombre) ?? "",
+    telefono: (initial?.telefono ?? usuario?.telefono) ?? "",
+    direccion: (initial?.direccion ?? usuario?.direccion) ?? "",
   });
+
+  const [form, setForm] = useState(computeInitial());
   const [saving, setSaving] = useState(false);
   const [ok, setOk] = useState(false);
   const [err, setErr] = useState("");
 
-  // Sincroniza el formulario cuando cambian los props "initial" (p.ej. tras guardar o hidratar sesión)
+  // Sincroniza el formulario cuando cambian initial o usuario (p.ej. tras hidratar sesión)
   useEffect(() => {
-    let next = {
-      nombre: initial?.nombre ?? "",
-      telefono: initial?.telefono ?? "",
-      direccion: initial?.direccion ?? "",
-    };
+    let next = computeInitial();
     try {
       const raw = localStorage.getItem(PERFIL_DRAFT_KEY);
       if (raw) {
         const draft = JSON.parse(raw);
-        // Solo usa el borrador si tiene contenido útil (evita sobreescribir con vacíos)
         const hasUseful =
           draft &&
           typeof draft === "object" &&
@@ -41,7 +42,8 @@ export default function PerfilDatosForm({ initial = {}, onSubmit }) {
     setForm(next);
     setOk(false);
     setErr("");
-  }, [initial?.nombre, initial?.telefono, initial?.direccion]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initial?.nombre, initial?.telefono, initial?.direccion, usuario?.nombre, usuario?.telefono, usuario?.direccion]);
 
   const handle = (e) => {
     const next = { ...form, [e.target.name]: e.target.value };
@@ -59,7 +61,10 @@ export default function PerfilDatosForm({ initial = {}, onSubmit }) {
     setOk(false);
     try {
       setSaving(true);
-      const result = await onSubmit?.(form);
+      const saver = onSubmit || actualizarPerfil;
+      if (!saver) throw new Error("No hay handler para guardar.");
+      const result = await saver(form);
+
       // Normaliza respuesta del backend/contexto
       const u = (result && (result.usuario || result)) || {};
       const updated = {

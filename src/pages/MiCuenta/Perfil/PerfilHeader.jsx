@@ -4,8 +4,11 @@ import { useState } from "react";
 /**
  * Muestra encabezado de perfil y permite actualizar la foto y el nombre.
  * Recibe:
- *  - user: { nombre, correo, plan, verificado, avatarUrl }
- *  - onUpdate: async (partial) => guarda en backend (e.g., { avatarUrl } o { fotoPerfil })
+ *  - user: { nombre, correo, plan, verificado, fotoPerfil }
+ *  - onUpdate: async (partial) => guarda en backend (e.g., { nombre })
+ *
+ * Optimización de avatar:
+ *  - Redimensiona y comprime a ~512px (máx) y calidad 0.82 antes de subir.
  */
 export default function PerfilHeader({ user = {}, onUpdate }) {
   const {
@@ -16,23 +19,52 @@ export default function PerfilHeader({ user = {}, onUpdate }) {
     fotoPerfil = "",
   } = user;
 
-  const [savingAvatar, setSavingAvatar] = useState(false);
   const [editing, setEditing] = useState(false);
   const [nameDraft, setNameDraft] = useState(nombre);
   const [savingName, setSavingName] = useState(false);
+  const [savingAvatar, setSavingAvatar] = useState(false);
 
-  const handleAvatar = async (file) => {
-    if (!file) return;
-    const toBase64 = (f) => new Promise((res, rej) => {
-      const fr = new FileReader();
-      fr.onload = () => res(String(fr.result));
-      fr.onerror = rej;
-      fr.readAsDataURL(f);
+  // Utilidad para redimensionar/compactar imágenes en el navegador
+  const resizeImage = (file, maxSize = 512, quality = 0.82) =>
+    new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height) {
+          if (width > maxSize) {
+            height = Math.round(height * (maxSize / width));
+            width = maxSize;
+          }
+        } else {
+          if (height > maxSize) {
+            width = Math.round(width * (maxSize / height));
+            height = maxSize;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) return reject(new Error("No se pudo optimizar la imagen."));
+            resolve(blob);
+          },
+          "image/jpeg",
+          quality
+        );
+      };
+      img.onerror = () => reject(new Error("No se pudo cargar la imagen seleccionada."));
+      img.src = URL.createObjectURL(file);
     });
+
+  // `beforeUpload` se ejecuta dentro de AvatarUploader antes de subir
+  const beforeUpload = async (file) => {
+    setSavingAvatar(true);
     try {
-      setSavingAvatar(true);
-      const b64 = await toBase64(file);
-      await onUpdate?.({ fotoPerfil: b64 });
+      const optimized = await resizeImage(file);
+      return optimized;
     } finally {
       setSavingAvatar(false);
     }
@@ -55,7 +87,11 @@ export default function PerfilHeader({ user = {}, onUpdate }) {
   return (
     <div className="flex items-center gap-4">
       <div className="relative">
-        <AvatarUploader initialUrl={fotoPerfil} onChange={handleAvatar} />
+        <AvatarUploader
+          initialUrl={fotoPerfil}
+          beforeUpload={beforeUpload}
+          onChange={() => {}}
+        />
         {(savingAvatar || savingName) && (
           <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[11px] text-gray-500">
             Guardando…
