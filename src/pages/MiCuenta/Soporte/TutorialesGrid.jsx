@@ -35,7 +35,7 @@ export default function TutorialesGrid({ items = []}) {
  return (
  <div>
  <div className="font-semibold mb-2">Tutoriales</div>
- {error ? <div className="text-xs text-red-600 dark:text-red-400 mb-2">{error}</div> : null}
+ {error ? <div className="text-xs text-red-600 mb-2">{error}</div> : null}
  {!list.length ? (
  <div className="text-sm text-gray-500">Aún no hay tutoriales.</div>
  ) : (
@@ -43,7 +43,7 @@ export default function TutorialesGrid({ items = []}) {
  {list.map((t) => (
  <div key={t.id || t._id} className="rounded-lg border border-gray-200 dark:border-zinc-800 p-3">
  <div className="text-sm font-medium line-clamp-1">{t.titulo || t.title ||"Tutorial"}</div>
- <div className="text-xs text-gray-500 dark:text-gray-400">
+ <div className="text-xs text-gray-500">
  Duración: {t.duracion || t.duration ||"—"}
  </div>
  <button

@@ -54,7 +54,7 @@ export default function ParticipacionesRifasSubastas({ items = [] }) {
  if (error) {
  return (
  <div className="space-y-2">
- <div className="text-sm text-red-600 dark:text-red-400">{error}</div>
+ <div className="text-sm text-red-600">{error}</div>
  <button
  className="text-xs px-3 py-1.5 rounded-xl border hover:bg-gray-50 "
  onClick={() => {
@@ -84,13 +84,13 @@ export default function ParticipacionesRifasSubastas({ items = [] }) {
  const estado = x.estado || x.status || "—";
  const badgeClass =
  estado.toLowerCase() === "activa"
- ? "bg-green-100 text-green-700 dark:text-green-300"
- : "bg-gray-100 text-gray-700 dark:text-gray-300";
+ ? "bg-green-100 text-green-700"
+ : "bg-gray-100 text-gray-700";
  return (
  <li key={id} className="py-2 flex items-center justify-between">
  <div className="text-sm">
  <span className="font-medium">{titulo}</span>
- <span className="text-xs text-gray-500 dark:text-gray-400"> · {tipo}</span>
+ <span className="text-xs text-gray-500"> · {tipo}</span>
  </div>
  <span className={`text-xs px-2 py-1 rounded-full ${badgeClass}`}>{estado}</span>
  </li>

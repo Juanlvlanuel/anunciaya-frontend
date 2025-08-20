@@ -29,16 +29,16 @@ export default function VerificacionCorreoStatus({ verificado = false, onReenvia
  <div className="rounded-xl border border-gray-200 dark:border-zinc-800 p-4 bg-white">
  <div className="font-semibold mb-2">Estado del correo</div>
  {verificado ? (
- <div className="text-sm text-green-700 dark:text-green-300">
+ <div className="text-sm text-green-700">
  Tu correo está verificado. ¡Todo en orden!
  </div>
  ) : (
  <div className="space-y-2">
- <div className="text-sm text-amber-700 dark:text-amber-300">
+ <div className="text-sm text-amber-700">
  Aún no has verificado tu correo.
  </div>
- {msg ? <div className="text-xs text-green-700 dark:text-green-400">{msg}</div> : null}
- {err ? <div className="text-xs text-red-600 dark:text-red-400">{err}</div> : null}
+ {msg ? <div className="text-xs text-green-700">{msg}</div> : null}
+ {err ? <div className="text-xs text-red-600">{err}</div> : null}
  <button
  onClick={resend}
  disabled={loading}

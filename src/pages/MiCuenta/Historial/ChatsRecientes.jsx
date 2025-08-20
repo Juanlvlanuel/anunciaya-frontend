@@ -56,7 +56,7 @@ export default function ChatsRecientes({ chats = [] }) {
  if (error) {
  return (
  <div className="space-y-2">
- <div className="text-sm text-red-600 dark:text-red-400">{error}</div>
+ <div className="text-sm text-red-600">{error}</div>
  <button
  className="text-xs px-3 py-1.5 rounded-xl border hover:bg-gray-50 "
  onClick={() => {
@@ -83,7 +83,7 @@ export default function ChatsRecientes({ chats = [] }) {
  {items.map((c) => (
  <li key={c.id || c._id} className="py-2">
  <div className="text-sm font-medium">{c.nombre || c.title || "Chat"}</div>
- <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1">
+ <div className="text-xs text-gray-500 line-clamp-1">
  {c.ultimo || c.preview || "—"}
  </div>
  </li>

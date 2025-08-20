@@ -60,14 +60,14 @@ export default function UpgradeComparativa() {
   return (
     <div>
       <div className="font-semibold mb-2">Mejorar mi plan</div>
-      {error ? <div className="text-xs text-red-600 dark:text-red-400 mb-2">{error}</div> : null}
+      {error ? <div className="text-xs text-red-600 mb-2">{error}</div> : null}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {(loading ? plans : plans).map((p) => {
           const isActive = current && (current === p.key || current === p.nombre || current === p.title);
           return (
             <div key={p.key || p.nombre} className={`rounded-xl border p-4 ${isActive ? "border-blue-400 dark:border-blue-700" : "border-gray-200 dark:border-zinc-800"}`}>
               <div className="text-sm font-semibold">{p.nombre}</div>
-              <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">{p.desc}</div>
+              <div className="text-xs text-gray-500 mb-2">{p.desc}</div>
               <div className="text-lg font-bold mb-3">{p.precio}</div>
               {Array.isArray(p.features) && p.features.length ? (
                 <ul className="text-sm list-disc pl-5 space-y-1 mb-3">

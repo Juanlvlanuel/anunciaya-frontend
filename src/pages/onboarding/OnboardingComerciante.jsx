@@ -55,7 +55,7 @@ export default function OnboardingComerciante() {
  <div className="flex items-center justify-between p-3 rounded-xl border border-gray-200 dark:border-zinc-800">
  <div className="flex items-center gap-3">
  <span className={`inline-flex h-5 w-5 rounded-full items-center justify-center text-[10px] font-semibold
- ${done ?"bg-green-600 text-white" :"bg-gray-200 text-gray-700 dark:text-zinc-300"}`}>
+ ${done ?"bg-green-600 text-white" :"bg-gray-200 text-gray-700"}`}>
  {done ?"✓" :"•"}
  </span>
  <span className="text-sm">{label}</span>
@@ -77,7 +77,7 @@ export default function OnboardingComerciante() {
  <div className="p-6">
  <h1 className="text-xl font-semibold mb-2">Configura tu cuenta de Comerciante</h1>
 
- {error ? <div className="text-xs text-red-600 dark:text-red-400 mb-2">{error}</div> : null}
+ {error ? <div className="text-xs text-red-600 mb-2">{error}</div> : null}
  {loading ? <div className="text-sm text-gray-500 animate-pulse mb-3">Comprobando tu progreso…</div> : null}
 
  <div className="mt-3 space-y-2">
@@ -87,7 +87,7 @@ export default function OnboardingComerciante() {
  </div>
 
  {(status.negocio && status.pago && status.anuncio) ? (
- <div className="mt-4 text-sm text-green-700 dark:text-green-400">
+ <div className="mt-4 text-sm text-green-700">
  ¡Listo! Tu onboarding de comerciante está completo.
  </div>
  ) : null}

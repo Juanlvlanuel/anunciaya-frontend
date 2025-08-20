@@ -162,8 +162,8 @@ export default function MiCuenta() {
                       onClick={() => setActive(t.key)}
                       className={`relative z-10 inline-flex items-center gap-2 px-3 sm:px-4 py-2 text-sm rounded-xl transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400
  ${isActive
-                          ? "text-gray-900 dark:text-zinc-100 bg-white shadow-sm border border-gray-200 dark:border-zinc-700"
-                          : "text-gray-600 dark:text-zinc-300 hover:text-gray-900 hover:bg-white/70 dark:hover:bg-zinc-800/70"
+                          ? "text-gray-900 bg-white shadow-sm border border-gray-200 dark:border-zinc-700"
+                          : "text-gray-600 hover:text-gray-900 hover:bg-white/70 dark:hover:bg-zinc-800/70"
                         }`}
                     >
                       {t.label}

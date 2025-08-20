@@ -57,7 +57,7 @@ export default function SessionsList({ onSignOutAll}) {
  if (error) {
  return (
  <div className="space-y-3">
- <div className="text-sm text-red-600 dark:text-red-400">{error}</div>
+ <div className="text-sm text-red-600">{error}</div>
  <button
  onClick={fetchSessions}
  className="text-sm px-3 py-1.5 rounded-xl border hover:bg-gray-50">
@@ -80,12 +80,12 @@ export default function SessionsList({ onSignOutAll}) {
  <div className="font-medium flex items-center gap-2">
  <span>{s.device ||"Dispositivo"}</span>
  {s.current ? (
- <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 dark:text-blue-300 dark:border-blue-900/40">
+ <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 dark:border-blue-900/40">
  Actual
  </span>
  ) : null}
  </div>
- <div className="text-gray-500 dark:text-gray-400">
+ <div className="text-gray-500">
  IP {s.ip ||"—"} — {s.last ||"—"}
  </div>
  </div>

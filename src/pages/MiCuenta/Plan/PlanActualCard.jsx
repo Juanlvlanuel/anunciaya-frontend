@@ -57,15 +57,15 @@ export default function PlanActualCard({ plan }) {
  return (
  <div>
  <div className="font-semibold mb-2">Mi plan actual</div>
- {error ? <div className="text-xs text-red-600 dark:text-red-400 mb-2">{error}</div> : null}
+ {error ? <div className="text-xs text-red-600 mb-2">{error}</div> : null}
  <div className="rounded-xl border border-gray-200 dark:border-zinc-800 p-4 flex items-center justify-between">
  <div>
  <div className="text-sm font-semibold">
  {loading ? "Cargando…" : (current.nombre || "—")}
  </div>
- <div className="text-xs text-gray-500 dark:text-gray-400">Vigencia: {current.vence || "—"}</div>
+ <div className="text-xs text-gray-500">Vigencia: {current.vence || "—"}</div>
  </div>
- <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700 dark:text-green-300">
+ <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700">
  {current.estado || "—"}
  </span>
  </div>

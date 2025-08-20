@@ -161,7 +161,7 @@ export default function AvatarUploader({ initialUrl ="", onChange, beforeUpload}
  </button>
 
  {error ? (
- <div className="absolute left-0 right-0 mt-5 text-[11px] text-red-600 dark:text-red-400">{error}</div>
+ <div className="absolute left-0 right-0 mt-5 text-[11px] text-red-600">{error}</div>
  ) : null}
 
  <input

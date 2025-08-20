@@ -54,7 +54,7 @@ export default function ComprasHistorial({ items = [] }) {
  if (error) {
  return (
  <div className="space-y-2">
- <div className="text-sm text-red-600 dark:text-red-400">{error}</div>
+ <div className="text-sm text-red-600">{error}</div>
  <button
  className="text-xs px-3 py-1.5 rounded-xl border hover:bg-gray-50 "
  onClick={() => {
@@ -81,7 +81,7 @@ export default function ComprasHistorial({ items = [] }) {
  <li key={o.id || o._id} className="py-3 flex items-center justify-between">
  <div>
  <div className="text-sm font-medium">{o.titulo || o.title || "Compra"}</div>
- <div className="text-xs text-gray-500 dark:text-gray-400">
+ <div className="text-xs text-gray-500">
  {(o.id || o._id) || "—"} · {o.fecha || o.createdAt || "—"}
  </div>
  </div>

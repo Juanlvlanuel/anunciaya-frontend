@@ -128,7 +128,7 @@ export default function PerfilDatosForm({ initial = {}, onSubmit }) {
 function Field({ label, children }) {
   return (
     <label className="block">
-      <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{label}</div>
+      <div className="text-xs font-medium text-gray-500 mb-1">{label}</div>
       {children}
     </label>
   );

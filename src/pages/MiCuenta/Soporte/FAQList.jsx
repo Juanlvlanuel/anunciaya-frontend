@@ -37,7 +37,7 @@ export default function FAQList({ items = [] }) {
     <div>
       <div className="font-semibold mb-2">Preguntas frecuentes</div>
       {error ? (
-        <div className="text-xs text-red-600 dark:text-red-400 mb-2">{error}</div>
+        <div className="text-xs text-red-600 mb-2">{error}</div>
       ) : null}
       {!list.length ? (
         <div className="text-sm text-gray-500">Aún no hay preguntas frecuentes.</div>
@@ -46,7 +46,7 @@ export default function FAQList({ items = [] }) {
           {list.map((f, i) => (
             <li key={f.id || i} className="py-2">
               <div className="text-sm font-medium">{f.q || f.pregunta || "—"}</div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">{f.a || f.respuesta || "—"}</div>
+              <div className="text-xs text-gray-500">{f.a || f.respuesta || "—"}</div>
             </li>
           ))}
         </ul>

@@ -76,7 +76,7 @@ export default function EstadisticasCards({ data }) {
  if (error) {
  return (
  <div className="space-y-2">
- <div className="text-sm text-red-600 dark:text-red-400">{error}</div>
+ <div className="text-sm text-red-600">{error}</div>
  <button
  className="text-xs px-3 py-1.5 rounded-xl border hover:bg-gray-50 "
  onClick={() => {
@@ -97,7 +97,7 @@ export default function EstadisticasCards({ data }) {
  <div className="grid grid-cols-3 gap-3">
  {stats.map((s) => (
  <div key={s.k} className="rounded-lg border border-gray-200 dark:border-zinc-800 p-3 text-center">
- <div className="text-xs text-gray-500 dark:text-gray-400">{s.k}</div>
+ <div className="text-xs text-gray-500">{s.k}</div>
  <div className="text-lg font-semibold">{s.v}</div>
  </div>
  ))}

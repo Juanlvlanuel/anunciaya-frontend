@@ -66,7 +66,7 @@ export default function NotifChannels({ initial }) {
  return (
  <div>
  <div className="font-semibold mb-2">Canales</div>
- {error ? <div className="text-xs text-red-600 dark:text-red-400 mb-2">{error}</div> : null}
+ {error ? <div className="text-xs text-red-600 mb-2">{error}</div> : null}
  <div className="divide-y divide-gray-200 dark:divide-zinc-800">
  <Toggle k="email" label="Correo electrónico" />
  <Toggle k="push" label="Notificaciones push" />

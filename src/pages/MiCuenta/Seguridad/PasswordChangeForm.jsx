@@ -47,7 +47,7 @@ export default function PasswordChangeForm({ onSubmit}) {
 
  const Input = ({ name, label, type, showKey}) => (
  <label className="block">
- <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{label}</div>
+ <div className="text-xs font-medium text-gray-500 mb-1">{label}</div>
  <div className="relative">
  <input
  name={name}
@@ -74,10 +74,10 @@ export default function PasswordChangeForm({ onSubmit}) {
  <Input name="confirmar" label="Confirmar nueva contraseña" type="password" showKey="c" />
 
  {error ? (
- <div className="text-xs text-red-600 dark:text-red-400">{error}</div>
+ <div className="text-xs text-red-600">{error}</div>
  ) : null}
  {ok ? (
- <div className="text-xs text-green-600 dark:text-green-400">Contraseña actualizada correctamente.</div>
+ <div className="text-xs text-green-600">Contraseña actualizada correctamente.</div>
  ) : null}
 
  <div className="pt-2">

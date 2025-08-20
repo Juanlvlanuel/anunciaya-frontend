@@ -74,7 +74,7 @@ export default function NotifPreferences({ initial }) {
  return (
  <div>
  <div className="font-semibold mb-2">Preferencias</div>
- {error ? <div className="text-xs text-red-600 dark:text-red-400 mb-2">{error}</div> : null}
+ {error ? <div className="text-xs text-red-600 mb-2">{error}</div> : null}
  <div className="divide-y divide-gray-200 dark:divide-zinc-800">
  <Toggle k="promos" label="Promociones y ofertas" />
  <Toggle k="chat" label="Mensajes del chat" />

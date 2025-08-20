@@ -54,7 +54,7 @@ export default function PagosHistorial({ items = [] }) {
  if (error) {
  return (
  <div className="space-y-2">
- <div className="text-sm text-red-600 dark:text-red-400">{error}</div>
+ <div className="text-sm text-red-600">{error}</div>
  <button
  className="text-xs px-3 py-1.5 rounded-xl border hover:bg-gray-50 "
  onClick={() => {

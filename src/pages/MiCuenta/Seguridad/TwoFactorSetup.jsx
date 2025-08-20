@@ -28,7 +28,7 @@ export default function TwoFactorSetup({ enabled = false, onToggle}) {
 
  return (
  <div className="space-y-2">
- <div className="text-sm text-gray-600 dark:text-gray-300">
+ <div className="text-sm text-gray-600">
  Usa una app autenticadora (Authy, Google Authenticator) para generar códigos.
  </div>
  <button
@@ -36,7 +36,7 @@ export default function TwoFactorSetup({ enabled = false, onToggle}) {
  onClick={toggle}
  className={`text-sm px-3 py-2 rounded-xl border ${
  on
- ?"bg-green-50 text-green-700 border-green-200 dark:text-green-300 dark:border-green-900/40"
+ ?"bg-green-50 text-green-700 border-green-200 dark:border-green-900/40"
  :"hover:bg-gray-50"}`}>
  {on ?"2FA activado" :"Activar 2FA"}
  </button>

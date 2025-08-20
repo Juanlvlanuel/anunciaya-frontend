@@ -58,7 +58,7 @@ export default function PromocionesActivas({ items = [] }) {
  if (error) {
  return (
  <div className="space-y-2">
- <div className="text-sm text-red-600 dark:text-red-400">{error}</div>
+ <div className="text-sm text-red-600">{error}</div>
  <button
  className="text-xs px-3 py-1.5 rounded-xl border hover:bg-gray-50 "
  onClick={() => {
@@ -85,7 +85,7 @@ export default function PromocionesActivas({ items = [] }) {
  <div key={p.id || p._id} className="rounded-lg border border-gray-200 dark:border-zinc-800 p-3 flex items-center justify-between">
  <div className="text-sm">
  <div className="font-medium">{p.titulo || p.title || "—"}</div>
- <div className="text-xs text-gray-500 dark:text-gray-400">Alcance: {p.alcance ?? p.reach ?? "—"}</div>
+ <div className="text-xs text-gray-500">Alcance: {p.alcance ?? p.reach ?? "—"}</div>
  </div>
  <button
  className="text-xs px-3 py-1.5 rounded-xl border hover:bg-gray-50 "

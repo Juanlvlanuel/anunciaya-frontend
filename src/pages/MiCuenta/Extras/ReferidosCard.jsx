@@ -23,7 +23,7 @@ export default function ReferidosCard({ onInvite }) {
   return (
     <div className="rounded-xl border border-gray-200 dark:border-zinc-800 p-4">
       <div className="font-semibold mb-2">Invita a tus amigos</div>
-      <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
+      <p className="text-sm text-gray-600 mb-3">
         Comparte tu enlace y gana beneficios cuando se registren.
       </p>
 
@@ -43,7 +43,7 @@ export default function ReferidosCard({ onInvite }) {
       </div>
 
       {copied ? (
-        <div className="text-xs text-green-600 dark:text-green-400">¡Enlace copiado!</div>
+        <div className="text-xs text-green-600">¡Enlace copiado!</div>
       ) : null}
     </div>
   );

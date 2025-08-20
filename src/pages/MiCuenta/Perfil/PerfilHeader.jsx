@@ -96,13 +96,13 @@ export default function PerfilHeader({ user = {}, onUpdate}) {
  if (e.key ==="Escape") { setNameDraft(nombre); setEditing(false);}}}
  />
  )}
- <div className="text-sm text-gray-500 dark:text-gray-400">{correo}</div>
+ <div className="text-sm text-gray-500">{correo}</div>
  <div className="mt-1 flex items-center gap-2">
- <span className="text-xs px-2 py-1 inline-flex rounded-full bg-blue-100 text-blue-700 dark:text-blue-300">
+ <span className="text-xs px-2 py-1 inline-flex rounded-full bg-blue-100 text-blue-700">
  {plan}
  </span>
  <span className={`text-xs px-2 py-1 inline-flex rounded-full
- ${verificado ?"bg-green-100 text-green-700 dark:text-green-300" :"bg-amber-100 text-amber-700 dark:text-amber-300"}`}>
+ ${verificado ?"bg-green-100 text-green-700" :"bg-amber-100 text-amber-700"}`}>
  {verificado ?"Correo verificado" :"Verificación pendiente"}
  </span>
  </div>

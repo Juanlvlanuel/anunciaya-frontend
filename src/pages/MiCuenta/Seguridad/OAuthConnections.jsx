@@ -60,7 +60,7 @@ export default function OAuthConnections({
         onClick={() => toggle(provider)}
         className={`text-xs px-3 py-1.5 rounded-xl border ${
           linked[provider]
-            ? "bg-green-50 text-green-700 border-green-200 dark:text-green-300 dark:border-green-900/40"
+            ? "bg-green-50 text-green-700 border-green-200 dark:border-green-900/40"
             : "hover:bg-gray-50"
         }`}
       >
