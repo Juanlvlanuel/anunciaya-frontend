@@ -1,4 +1,3 @@
-
 // GoogleLoginButtonMobile-1.jsx
 // FastUX + FIX local: usa ruta relativa /api/usuarios/auth/google (proxy Vite) + withCredentials:true
 import React, { useContext, useEffect, useMemo, useState, lazy, Suspense } from "react";
@@ -6,6 +5,14 @@ import axios from "axios";
 import Swal from "sweetalert2";
 import { AuthContext } from "../../context/AuthContext";
 import { setAuthSession } from "../../utils/authStorage";
+import { API_BASE } from "../../services/api";
+// BASE de API seguro (evita ReferenceError si API_BASE no está disponible)
+const __API_BASE__ = (typeof API_BASE !== "undefined" && API_BASE)
+  ? String(API_BASE).replace(/\/+$/, "")
+  : (typeof import.meta !== "undefined" && import.meta.env && (import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL))
+      ? String(import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL).trim().replace(/\/+$/, "")
+      : "https://anunciaya-backend-production.up.railway.app";
+
 
 // 👉 Lazy-load del botón de Google
 const GoogleLoginCmp = lazy(() =>
@@ -111,7 +118,7 @@ const GoogleLoginButtonMobile = ({
       }
 
       // ✅ Ruta relativa (proxy Vite) + cookies
-      const res = await axios.post(`/api/usuarios/auth/google`, body, {
+      const res = await axios.post(`${__API_BASE__}/api/usuarios/auth/google`, body, {
         withCredentials: true,
         headers: { "Content-Type": "application/json" },
       });
