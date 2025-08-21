@@ -20,6 +20,7 @@ const Rifas = lazy(() => import("./pages/Rifas"));
 const RegalaODona = lazy(() => import("./pages/RegalaODona"));
 const Empleos = lazy(() => import("./pages/Empleos"));
 const MiCuenta = lazy(() => import("./pages/MiCuenta"));
+const VerificarCorreo = lazy(() => import("./pages/VerificarCorreo"));
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const GoogleCallback = lazy(() => import("./pages/GoogleCallback"));
@@ -84,6 +85,8 @@ const AppRoutes = ({ abrirModalLogin, abrirModalRegistro }) => (
       />
 
       {/* Extras */}
+      <Route path="/verificar-email" element={<VerificarCorreo />} />
+
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/auth/google/callback" element={<GoogleCallback />} />
 

@@ -1,36 +1,87 @@
-import React, { useState, useRef, useContext, useEffect } from "react";
-import HeaderNoLogeadoDesktop from "../HeaderNoLogeado/HeaderNoLogeadoDesktop";
+import React, { useState, useRef, useEffect, useContext } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import HeaderNoLogeado from "../HeaderNoLogeado";
 import RegistroModal from "../../modals/RegistroModal";
 import PerfilModal from "../../modals/PerfilModal";
-import LoginModal from "../../modals/LoginModal";
-import Footer from "../Footer";
+import CarrouselCategorias from "../CarrouselCategorias";
 import { motion, AnimatePresence } from "framer-motion";
+import { UbiContext } from "../../context/UbiContext"; // Ajusta la ruta si es diferente
 import { AuthContext } from "../../context/AuthContext";
-import { UbiContext } from "../../context/UbiContext";
+import { getSuppressLoginOnce, clearSuppressLoginOnce } from "../../utils/authStorage";
 
 const limpiarEstadoRegistro = () => {
   localStorage.removeItem("tipoCuentaIntentada");
   localStorage.removeItem("perfilCuentaIntentada");
 };
 
-const HomeNoLogeadoDesktop = () => {
-  const { autenticado } = useContext(AuthContext);
-
+const HomeNoLogeadoMobile = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  // Estados y handlers necesarios
   const [mostrarModalLogin, setMostrarModalLogin] = useState(false);
+  const [allowLoginOpen, setAllowLoginOpen] = useState(true);
+  const [suppressAutoLogin, setSuppressAutoLogin] = useState(false);
   const [mostrarModalRegistro, setMostrarModalRegistro] = useState(false);
   const [mostrarSeleccionPerfilModal, setMostrarSeleccionPerfilModal] = useState(false);
   const [tipoSeleccionado, setTipoSeleccionado] = useState(null);
   const [perfilSeleccionado, setPerfilSeleccionado] = useState(null);
-
-  // Tooltip y borde animado
   const [contornoBienvenida, setContornoBienvenida] = useState(false);
+  const [resaltarBienvenida, setResaltarBienvenida] = useState(false);
   const [mostrarTooltip, setMostrarTooltip] = useState(false);
-
-  // Vibración al hacer click en un icono
   const bienvenidaRef = useRef(null);
 
-  // Nuevo: solo animar la primera vez
-  const [yaMostrado, setYaMostrado] = useState(false);
+  // Lógica para esconder el footer según scroll
+  const [showFooter, setShowFooter] = useState(true);
+
+  
+  // ⛔ Supresión fuerte: si venimos de logout o si nos mandaron showLogin:false,
+  // limpia el history state y evita que el LoginModal se reabra después.
+  
+  // Abrir login sólo si fue solicitado explícitamente y no está suprimido
+  useEffect(() => {
+    const st = (location && location.state) ? location.state : {};
+    const shouldOpen = st?.showLogin === true && allowLoginOpen && !suppressAutoLogin;
+    if (!shouldOpen) return;
+    setMostrarModalLogin(true);
+  }, [location?.state, allowLoginOpen, suppressAutoLogin]);
+
+  useEffect(() => {
+    try {
+      const once = getSuppressLoginOnce() ? "1" : null;
+      const st = (location && location.state) ? location.state : {};
+      if (once === "1" || st?.showLogin === false) {
+        // limpiar bandera y state
+        try { clearSuppressLoginOnce(); } catch {}
+        setSuppressAutoLogin(true);
+        setAllowLoginOpen(false);
+        // reemplaza la entrada de historia para quitar cualquier showLogin
+        try { navigate(location.pathname, { replace: true, state: {} }); } catch {}
+        const to = setTimeout(() => { setAllowLoginOpen(true); setSuppressAutoLogin(false); }, 1400);
+        return () => clearTimeout(to);
+      }
+    } catch {}
+  }, [location?.key]);
+
+  useEffect(() => {
+    let lastScroll = window.scrollY;
+    const handleScroll = () => {
+      const currentScroll = window.scrollY;
+      if (currentScroll > lastScroll && currentScroll > 60) {
+        setShowFooter(false); // Scroll abajo: ocultar
+      } else {
+        setShowFooter(true); // Scroll arriba: mostrar
+      }
+      lastScroll = currentScroll;
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const boxVariants = {
+    hidden: { opacity: 0, y: 30, scale: 0.98 },
+    visible: { opacity: 1, y: 0, scale: 1 },
+    exit: { opacity: 0, y: -30, scale: 0.96, transition: { duration: 0.25 } },
+  };
 
   const handleSeleccionTipo = (tipo) => {
     limpiarEstadoRegistro();
@@ -67,6 +118,7 @@ const HomeNoLogeadoDesktop = () => {
   };
 
   const handleAbrirModalLogin = () => {
+    if (!allowLoginOpen) return;
     setMostrarModalLogin(true);
     setMostrarModalRegistro(false);
     setMostrarSeleccionPerfilModal(false);
@@ -75,254 +127,248 @@ const HomeNoLogeadoDesktop = () => {
     limpiarEstadoRegistro();
   };
 
-  // --- Carousel Hover/Click callbacks
-  const handleCarouselHover = () => {
+  const handleHoverBienvenida = () => {
     setContornoBienvenida(true);
     setMostrarTooltip(true);
   };
-
-  const handleCarouselLeave = () => {
+  const handleLeaveBienvenida = () => {
     setContornoBienvenida(false);
     setMostrarTooltip(false);
   };
-
-  const handleCarouselClick = () => {
+  const handleClickBienvenida = () => {
+    setResaltarBienvenida(true);
     if (bienvenidaRef.current) {
-      bienvenidaRef.current.classList.remove("animate-vibrate");
-      void bienvenidaRef.current.offsetWidth; // force reflow
-      bienvenidaRef.current.classList.add("animate-vibrate");
-      setTimeout(() => {
-        if (bienvenidaRef.current) {
-          bienvenidaRef.current.classList.remove("animate-vibrate");
-        }
-      }, 450);
+      bienvenidaRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
     }
-    setContornoBienvenida(true);
-    setMostrarTooltip(true);
+    setTimeout(() => setResaltarBienvenida(false), 800);
   };
 
-  // El recuadro de bienvenida solo aparece si NO hay modal abierto
-  const mostrarBienvenida = !mostrarModalRegistro && !mostrarSeleccionPerfilModal && !mostrarModalLogin;
+  const ubiCtx = useContext(UbiContext) || {};
+  const authCtx = useContext(AuthContext) || {};
+  const ubicacion = (authCtx && authCtx.ubicacion) || (ubiCtx && ubiCtx.ubicacion) || null;
+  const solicitarUbicacionAltaPrecision = authCtx && authCtx.solicitarUbicacionAltaPrecision;
+  const ciudad = ubicacion?.ciudad || "";
 
-  // --- SOLO FADE IN LA PRIMERA VEZ
+  /* pedir ubicacion al montar */
   useEffect(() => {
-    if (mostrarBienvenida && !yaMostrado) setYaMostrado(true);
-  }, [mostrarBienvenida, yaMostrado]);
-
-  const { ubicacion } = useContext(UbiContext);
-  const ciudad = ubicacion?.ciudad;
+    const hasCity = !!(ciudad && ciudad.trim());
+    if (!hasCity && typeof solicitarUbicacionAltaPrecision === "function") {
+      solicitarUbicacionAltaPrecision().catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div
       className="
-        min-h-screen flex flex-col
-        bg-[url('/src/assets/fondo-inicio-desktop.jpg')]
+        min-h-[100dvh] flex flex-col pb-[calc(env(safe-area-inset-bottom,0px))]
+        bg-[url('/src/assets/fondo-inicio-mobile.jpg')]
         bg-cover
-        bg-[position:center]
+        bg-[position:70%_top]
       "
     >
-      <HeaderNoLogeadoDesktop
-        onHoverAnyIcon={handleCarouselHover}
-        onLeaveAnyIcon={handleCarouselLeave}
-        onClickAnyIcon={handleCarouselClick}
-        autenticado={autenticado}
+      <HeaderNoLogeado
         onOpenModal={handleAbrirModalLogin}
+        onHoverBienvenida={handleHoverBienvenida}
+        onLeaveBienvenida={handleLeaveBienvenida}
+        onClickBienvenida={handleClickBienvenida}
       />
 
+      {/* 1. Caja ÚNETE a la plataforma */}
+      <motion.div
+        className="w-full flex justify-center mt-8 mb-5"
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 1.2 }}
+      >
+        <div className="
+          bg-white/50
+          rounded-[1.2rem]
+          px-7 py-4
+          pt-1 pb-0
+          shadow-[0_10px_44px_0_rgba(80,130,250,0.13)]
+          text-center max-w-[360px] w-full mx-2
+          border border-white/60
+          backdrop-blur-[9px]
+        ">
+          <span className="block text-[18px] font-semibold text-gray-900 drop-shadow-sm leading-[1.3]">
+            <span>
+                Únete a la Plataforma más Completa<br />para Crecer en
+                <br />
+                <span className="font-bold text-[25px] text-blue-900">
+                  {ciudad && ciudad.trim() ? ciudad : "tu Ciudad"}
+                </span>
+              </span>
+          </span>
+        </div>
+      </motion.div>
+
       <main className="
-        flex-1 flex flex-row
+        flex-1 flex flex-col
         items-center
         justify-center
         w-full
-        mt-32 lg:mt-40
-      ">
-        {mostrarTooltip && (
-          <div className="fixed left-[62px] top-[23%] -translate-x-[1/2 ]z-50">
-            <div className="relative">
-              <div className="bg-blue-800 text-white text-lg px-6 py-2 rounded-xl shadow-xl font-semibold select-none text-center"
-                style={{ minWidth: "340px", fontSize: "16px" }}>
-                <span className="flex items-center gap-2 justify-center">
-                  <svg width="18" height="18" fill="none" viewBox="0 0 24 24">
-                    <path fill="#fff" d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 13a1 1 0 110 2 1 1 0 010-2zm1-7v5a1 1 0 11-2 0V8a1 1 0 112 0z" />
-                  </svg>
-                  <span>Inicia Sesión o Regístrate para Acceder a esta Sección</span>
-                </span>
-              </div>
-              <div className="absolute left-1/2 -bottom-2 -translate-x-1/2 w-3 h-3 bg-blue-800 rotate-45"></div>
-            </div>
-          </div>
-        )}
-
+        mt-15
+      "><samp></samp>
         <div className="
           w-full 
-          max-w-[578px] h-[460px] 
-          ml-0 -mt-[162px] mb-0 py-0
-          flex flex-col justify-start items-center
+          max-w-xs mx-auto 
+          flex flex-col justify-center items-center
         ">
-          {/* Recuadro de bienvenida: solo fade in primera vez */}
-          {mostrarBienvenida && (
-            <motion.div
-              ref={bienvenidaRef}
-              className={`
-    w-[460px] mx-auto
-    bg-white/50
-    rounded-[1.5rem]
-    p-12
-    shadow-[0_10px_44px_0_rgba(80,130,250,0.19)]
-    flex flex-col items-center justify-center
-    h-full
-    gap-3
-    relative
-    transition-all duration-300
-    backdrop-blur-[12px]
-    border border-white/50
-    overflow-hidden
-  `}
-              initial={yaMostrado ? false : { opacity: 0, y: 55 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{
-                duration: yaMostrado ? 0.7 : 1.2,
-                ease: "easeOut"
-              }}
-              style={{
-                minHeight: "360px",
-                height: "100%",
-                boxShadow: "0 10px 44px 0 rgba(80,130,250,0.19), 0 1.5px 14px 0 rgba(80,130,250,0.10)"
-              }}
-            >
-              {/* Pattern fondo ULTRA sutil */}
-              <div
-                className="absolute inset-0 pointer-events-none z-0"
-                style={{
-                  backgroundImage:
-                    "radial-gradient(rgba(80,130,250,0.07) 1.1px, transparent 1.1px), radial-gradient(rgba(44,76,158,0.07) 0.9px, transparent 0.9px)",
-                  backgroundSize: "23px 23px, 37px 37px",
-                  backgroundPosition: "0 0, 10px 8px"
-                }}
-              />
-
-              {/* Título con glow animado */}
-              <motion.h1
-                className="text-6xl font-extrabold text-blue-900 drop-shadow text-center w-full mb-1 z-10"
-                initial={{ textShadow: "0 0px 0px #3b82f6aa" }}
-                animate={{
-                  textShadow: [
-                    "0 0px 0px #3b82f6aa",
-                    "0 4px 32px #3b82f6aa",
-                    "0 1px 0 #ffffffa3",
-                    "0 0px 0px #3b82f6aa"
-                  ]
-                }}
-                transition={{ duration: 0.9, times: [0, 0.25, 0.85, 1] }}
-              >
-                Bienvenido
-              </motion.h1>
-
-              {/* Botón Iniciar Sesión */}
-              <motion.button
-                onClick={handleAbrirModalLogin}
-                className="
-      w-[85%] bg-blue-700 hover:bg-blue-800
-      text-white font-bold text-lg py-4 rounded-xl shadow transition-all duration-100 mb-4
-      hover:shadow-[0_8px_38px_0_rgba(80,130,250,0.14)]
-      hover:scale-[1.03]
-      focus:outline-none focus:ring-2 focus:ring-blue-400
-      relative z-10
-    "
-                whileHover={{
-                  scale: 1.04,
-                  boxShadow: "0 10px 38px 0 rgba(80,130,250,0.22)",
-                  transition: { duration: 0.06 }
-                }}
-                initial={{ opacity: 0, y: 35 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1, duration: 0.00, type: "spring" }}
-              >
-                Iniciar Sesión
-              </motion.button>
-
+          <AnimatePresence>
+            {!mostrarModalRegistro && !mostrarSeleccionPerfilModal && !mostrarModalLogin && (
               <motion.div
-                className="text-2xl font-semibold text-gray-700 text-center mb-2 z-10"
-                initial={{ opacity: 0, y: 35 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5, duration: 0.18 }}
+                ref={bienvenidaRef}
+                className={`
+                  w-[calc(100vw-40px)] mx-[20px]
+                  bg-white/50
+                  rounded-[1.2rem]
+                  p-5 pt-1 pb-2
+                  shadow-[0_7px_32px_0_rgba(80,130,250,0.15)]
+                  flex flex-col items-center justify-center
+                  gap-0.5
+                  relative
+                  transition-all duration-300
+                  backdrop-blur-[20px]
+                  border border-white/50
+                  overflow-hidden
+                `}
+                key="botones"
+                initial={{ x: -90, opacity: 0, scale: 0.98 }}
+                animate={{ x: 0, opacity: 1, scale: 1 }}
+                exit={{ x: -90, opacity: 0, scale: 0.95, transition: { duration: 0.23 } }}
+                style={{ minHeight: "315px" }}
               >
-                ¿No tienes Cuenta?
-              </motion.div>
-
-              <motion.div
-                className="mb-2 text-lg text-gray-800 text-center font-medium z-10"
-                initial={{ opacity: 0, y: 35 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.63, duration: 0.18 }}
-              >
-                Regístrate <span className="text-blue-700 font-bold">GRATIS</span> como
-                <span className="ml-1"> Usuario Básico</span>
-              </motion.div>
-
-              {/* Botones secuenciales */}
-              <div className="flex flex-row gap-4 w-full justify-center mt-1 mb-3">
-                <motion.button
-                  onClick={() => handleSeleccionTipo("usuario")}
-                  className="
-        flex-1 bg-blue-100 hover:bg-blue-200 text-blue-700
-        font-bold py-4 px-8 rounded-xl shadow transition-all duration-100 text-lg
-        hover:scale-[1.03]
-        hover:shadow-[0_4px_22px_0_rgba(80,130,250,0.14)]
-        relative z-10
-      "
-                  initial={{ opacity: 0, y: 35 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1, duration: 0.0, type: "spring" }}
-                  whileHover={{
-                    boxShadow: "0 10px 34px 0 rgba(80,130,250,0.17)",
-                    scale: 1.04,
-                    transition: { duration: 0.06 }
+                {/* Pattern fondo ULTRA sutil */}
+                <div
+                  className="absolute inset-0 pointer-events-none z-0"
+                  style={{
+                    backgroundImage:
+                      "radial-gradient(rgba(80,130,250,0.08) 1px, transparent 1px), radial-gradient(rgba(44,76,158,0.07) 0.7px, transparent 0.7px)",
+                    backgroundSize: "17px 17px, 29px 29px",
+                    backgroundPosition: "0 0, 7px 9px"
                   }}
-                >
-                  Usuario
-                </motion.button>
-                <motion.button
-                  onClick={() => handleSeleccionTipo("comerciante")}
-                  className="
-        flex-1 bg-green-100 hover:bg-green-200 text-green-700
-        font-bold py-4 px-8 rounded-xl shadow transition-all duration-100 text-lg
-        hover:scale-[1.03]
-        hover:shadow-[0_4px_22px_0_rgba(5,150,105,0.13)]
-        relative z-10
-      "
-                  initial={{ opacity: 0, y: 35 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1, duration: 0, type: "spring" }}
-                  whileHover={{
-                    boxShadow: "0 10px 34px 0 rgba(5,150,105,0.13)",
-                    scale: 1.04,
-                    transition: { duration: 0.06 }
+                />
+
+                {/* Título con micro-glow */}
+                <motion.h1
+                  className="text-[34px] font-extrabold text-blue-900 drop-shadow text-center w-full mb-1 z-10"
+                  initial={{ textShadow: "0 0px 0px #3b82f6aa" }}
+                  animate={{
+                    textShadow: [
+                      "0 0px 0px #3b82f6aa",
+                      "0 2.5px 16px #3b82f6aa",
+                      "0 1px 0 #ffffffa3",
+                      "0 0px 0px #3b82f6aa"
+                    ]
                   }}
+                  transition={{ duration: 0.9, times: [0, 0.3, 0.82, 1] }}
                 >
-                  Comerciante
+                  Bienvenido
+                </motion.h1>
+
+                {/* Botón Iniciar Sesión */}
+                <motion.button
+                  data-open-login onClick={() => { try { window.openLogin && window.openLogin(); } catch (e) {} }}
+                  className="
+                    w-full bg-blue-700 hover:bg-blue-800
+                    text-white font-bold text-base py-3 rounded-xl shadow transition-all duration-100 mb-2
+                    hover:shadow-[0_7px_32px_0_rgba(80,130,250,0.16)]
+                    hover:scale-[1.03]
+                    focus:outline-none focus:ring-2 focus:ring-blue-400
+                    relative z-10
+                  "
+                  whileHover={{
+                    scale: 1.04,
+                    boxShadow: "0 9px 32px 0 rgba(80,130,250,0.20)",
+                    transition: { duration: 0.11 }
+                  }}
+                  initial={{ opacity: 0, y: 27 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.18, duration: 0.18, type: "spring" }}
+                >
+                  Iniciar Sesión
                 </motion.button>
-              </div>
 
-              <motion.div
-                className="text-[18px] text-gray-600 text-center w-full mt-1 tracking-wide z-10"
-                initial={{ opacity: 0, y: 28 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1.22, duration: 0.18 }}
-              >
-                *Descubre <span className="font-bold text-black">Usuario PRO</span> <br />
-                y <span className="font-bold text-black">Planes Premium</span> para Comerciantes.
+                <motion.div
+                  className="text-lg font-semibold text-gray-700 text-center mb-1 z-10"
+                  initial={{ opacity: 0, y: 23 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.29, duration: 0.14 }}
+                >
+                  ¿No tienes Cuenta?
+                </motion.div>
+
+                <motion.div
+                  className="mb-2 text-base text-gray-800 text-center font-medium z-10"
+                  initial={{ opacity: 0, y: 23 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.38, duration: 0.14 }}
+                >
+                  Regístrate <span className="text-blue-700 font-bold">GRATIS</span>
+                  <br />
+                  como Usuario Básico
+                </motion.div>
+
+                {/* Botones tipo secuenciales */}
+                <div className="flex flex-row gap-3 w-full justify-center mt-1 mb-2">
+                  <motion.button
+                    onClick={() => handleSeleccionTipo("usuario")}
+                    className="
+                      flex-1 bg-blue-100 hover:bg-blue-200 text-blue-700
+                      font-bold py-3 px-2 rounded-xl shadow transition-all duration-100 text-base
+                      hover:scale-[1.03]
+                      hover:shadow-[0_3px_14px_0_rgba(80,130,250,0.11)]
+                      relative z-10
+                    "
+                    initial={{ opacity: 0, y: 23 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.49, duration: 0.13, type: "spring" }}
+                    whileHover={{
+                      boxShadow: "0 8px 28px 0 rgba(80,130,250,0.13)",
+                      scale: 1.04,
+                      transition: { duration: 0.09 }
+                    }}
+                  >
+                    Usuario
+                  </motion.button>
+                  <motion.button
+                    onClick={() => handleSeleccionTipo("comerciante")}
+                    className="
+                      flex-1 bg-green-100 hover:bg-green-200 text-green-700
+                      font-bold py-3 px-2 rounded-xl shadow transition-all duration-100 text-base
+                      hover:scale-[1.03]
+                      hover:shadow-[0_3px_14px_0_rgba(5,150,105,0.13)]
+                      relative z-10
+                    "
+                    initial={{ opacity: 0, y: 23 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.58, duration: 0.13, type: "spring" }}
+                    whileHover={{
+                      boxShadow: "0 8px 28px 0 rgba(5,150,105,0.13)",
+                      scale: 1.04,
+                      transition: { duration: 0.09 }
+                    }}
+                  >
+                    Comerciante
+                  </motion.button>
+                </div>
+
+                <motion.div
+                  className="text-[15px] text-gray-600 text-center w-full mt-1 tracking-wide z-10"
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.70, duration: 0.13 }}
+                >
+                  *Descubre <span className="font-bold text-black">Usuario PRO</span>
+                  <br />
+                  y <span className="font-bold text-black">Planes Premium</span> para Comerciantes.
+                </motion.div>
               </motion.div>
-            </motion.div>
+            )}
+          </AnimatePresence>
 
 
-          )}
-
-          <LoginModal
-            isOpen={mostrarModalLogin}
-            onClose={() => setMostrarModalLogin(false)}
-            isLogin={true}
-          />
           <RegistroModal
             isOpen={mostrarModalRegistro}
             onClose={handleCerrarRegistro}
@@ -340,68 +386,21 @@ const HomeNoLogeadoDesktop = () => {
         <div className="flex-1"></div>
       </main>
 
-      <AnimatePresence>
-  {/* Solo renderiza la caja cuando ubicacion.ciudad ya es null o string */}
-  {typeof ubicacion?.ciudad !== "undefined" && (
-    <motion.div
-      className="
-        flex fixed right-[100px] translate-x-1/2 bottom-28 z-40
-        max-w-[700px]
-        bg-white/50 rounded-[1.5rem]
-        px-10 py-6
-        shadow-[0_10px_44px_0_rgba(80,130,250,0.19)]
-        justify-center items-center text-center
-        backdrop-blur-[10px] select-none
-        border border-white/50
-        transition-all
-      "
-      initial={{ opacity: 0, x: 100 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: 120 }}
-      transition={{ duration: 1.1, delay: 0.18 }}
-    >
-      <span className="block text-3xl font-bold text-gray-900 drop-shadow-sm leading-snug text-center">
-        Únete a la Plataforma más Completa para{" "}
-        <motion.span
-          className="font-black text-4xl text-blue-800 inline-block ml-1 underline underline-offset-2"
-          key={ubicacion.ciudad || "default"}
-          initial={{ opacity: 0, x: 22 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: 30 }}
-          transition={{ duration: 0.54 }}
-        >
-          {ubicacion.ciudad
-            ? `Crecer en ${ubicacion.ciudad}`
-            : "Crecer en tu Ciudad"}
-        </motion.span>
-      </span>
-    </motion.div>
-  )}
-</AnimatePresence>
-
-
-
-
-      <Footer />
-
-      {/* Animación vibración con Tailwind extendido */}
-      <style>
-        {`
-          @keyframes vibrate {
-            0% { transform: translateX(0); }
-            20% { transform: translateX(-3px); }
-            40% { transform: translateX(3px); }
-            60% { transform: translateX(-2px); }
-            80% { transform: translateX(2px); }
-            100% { transform: translateX(0); }
-          }
-          .animate-vibrate {
-            animation: vibrate 0.35s linear;
-          }
+      {/* Carrousel fijo */}
+      <motion.div
+        className={`
+          w-full fixed bottom-0 left-0 z-40 flex justify-center pointer-events-none
+          transition-transform duration-500
+          ${showFooter ? "translate-y-0 opacity-100" : "translate-y-28 opacity-0"}
         `}
-      </style>
+        style={{ willChange: "transform, opacity" }}
+      >
+        <div className="pointer-events-auto">
+          <CarrouselCategorias />
+        </div>
+      </motion.div>
     </div>
   );
 };
 
-export default HomeNoLogeadoDesktop;
+export default HomeNoLogeadoMobile;

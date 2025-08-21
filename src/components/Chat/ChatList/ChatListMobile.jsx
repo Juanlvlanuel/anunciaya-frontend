@@ -57,7 +57,7 @@ export default function ChatListMobile({ onSelectChat }) {
   const loadMoreRef = useRef(null);
   const ioRef = useRef(null);
 
-  useEffect(() => { loadChats?.(); }, [loadChats]);
+  useEffect(() => { if (getToken()) { loadChats?.(); } }, [loadChats]);
 
   const myId = String(currentUserId || ((getAuthSession && getAuthSession())?.user?._id) || "");
   const hasSetChats = typeof setChats === "function";
@@ -152,6 +152,7 @@ export default function ChatListMobile({ onSelectChat }) {
   const prefetched = useRef(new Set());
   const prefetch = (id) => {
     if (!id || prefetched.current.has(id)) return;
+    if (!getToken()) return;
     prefetched.current.add(id);
     loadMessages(id, { background: true });
   };

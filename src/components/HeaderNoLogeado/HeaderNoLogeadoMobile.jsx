@@ -5,7 +5,7 @@ import { AuthContext } from "../../context/AuthContext";
 import LoginModal from "../../modals/LoginModal";
 
 const HeaderNoLogeadoMobile = () => {
-  const { autenticado } = useContext(AuthContext);
+  const { autenticado, ubicacion, solicitarUbicacionAltaPrecision } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const [tipoCuenta, setTipoCuenta] = useState(null);
@@ -19,6 +19,15 @@ const HeaderNoLogeadoMobile = () => {
     setLogoPressed(true);
     setTimeout(() => setLogoPressed(false), 170);
   };
+  // Pide ubicación de alta precisión al montar si no la tenemos aún
+  React.useEffect(() => {
+    const hasCity = !!(ubicacion && ubicacion.ciudad);
+    if (!hasCity && typeof solicitarUbicacionAltaPrecision === "function") {
+      solicitarUbicacionAltaPrecision().catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   return (
     <>

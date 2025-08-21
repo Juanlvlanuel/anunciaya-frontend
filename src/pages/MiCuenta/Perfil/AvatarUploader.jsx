@@ -1,4 +1,3 @@
-
 import { useRef, useState, useEffect, useMemo} from"react";
 import { useAuth} from"../../../context/AuthContext";
 import { API_BASE} from"../../../services/api";
@@ -7,6 +6,7 @@ import { API_BASE} from"../../../services/api";
  * AvatarUploader (persistente) + Lightbox
  * - Conserva toda tu lógica original.
  * - Añade visor en grande al tocar la imagen.
+ * - [v1 fix] Cierra al hacer clic fuera de la imagen (overlay), pero NO al hacer clic en la imagen.
  */
 export default function AvatarUploader({ initialUrl ="", onChange, beforeUpload}) {
  const inputRef = useRef(null);
@@ -176,23 +176,28 @@ export default function AvatarUploader({ initialUrl ="", onChange, beforeUpload}
  {/* Lightbox modal */}
  {showModal && (
  <div className="fixed inset-0 z-[300]">
- <div
- className="absolute inset-0 bg-black/80 backdrop-blur-sm"
- onClick={() => setShowModal(false)}
- />
- <div className="absolute inset-0 flex items-center justify-center p-4">
- <img
- src={fullSrc || preview}
- alt="Avatar"
- className="max-w-[96vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
- />
- <button
- aria-label="Cerrar"
- className="absolute top-3 right-3 rounded-full bg-white/90 hover:bg-white p-2 shadow"
- onClick={() => setShowModal(false)}>
- <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
- </button>
- </div>
+   {/* Overlay: cierra al hacer clic */}
+   <div
+     className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+     onClick={() => setShowModal(false)}
+   />
+   {/* Contenedor central: bloquea propagación para no cerrar al hacer clic en la imagen */}
+   <div className="absolute inset-0 flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
+     <div className="relative" onClick={(e) => e.stopPropagation()}>
+       <img
+         src={fullSrc || preview}
+         alt="Avatar"
+         className="max-w-[96vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+       />
+       <button
+         aria-label="Cerrar"
+         className="absolute top-3 right-3 rounded-full bg-white/90 hover:bg-white p-2 shadow"
+         onClick={() => setShowModal(false)}
+       >
+         <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+       </button>
+     </div>
+   </div>
  </div>
  )}
  </div>

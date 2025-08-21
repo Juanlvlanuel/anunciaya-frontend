@@ -7,6 +7,7 @@ import logoChatYA from "../../../assets/logo-chatya.png"; // coloca tu PNG aquí
 import ChatList from "../ChatList/ChatList";
 import ChatWindow from "../ChatWindow/ChatWindowMobile";
 import MessageInput from "../MessageInput/MessageInputMobile";
+import ReactDOM from "react-dom";
 
 export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeight = null }) {
   const { chats, activeChatId, currentUserId, setActiveChatId, loadChats, loadMessages, statusMap, blockChat, unblockChat } = useChat();
@@ -58,10 +59,19 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
 
   useEffect(() => {
     const onDocClick = (e) => {
+      // ⛔️ Importante: si el click ocurre dentro del overlay de la foto de perfil,
+      // no debemos cerrar el chat.
+      const inAvatarOverlay = !!(e.target && e.target.closest?.("[data-avatar-overlay]"));
+      if (inAvatarOverlay) return;
       if (!boxRef.current) return;
       if (!boxRef.current.contains(e.target)) handleClose();
     };
-    const onEsc = (e) => e.key === "Escape" && handleClose();
+    const onEsc = (e) => {
+      // Si hay overlay de avatar abierto, deja que lo maneje el propio overlay.
+      const hasAvatarOverlay = !!document.querySelector("[data-avatar-overlay]");
+      if (hasAvatarOverlay) return;
+      if (e.key === "Escape") handleClose();
+    };
     document.addEventListener("mousedown", onDocClick);
     document.addEventListener("keydown", onEsc);
     const prev = document.body.style.overflow;
@@ -599,8 +609,8 @@ function HeaderBar({
             <FaPalette className="text-gray-700" />
           </button>
           {showBgMenu && (
-            <div className="absolute right-0 mt-2 w-[320px] max-h:[70vh] overflow-auto bg-white border border-zinc-200 rounded-xl shadow-xl p-3 z-30" 
-            style={{ left: -200, right: "auto", maxWidth: "95vw" }}
+            <div className="absolute right-0 mt-2 w-[320px] max-h:[70vh] overflow-auto bg-white border border-zinc-200 rounded-xl shadow-xl p-3 z-30"
+              style={{ left: -200, right: "auto", maxWidth: "95vw" }}
             >
               {customBgs?.length > 0 && (
                 <>
@@ -678,8 +688,6 @@ function HeaderBar({
   );
 }
 
-import ReactDOM from "react-dom";
-
 function Avatar({ nickname = "", fotoPerfil }) {
   const initials = (nickname || "")
     .split(" ")
@@ -720,11 +728,18 @@ function Avatar({ nickname = "", fotoPerfil }) {
 
   const Overlay = open
     ? ReactDOM.createPortal(
-        <div className="fixed inset-0 z-[10000]" data-avatar-overlay onMouseDown={(e)=>e.stopPropagation()} onClick={(e)=>e.stopPropagation()}>
-          <div className="absolute inset-0 bg-black/85 backdrop-blur-sm" onMouseDown={(e)=>{e.stopPropagation();}} onClick={(e)=>{e.stopPropagation(); setOpen(false);}} />
-          <div className="absolute inset-0 flex items-center justify-center" onMouseDown={(e)=>e.stopPropagation()} onClick={(e)=>e.stopPropagation()}>
+      <div className="fixed inset-0 z-[10000]" data-avatar-overlay onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+        {/* Overlay oscuro: cierra al clic */}
+        <div
+          className="absolute inset-0 bg-black/85 backdrop-blur-sm"
+          onClick={() => setOpen(false)}
+          onMouseDown={(e) => e.stopPropagation()}
+        />
+        {/* Contenedor central: bloquea propagación para no cerrar en clic sobre la imagen */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="relative pointer-events-auto">
             {srcFull ? (
-              <img src={srcFull} alt={nickname} className="w-[100vw] h-[100vh] object-contain" />
+              <img src={srcFull} alt={nickname} className="max-w-[96vw] max-h-[90vh] object-contain rounded-lg shadow-2xl" />
             ) : (
               <div className="w-[220px] h-[220px] rounded-full grid place-items-center bg-blue-600 text-white text-6xl font-bold shadow-2xl">
                 {initials || "?"}
@@ -732,27 +747,19 @@ function Avatar({ nickname = "", fotoPerfil }) {
             )}
             <button
               aria-label="Cerrar"
-              className="absolute top-3 right-3 rounded-full bg-white/90 hover:bg-white p-2 shadow"
-              onMouseDown={(e)=>{e.stopPropagation();}} onClick={(e)=>{e.stopPropagation(); setOpen(false);}}
+              className="absolute -top-3 -right-3 h-9 w-9 rounded-full bg-white shadow-lg border border-gray-200 hover:shadow-xl active:scale-95 grid place-items-center"
+              onClick={() => setOpen(false)}
+              title="Cerrar"
             >
-              <svg
-                viewBox="0 0 24 24"
-                width="20"
-                height="20"
-                stroke="currentColor"
-                strokeWidth="2"
-                fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
+              <svg viewBox="0 0 24 24" className="w-5 h-5 text-gray-800" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 6L6 18M6 6l12 12" />
               </svg>
             </button>
           </div>
-        </div>,
-        document.body
-      )
+        </div>
+      </div>,
+      document.body
+    )
     : null;
 
   return (

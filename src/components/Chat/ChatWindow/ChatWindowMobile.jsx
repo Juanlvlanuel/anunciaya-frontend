@@ -164,6 +164,48 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
   const scrollRef = useRef(null);
   const tailRef = useRef(null);
   const prevLenRef = useRef(0);
+  const [isReady, setIsReady] = useState(false);
+  const scrolledOnceRef = useRef(false);
+
+  const isViewReady = useState(false)[0];
+
+  // === Scroll scheduler único ===
+  const scrollJobRef = useRef(null);
+  const scheduleScroll = useCallback((behavior = "auto") => {
+    if (scrollJobRef.current) return;
+    scrollJobRef.current = requestAnimationFrame(() => {
+      try { tailRef.current?.scrollIntoView({ behavior, block: "end" }); }
+      finally { scrollJobRef.current = null; }
+    });
+  }, []);
+
+  const scrollBottomNow = useCallback((behavior = "auto") => {
+    try { tailRef.current?.scrollIntoView({ behavior, block: "end" }); } catch {}
+  }, []);
+
+  // Garantiza scroll al fondo (los llamadores deciden si forzar)
+  const ensureBottom = useCallback((behavior = "auto", { force = false } = {}) => {
+    const el = scrollRef.current;
+    const tail = tailRef.current;
+    if (!el || !tail) return;
+    scheduleScroll(behavior);
+    // Si hay imágenes, agenda un scroll extra al terminar
+    const imgs = Array.from(el.querySelectorAll("img"));
+    let pending = imgs.filter((img) => !img.complete).length;
+    if (pending > 0) {
+      const onDone = () => {
+        pending -= 1;
+        if (pending <= 0) scheduleScroll("auto");
+      };
+      imgs.forEach((img) => {
+        if (!img.complete) {
+          img.addEventListener("load", onDone, { once: true });
+          img.addEventListener("error", onDone, { once: true });
+        }
+      });
+      setTimeout(() => scheduleScroll("auto"), 600);
+    }
+  }, [scheduleScroll]);
 
   const activeChat = useMemo(() => {
     try { return (chats || []).find(c => String(c?._id) === String(activeChatId)) || null; } catch { return null; }
@@ -183,8 +225,9 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
   const pinnedIds = useMemo(() => new Set(pinned.map((m) => String(m._id))), [pinned]);
   const fetchPins = useCallback(async () => {
     if (!activeChatId) return;
+    const token = getToken();
+    if (!token) return; // sin token no dispares llamadas que 401ean
     try {
-      const token = getToken();
       const list = await chatAPI.getPins(activeChatId, token);
       setPinned(Array.isArray(list) ? list : []);
     } catch { setPinned([]); }
@@ -282,7 +325,7 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
       } else {
         const body = { texto: String(newText ?? "") };
         if (removeImage) body.eliminarImagen = true;
-        res = await chatAPI.editMessage(msg.__id, body, token);
+        res = await chatAPI.editMessage(msg._id, body, token);
       }
       try { editMessageLive?.(msg._id, String(newText ?? ""), () => { }); } catch { }
       await loadMessages(activeChatId);
@@ -294,12 +337,40 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
 
   useEffect(() => {
     if (!activeChatId) return;
-    loadMessages(activeChatId);
-    fetchPins();
-    requestAnimationFrame(() => tailRef.current?.scrollIntoView({ behavior: "auto", block: "end" }));
+    setIsReady(false); scrolledOnceRef.current = false;
+    if (getToken()) {
+      loadMessages(activeChatId);
+      fetchPins();
+    }
+    requestAnimationFrame(() => ensureBottom("auto", { force: true }));
+    setTimeout(() => ensureBottom("auto", { force: true }), 80);
     setIsPinnedAtBottom(true);
     prevLenRef.current = (messages[activeChatId] || []).length;
-  }, [activeChatId]);
+  }, [activeChatId, ensureBottom]);
+
+  // Scroll al fondo cuando el contenedor cambia de tamaño o se vuelve visible (re-abrir chat)
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    let first = true;
+    let rafId = null;
+    const ro = new ResizeObserver(() => {
+      if (!el.offsetParent) return; // oculto
+      if (first) {
+        first = false;
+        rafId = requestAnimationFrame(() => scheduleScroll("auto"));
+      }
+    });
+    try { ro.observe(el); } catch {}
+    return () => { try { ro.disconnect(); } catch {}; if (rafId) cancelAnimationFrame(rafId); };
+  }, [activeChatId, scheduleScroll]);
+
+  // Mount-only: al abrir el chat (mismo activeChatId), baja al final forzado
+  useEffect(() => {
+    if (!getToken()) return;
+    requestAnimationFrame(() => ensureBottom("auto", { force: true }));
+    setTimeout(() => ensureBottom("auto", { force: true }), 80);
+  }, []);
 
   const list = useMemo(() => {
     const arr = Array.isArray(messages?.[activeChatId]) ? messages[activeChatId].slice() : [];
@@ -328,18 +399,23 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
   useEffect(() => {
     const prev = prevLenRef.current;
     const curr = list.length;
-    if (curr > prev) {
+    if (!scrolledOnceRef.current) {
+      // Primer pintado de la lista: baja sin animación y habilita vista
+      ensureBottom("auto");
+      scrolledOnceRef.current = true;
+      setTimeout(() => setIsReady(true), 30);
+    } else if (curr > prev) {
       const last = list[curr - 1];
       const lastIsMine =
         last &&
         (String(last?.emisor?._id || last?.emisor || last?.emisorId || "") === String(currentUserId) ||
           last?.mine === true);
-      if (lastIsMine || isPinnedAtBottom || nearBottom(120)) {
-        tailRef.current?.scrollIntoView({ behavior: prev > 0 ? "smooth" : "auto", block: "end" });
+      if (lastIsMine || isPinnedAtBottom || nearBottom(160)) {
+        ensureBottom(prev > 0 ? "smooth" : "auto");
       }
     }
     prevLenRef.current = curr;
-  }, [list, isPinnedAtBottom, nearBottom, currentUserId]);
+  }, [list, isPinnedAtBottom, nearBottom, currentUserId, ensureBottom]);
 
   useEffect(() => {
     if (isPinnedAtBottom) {
@@ -454,7 +530,7 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
       </div>
 
       {!isPinnedAtBottom && (
-        <button onClick={scrollToBottom} className="fixed bottom-[calc(var(--bottom-nav-h)+env(safe-area-inset-bottom)+8px)] right-4 z-20 rounded-full shadow-md border bg-white/95 border-zinc-300 backdrop-blur p-2" aria-label="Ir al último mensaje" title="Ir al último mensaje">
+        <button onClick={scrollToBottom} className="fixed bottom-[calc(var(--bottom-nav-h)+env(safe-area-inset-bottom)+80px)] right-4 z-20 rounded-full shadow-md border bg-white/95 border-zinc-300 backdrop-blur p-2" aria-label="Ir al último mensaje" title="Ir al último mensaje">
           <svg viewBox="0 0 24 24" className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
         </button>
       )}

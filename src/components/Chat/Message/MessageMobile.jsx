@@ -1,27 +1,33 @@
 // MessageMobile-1.jsx
-// Renderiza previews de imágenes dentro del chat (miniatura + fullscreen al clic).
-// Tolerante a distintos formatos de objeto archivo: {url, thumbUrl, fileUrl, ruta, path, location, src, mimeType, contentType, type, name, filename, originalName, isImage}
+// Pegado a la orilla: usa w-fit y ml-auto/mr-auto. Burbujas solo para texto.
+// Mantiene tarjeta de Respuesta moderna, render de imágenes y fullscreen.
+// Mejora: tarjeta de respuesta robusta (detecta replyTo/repliedTo/reply/cita y varios formatos).
 
 import { useMemo, useRef, useState, useEffect } from "react";
 import twemoji from "twemoji";
 import { getAuthSession } from "../../../utils/authStorage";
+import { API_BASE } from "../../../services/api";
 
 const isProbablyImage = (a) => {
   if (!a) return false;
-  // 1) bandera directa
   if (a.isImage === true) return true;
-  // 2) por MIME / contentType
   const mime = String(a.mimeType || a.contentType || a.type || "").toLowerCase();
   if (mime.includes("image/")) return true;
-  // 3) por extensión del nombre
   const name = String(a.name || a.filename || a.originalName || a.url || a.fileUrl || a.path || a.ruta || "").toLowerCase();
   if (name.match(/\.(png|jpe?g|gif|webp|bmp|svg)$/i)) return true;
   return false;
 };
 
+function absUrl(u) {
+  if (!u) return "";
+  const s = String(u);
+  if (/^https?:\/\//i.test(s) || s.startsWith("blob:")) return s;
+  if (s.startsWith("/")) return `${API_BASE}${s}`.replace(/([^:]\/)\/+/g, "$1");
+  return s;
+}
+
 const getBestUrl = (a) => {
-  // Orden de preferencia para la miniatura
-  return (
+  const u =
     a?.thumbUrl ||
     a?.thumbnail ||
     a?.previewUrl ||
@@ -31,13 +37,12 @@ const getBestUrl = (a) => {
     a?.src ||
     a?.ruta ||
     a?.path ||
-    ""
-  );
+    "";
+  return absUrl(u);
 };
 
 const getFullUrl = (a) => {
-  // Orden de preferencia para el fullscreen
-  return (
+  const u =
     a?.url ||
     a?.fileUrl ||
     a?.src ||
@@ -47,9 +52,30 @@ const getFullUrl = (a) => {
     a?.thumbUrl ||
     a?.thumbnail ||
     a?.previewUrl ||
-    ""
-  );
+    "";
+  return absUrl(u);
 };
+
+function normalizeReply(rt) {
+  if (!rt) return null;
+  // Accept string id or object in different keys
+  const raw = typeof rt === "string" ? { _id: rt } : rt;
+  const id = raw._id || raw.id || null;
+  const autorObj = raw.autor || raw.author || raw.emisor || null;
+  const autor =
+    (autorObj && (autorObj.nickname || autorObj.nombre || autorObj.name)) ||
+    raw.autorNombre ||
+    raw.authorName ||
+    null;
+  // text
+  const texto = raw.texto || raw.preview || raw.extracto || raw.text || "";
+  // image from common fields or first attachment
+  const img =
+    raw.imagenUrl || raw.imageUrl || raw.thumbUrl || raw.thumbnail ||
+    (Array.isArray(raw.archivos) && raw.archivos.length ? getBestUrl(raw.archivos[0]) : "") ||
+    (Array.isArray(raw.attachments) && raw.attachments.length ? getBestUrl(raw.attachments[0]) : "");
+  return { _id: id, autor, texto, img: img || "" };
+}
 
 export default function MessageMobile({
   msg,
@@ -59,6 +85,7 @@ export default function MessageMobile({
   onForward,
   onDelete,
   onEdit,
+  onJump,
 }) {
   const myId = String(
     (typeof currentUserId !== "undefined" && currentUserId) ||
@@ -68,22 +95,17 @@ export default function MessageMobile({
 
   const senderId = String(
     msg?.emisorId ||
-    (typeof msg?.emisor === "string"
-      ? msg.emisor
-      : (msg?.emisor?._id || ""))
+    (typeof msg?.emisor === "string" ? msg.emisor : (msg?.emisor?._id || ""))
   );
 
-  const mine =
-    msg?.mine === true || (myId && senderId && myId === senderId);
+  const mine = msg?.mine === true || (myId && senderId && myId === senderId);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const holdTimer = useRef(null);
   const menuRef = useRef(null);
   const LONG_PRESS_MS = 360;
   const bubbleRef = useRef(null);
-  // FIX: evitar parpadeo inicial del menú en (0,0)
   const [menuPos, setMenuPos] = useState(null);
-
   const [fullscreenImg, setFullscreenImg] = useState(null);
 
   useEffect(() => {
@@ -103,11 +125,10 @@ export default function MessageMobile({
     };
   }, [menuOpen]);
 
-  // ====== Posicionamiento con límites ======
   useEffect(() => {
     if (!menuOpen) return;
 
-    const MENU_W = 128; // coincide con w-32
+    const MENU_W = 128;
     const MENU_H = 220;
     const PAD = 8;
 
@@ -125,14 +146,9 @@ export default function MessageMobile({
       const contR = (scrollEl || document.body).getBoundingClientRect();
 
       let x = mine ? bubbleR.left - MENU_W - 15 : bubbleR.right + 13;
-      let y = mine
-        ? bubbleR.top - MENU_H + 90
-        : bubbleR.top - MENU_H + 160;
+      let y = mine ? bubbleR.top - MENU_H + 90 : bubbleR.top - MENU_H + 160;
 
-      x = Math.max(
-        contR.left + PAD,
-        Math.min(x, contR.right - PAD - MENU_W)
-      );
+      x = Math.max(contR.left + PAD, Math.min(x, contR.right - PAD - MENU_W));
 
       const ensureInView = () => {
         if (!scrollEl) return;
@@ -144,31 +160,19 @@ export default function MessageMobile({
           let moved = false;
           if (menuTop < contNow.top + PAD) {
             const delta = Math.ceil(contNow.top + PAD - menuTop);
-            scrollEl.scrollTop -= delta;
-            y += delta;
-            moved = true;
+            scrollEl.scrollTop -= delta; y += delta; moved = true;
           }
           if (menuBottom > contNow.bottom - PAD) {
-            const delta = Math.ceil(
-              menuBottom - (contNow.bottom - PAD)
-            );
-            scrollEl.scrollTop += delta;
-            y -= delta;
-            moved = true;
+            const delta = Math.ceil(menuBottom - (contNow.bottom - PAD));
+            scrollEl.scrollTop += delta; y -= delta; moved = true;
           }
-          tries++;
-          if (!moved) break;
+          tries++; if (!moved) break;
         }
       };
       ensureInView();
 
-      const contNow =
-        (scrollEl || document.body).getBoundingClientRect();
-      y = Math.max(
-        contNow.top + PAD,
-        Math.min(y, contNow.bottom - PAD - MENU_H)
-      );
-
+      const contNow = (scrollEl || document.body).getBoundingClientRect();
+      y = Math.max(contNow.top + PAD, Math.min(y, contNow.bottom - PAD - MENU_H));
       setMenuPos({ x, y });
     };
 
@@ -191,10 +195,7 @@ export default function MessageMobile({
 
   const time = useMemo(() => {
     const d = new Date(msg?.createdAt || msg?.fecha || Date.now());
-    return d.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }, [msg]);
 
   const escapeHTML = (s) =>
@@ -215,10 +216,7 @@ export default function MessageMobile({
     if (!stripped) return false;
 
     const RI = "\\p{Regional_Indicator}";
-    const pattern = new RegExp(
-      `^(?:\\p{Extended_Pictographic}+|${RI}{2})+$`,
-      "u"
-    );
+    const pattern = new RegExp(`^(?:\\p{Extended_Pictographic}+|${RI}{2})+$`, "u");
     return pattern.test(stripped);
   };
 
@@ -235,13 +233,16 @@ export default function MessageMobile({
   }, [msg?.texto]);
 
   const emojiOnly = isEmojiOnly(msg?.texto);
+  const showTextBubble = !!msg?.texto && !emojiOnly;
+  const textBubbleClass = showTextBubble
+    ? (mine
+        ? "px-3 py-2 rounded-2xl shadow-sm border bg-blue-600 text-white border-blue-600"
+        : "px-3 py-2 rounded-2xl shadow-sm border bg-white text-gray-800")
+    : "";
 
   const startLongPress = () => {
     clearTimeout(holdTimer.current);
-    holdTimer.current = setTimeout(
-      () => setMenuOpen(true),
-      LONG_PRESS_MS
-    );
+    holdTimer.current = setTimeout(() => setMenuOpen(true), LONG_PRESS_MS);
   };
   const cancelLongPress = () => clearTimeout(holdTimer.current);
 
@@ -251,173 +252,147 @@ export default function MessageMobile({
     onTogglePin?.(msg._id, !pinned);
   };
 
+  // === Nueva: normalizar reply de distintas formas ===
+  const replyRaw = msg?.replyTo || msg?.repliedTo || msg?.reply || msg?.cita || null;
+  const reply = useMemo(() => normalizeReply(replyRaw), [replyRaw]);
+
   return (
-    <div className={`flex ${mine ? "justify-end" : "justify-start"} px-1`}>
+    <div className="px-2">
       <div
-        className={`max-w-[82%] relative rounded-2xl ${emojiOnly
-            ? "bg-transparent border-0 shadow-none px-0 py-0"
-            : "px-3 py-2 shadow-sm border"
-          }
- ${mine
-            ? emojiOnly
-              ? ""
-              : "bg-blue-600 text-white border-blue-600"
-            : emojiOnly
-              ? ""
-              : "bg-white dark:border-zinc-700"
-          }
- ${pinned ? "ring-2 ring-amber-300" : ""}`}
+        className={`relative w-fit ${mine ? "ml-auto" : "mr-auto"} ${pinned ? "ring-2 ring-amber-300 rounded-2xl" : ""}`}
         onTouchStart={startLongPress}
         onTouchEnd={cancelLongPress}
         onTouchMove={cancelLongPress}
         onMouseDown={startLongPress}
         onMouseUp={cancelLongPress}
         onMouseLeave={cancelLongPress}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          setMenuOpen(true);
-        }}
+        onContextMenu={(e) => { e.preventDefault(); setMenuOpen(true); }}
       >
         <div ref={bubbleRef} className="relative">
-          {msg?.replyTo?.texto && (
-            <div
-              className={`mb-2 rounded-lg px-2 py-1 text-xs ${mine ? "bg-blue-500/25 text-white/80" : "bg-black/5 text-gray-700"
-                }`}
-            >
-              <div className="truncate">{escapeHTML(msg.replyTo.texto)}</div>
+          {/* Reply card moderna pegada a la orilla (autor + texto o miniatura) */}
+          {reply && (
+            <div className={`mb-1 ${mine ? "flex justify-end" : "flex justify-start"}`}>
+              <div
+                className={`relative max-w-[88vw] rounded-2xl border ${mine ? "border-blue-200" : "border-zinc-200"} bg-white/95 shadow-[0_6px_20px_rgba(0,0,0,0.06)]`}
+                onClick={() => { if (reply?._id && typeof onJump === "function") onJump(reply._id); }}
+                role={reply?._id ? "button" : undefined}
+              >
+                <div className={`absolute top-0 ${mine ? "left-0" : "right-0"} h-full w-1.5 rounded-tl-2xl rounded-bl-2xl ${mine ? "bg-gradient-to-b from-blue-500 to-blue-400" : "bg-gradient-to-b from-zinc-400 to-zinc-300"}`} />
+                <div className={`pl-3 pr-3 py-2 ${mine ? "ml-1.5" : "mr-1.5"}`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <img src="/icons/icon-responder.png" alt="" className="w-3.5 h-3.5 opacity-80" />
+                    <span className="text-[11px] font-medium tracking-wide uppercase text-gray-500">
+                      {reply.autor ? `Respuesta a ${reply.autor}` : "Respuesta"}
+                    </span>
+                  </div>
+
+                  {reply.img ? (
+                    <div className="rounded-md overflow-hidden border bg-black/5 max-w-[45vw]">
+                      <img
+                        src={reply.img}
+                        alt="preview respuesta"
+                        className="w-full h-auto max-h-24 object-cover"
+                        loading="lazy"
+                        draggable="false"
+                      />
+                    </div>
+                  ) : (
+                    <div className="text-[13px] leading-snug text-gray-800 line-clamp-2 break-words">
+                      {reply.texto || "[mensaje]"}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
+          {/* Texto */}
           {!!msg?.texto && (
-            <div
-              className={`text-[15px] leading-snug ${mine ? "text-white" : "text-gray-800"
-                } emoji-text ${emojiOnly ? "emoji-only" : ""}`}
-              dangerouslySetInnerHTML={{ __html: html }}
-            />
+            <div className={textBubbleClass}>
+              <div
+                className={`text-[15px] leading-snug ${emojiOnly ? "emoji-only" : ""} emoji-text`}
+                dangerouslySetInnerHTML={{ __html: html }}
+              />
+            </div>
           )}
 
-          {archivos.length > 0 && (
-            <div className="mt-2 grid grid-cols-2 gap-2">
+          {/* Adjuntos / imágenes */}
+          {Array.isArray(archivos) && archivos.length > 0 && (
+            <div className="mt-2 space-y-2">
               {archivos.map((a, i) => {
                 const isImg = isProbablyImage(a);
                 if (isImg) {
                   const thumb = getBestUrl(a);
                   const full = getFullUrl(a);
                   return (
-                    <div
-                      key={i}
-                      className="block rounded-lg overflow-hidden border dark:border-zinc-700 bg-black/5 cursor-pointer"
-                      onClick={() => full && setFullscreenImg(full)}
-                      title={a.name || a.filename || a.originalName || ""}
-                    >
-                      {thumb ? (
-                        <img
-                          src={thumb}
-                          alt={a.name || a.filename || "img"}
-                          className="w-full h-28 object-cover"
-                          loading="lazy"
-                          draggable="false"
-                        />
-                      ) : (
-                        <div className="p-3 text-xs">{a.name || a.filename || "imagen"}</div>
-                      )}
+                    <div key={i} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+                      <div
+                        className="rounded-lg overflow-hidden border bg-black/5 cursor-pointer max-w-[35vw]"
+                        onClick={() => full && setFullscreenImg(full)}
+                        title={a.name || a.filename || a.originalName || ""}
+                      >
+                        {thumb ? (
+                          <img
+                            src={thumb}
+                            alt={a.name || a.filename || "img"}
+                            className="w-full h-auto max-h-28 object-cover"
+                            loading="lazy"
+                            draggable="false"
+                          />
+                        ) : (
+                          <div className="p-3 text-xs">{a.name || a.filename || "imagen"}</div>
+                        )}
+                      </div>
                     </div>
                   );
                 }
-                // No imagen: archivo genérico, mantener link a nueva pestaña
                 const href = getFullUrl(a);
                 return (
-                  <a
-                    key={i}
-                    href={href || "#"}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block p-3 text-xs rounded-lg border dark:border-zinc-700"
-                  >
-                    {a.name || a.filename || a.originalName || href || "archivo"}
-                  </a>
+                  <div key={i} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+                    <a
+                      href={href || "#"}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-block px-3 py-2 text-xs rounded-lg border bg-white max-w-[88vw] truncate"
+                    >
+                      {a.name || a.filename || a.originalName || href || "archivo"}
+                    </a>
+                  </div>
                 );
               })}
             </div>
           )}
 
+          {/* Fullscreen */}
           {fullscreenImg && (
-            <div
-              className="fixed inset-0 bg-black/90 flex items-center justify-center z-50"
-              onClick={() => setFullscreenImg(null)}
-            >
-              <img
-                src={fullscreenImg}
-                alt="full"
-                className="max-w-[95%] max-h-[95%] object-contain"
-                draggable="false"
-              />
+            <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50" onClick={() => setFullscreenImg(null)}>
+              <img src={fullscreenImg} alt="full" className="max-w-[95%] max-h-[95%] object-contain" draggable="false" />
             </div>
           )}
 
-          {/* FIX: Renderizar menú solo cuando tenemos coordenadas calculadas */}
+          {/* Menú contextual */}
           {menuOpen && menuPos && (
             <div
               ref={menuRef}
-              className="fixed z-50 w-32 max-w-[92vw] rounded-xl border bg-white dark:border-zinc-700 shadow-xl overflow-hidden"
+              className="fixed z-50 w-32 max-w-[92vw] rounded-xl border bg-white shadow-xl overflow-hidden"
               style={{ left: menuPos.x, top: menuPos.y }}
               onClick={(e) => e.stopPropagation()}
             >
-              <MenuItem
-                icon="/icons/icon-responder.png"
-                label="Responder"
-                onClick={() => {
-                  setMenuOpen(false);
-                  setMenuPos(null);
-                  onReply?.(msg);
-                }}
-              />
-              <MenuItem
-                icon="/icons/icon-reenviar.png"
-                label="Reenviar"
-                onClick={(e) => {
-                  setMenuOpen(false);
-                  setMenuPos(null);
-                  onForward?.(e);
-                }}
-              />
-              <MenuItem
-                icon="/icons/icon-favorito.png"
-                label={pinned ? "Desfijar" : "Fijar"}
-                onClick={doPin}
-              />
+              <MenuItem icon="/icons/icon-responder.png" label="Responder" onClick={() => { setMenuOpen(false); setMenuPos(null); try { onReply?.(msg); } catch {} try { window.dispatchEvent(new CustomEvent("chat:reply", { detail: { message: msg } })); } catch {} }} />
+              <MenuItem icon="/icons/icon-reenviar.png" label="Reenviar" onClick={(e) => { setMenuOpen(false); setMenuPos(null); onForward?.(e); }} />
+              <MenuItem icon="/icons/icon-favorito.png" label={pinned ? "Desfijar" : "Fijar"} onClick={doPin} />
               {mine && (
                 <>
-                  <MenuItem
-                    icon="/icons/icon-editar.png"
-                    label="Editar"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      setMenuPos(null);
-                      onEdit?.(msg);
-                    }}
-                  />
-                  <MenuItem
-                    icon="/icons/icon-borrar.png"
-                    label="Borrar"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      setMenuPos(null);
-                      onDelete?.(msg);
-                    }}
-                  />
+                  <MenuItem icon="/icons/icon-editar.png" label="Editar" onClick={() => { setMenuOpen(false); setMenuPos(null); onEdit?.(msg); }} />
+                  <MenuItem icon="/icons/icon-borrar.png" label="Borrar" onClick={() => { setMenuOpen(false); setMenuPos(null); onDelete?.(msg); }} />
                 </>
               )}
             </div>
           )}
         </div>
 
-        <div
-          className={`mt-1 text-[11px] ${mine
-              ? "text-white/80"
-              : "text-gray-500"
-            } flex items-center gap-1`}
-        >
+        {/* Hora */}
+        <div className={`mt-1 text-[11px] text-gray-500 flex items-center gap-1 ${mine ? "justify-end" : "justify-start"}`}>
           {pinned && <span title="Fijado">📌</span>}
           <span>{time}</span>
         </div>
@@ -428,18 +403,8 @@ export default function MessageMobile({
 
 function MenuItem({ icon, label, onClick }) {
   return (
-    <button
-      className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 text-gray-800 hover:bg-gray-50 "
-      onClick={onClick}
-    >
-      {icon && (
-        <img
-          src={icon}
-          alt=""
-          className="w-4 h-4 object-contain shrink-0"
-          draggable="false"
-        />
-      )}
+    <button className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 text-gray-800 hover:bg-gray-50 " onClick={onClick}>
+      {icon && <img src={icon} alt="" className="w-4 h-4 object-contain shrink-0" draggable="false" />}
       <span className="truncate">{label}</span>
     </button>
   );
