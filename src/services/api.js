@@ -215,3 +215,20 @@ export function searchUsers(query, { limit = 10, exclude } = {}) {
 export function ensurePrivado(usuarioAId, usuarioBId, anuncioId) {
   return postJSON(`/api/chat/ensure-privado`, { usuarioAId, usuarioBId, anuncioId });
 }
+
+
+/* =================== Geo =================== */
+export const geo = {
+  autocomplete: (q, country = "mx") => {
+    const qs = new URLSearchParams({ q: String(q || ""), country });
+    return getJSON(`/api/geo/autocomplete?${qs.toString()}`, { headers: {} });
+  },
+  verify: (q, country = "mx") => {
+    const qs = new URLSearchParams({ q: String(q || ""), country });
+    return getJSON(`/api/geo/verify-city?${qs.toString()}`, { headers: {} });
+  },
+  reverse: (lat, lon) => {
+    const qs = new URLSearchParams({ lat: String(lat), lon: String(lon) });
+    return getJSON(`/api/geo/reverse?${qs.toString()}`, { headers: {} });
+  },
+};

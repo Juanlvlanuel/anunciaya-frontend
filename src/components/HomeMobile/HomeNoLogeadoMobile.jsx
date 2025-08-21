@@ -6,6 +6,7 @@ import PerfilModal from "../../modals/PerfilModal";
 import CarrouselCategorias from "../CarrouselCategorias";
 import { motion, AnimatePresence } from "framer-motion";
 import { UbiContext } from "../../context/UbiContext"; // Ajusta la ruta si es diferente
+import { AuthContext } from "../../context/AuthContext";
 import { getSuppressLoginOnce, clearSuppressLoginOnce } from "../../utils/authStorage";
 
 const limpiarEstadoRegistro = () => {
@@ -32,10 +33,10 @@ const HomeNoLogeadoMobile = () => {
   // Lógica para esconder el footer según scroll
   const [showFooter, setShowFooter] = useState(true);
 
-  
+
   // ⛔ Supresión fuerte: si venimos de logout o si nos mandaron showLogin:false,
   // limpia el history state y evita que el LoginModal se reabra después.
-  
+
   // Abrir login sólo si fue solicitado explícitamente y no está suprimido
   useEffect(() => {
     const st = (location && location.state) ? location.state : {};
@@ -50,15 +51,15 @@ const HomeNoLogeadoMobile = () => {
       const st = (location && location.state) ? location.state : {};
       if (once === "1" || st?.showLogin === false) {
         // limpiar bandera y state
-        try { clearSuppressLoginOnce(); } catch {}
+        try { clearSuppressLoginOnce(); } catch { }
         setSuppressAutoLogin(true);
         setAllowLoginOpen(false);
         // reemplaza la entrada de historia para quitar cualquier showLogin
-        try { navigate(location.pathname, { replace: true, state: {} }); } catch {}
+        try { navigate(location.pathname, { replace: true, state: {} }); } catch { }
         const to = setTimeout(() => { setAllowLoginOpen(true); setSuppressAutoLogin(false); }, 1400);
         return () => clearTimeout(to);
       }
-    } catch {}
+    } catch { }
   }, [location?.key]);
 
   useEffect(() => {
@@ -142,8 +143,20 @@ const HomeNoLogeadoMobile = () => {
     setTimeout(() => setResaltarBienvenida(false), 800);
   };
 
-  const { ubicacion } = useContext(UbiContext);
+  const ubiCtx = useContext(UbiContext) || {};
+  const authCtx = useContext(AuthContext) || {};
+  const ubicacion = (authCtx && authCtx.ubicacion) || (ubiCtx && ubiCtx.ubicacion) || null;
+  const solicitarUbicacionAltaPrecision = authCtx && authCtx.solicitarUbicacionAltaPrecision;
   const ciudad = ubicacion?.ciudad;
+
+  /* pedir ubicacion al montar */
+  useEffect(() => {
+    const hasCity = !!(ciudad && ciudad.trim());
+    if (!hasCity && typeof solicitarUbicacionAltaPrecision === "function") {
+      solicitarUbicacionAltaPrecision().catch(() => { });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div
@@ -179,15 +192,13 @@ const HomeNoLogeadoMobile = () => {
           backdrop-blur-[9px]
         ">
           <span className="block text-[18px] font-semibold text-gray-900 drop-shadow-sm leading-[1.3]">
-            {typeof ciudad !== "undefined" && (
-              <span>
-                Únete a la Plataforma más Completa<br />para Crecer en
-                <br />
-                <span className="font-bold text-[25px] text-blue-900">
-                  {ciudad ? `${ciudad}` : "tu Ciudad"}
-                </span>
+            <span>
+              Únete a la Plataforma más Completa<br />para Crecer en
+              <br />
+              <span className="font-bold text-[25px] text-blue-900">
+                {ciudad && ciudad.trim() ? ciudad : "tu Ciudad"}
               </span>
-            )}
+            </span>
           </span>
         </div>
       </motion.div>
@@ -258,7 +269,7 @@ const HomeNoLogeadoMobile = () => {
 
                 {/* Botón Iniciar Sesión */}
                 <motion.button
-                  data-open-login onClick={() => { try { window.openLogin && window.openLogin(); } catch (e) {} }}
+                  data-open-login onClick={() => { try { window.openLogin && window.openLogin(); } catch (e) { } }}
                   className="
                     w-full bg-blue-700 hover:bg-blue-800
                     text-white font-bold text-base py-3 rounded-xl shadow transition-all duration-100 mb-2

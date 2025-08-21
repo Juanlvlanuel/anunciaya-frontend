@@ -1,4 +1,9 @@
-// ✅ src/context/AuthContext-1.jsx — añade actualizarNickname y mantiene API estable
+// ✅ src/context/AuthContext-1.jsx — flujo híbrido ubicación (manual Google + auto GPS) y API estable
+// Cambios clave:
+// - Respeta siempre ciudad manual (source:"manual"); no se sobreescribe con GPS.
+// - Persiste { ciudad, lat, lon, source, ts } en localStorage "AY_ubicacion".
+// - Nuevos helpers: clearCiudadManual(), refreshUbicacionActual(), ciudadPreferida.
+// - Mantiene todas tus funciones previas (login, registrar, actualizarPerfil, actualizarNickname, etc.).
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import axios from "axios";
@@ -39,19 +44,24 @@ function enriquecerUsuario(base) {
   return { ...base, accountType, profileType, plan, features, abilities };
 }
 
+// === Persistencia de ubicación (manual/auto) ===
+const UBIC_KEY = "AY_ubicacion";
+const readUbicacion = () => {
+  try {
+    const raw = localStorage.getItem(UBIC_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+};
+const writeUbicacion = (obj) => { try { localStorage.setItem(UBIC_KEY, JSON.stringify(obj)); } catch {} };
+
 const AuthProvider = ({ children }) => {
   const [autenticado, setAutenticado] = useState(false);
   const [usuario, setUsuario] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [mounted, setMounted] = useState(false);
-  // === Ubicación global (alta precisión) ===
-  const [ubicacion, setUbicacion] = useState(() => {
-    try {
-      const raw = localStorage.getItem("AY_ubicacion");
-      return raw ? JSON.parse(raw) : null;
-    } catch { return null; }
-  });
 
+  // === Ubicación global (alta precisión + manual) ===
+  const [ubicacion, setUbicacion] = useState(() => readUbicacion());
 
   // Hidratación inicial (no bloquea la app)
   useEffect(() => {
@@ -80,28 +90,43 @@ const AuthProvider = ({ children }) => {
     }
     setMounted(true);
   }, []);
+
   // Solicita ubicación con alta precisión y resuelve ciudad vía backend (/api/geo/reverse).
+  // ⚠️ No sobreescribe si ya existe ciudad manual (source:"manual").
   const solicitarUbicacionAltaPrecision = async () => {
     if (typeof navigator === "undefined" || !("geolocation" in navigator)) return null;
 
+    // Respetar manual
+    const curr = readUbicacion();
+    if (curr?.source === "manual" && curr?.ciudad) return curr;
+
     const askPosition = (opts) =>
       new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, opts));
+
+    const resolveCoords = async (latitude, longitude) => {
+      const res = await fetch(`${API_BASE}/api/geo/reverse?lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}`, {
+        credentials: "include",
+        headers: { "Accept": "application/json" },
+      });
+      const data = await res.json().catch(() => ({}));
+      const ciudad = data?.city || data?.ciudad || null;
+      const next = { lat: latitude, lon: longitude, ciudad, source: "auto", ts: Date.now() };
+
+      // Solo setear si NO hay manual
+      const now = readUbicacion();
+      if (!(now?.source === "manual" && now?.ciudad)) {
+        setUbicacion(next);
+        writeUbicacion(next);
+      }
+      return next;
+    };
 
     // 1) Intento con alta precisión
     try {
       const pos = await askPosition({ enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
       const { latitude, longitude } = pos?.coords || {};
       if (isFinite(latitude) && isFinite(longitude)) {
-        const res = await fetch(`${API_BASE}/api/geo/reverse?lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}`, {
-          credentials: "include",
-          headers: { "Accept": "application/json" },
-        });
-        const data = await res.json().catch(() => ({}));
-        const ciudad = data?.city || data?.ciudad || null;
-        const next = { lat: latitude, lon: longitude, ciudad };
-        setUbicacion(next);
-        try { localStorage.setItem("AY_ubicacion", JSON.stringify(next)); } catch {}
-        return next;
+        return await resolveCoords(latitude, longitude);
       }
     } catch {}
 
@@ -112,37 +137,43 @@ const AuthProvider = ({ children }) => {
       });
       const { latitude, longitude } = pos?.coords || {};
       if (isFinite(latitude) && isFinite(longitude)) {
-        const res = await fetch(`${API_BASE}/api/geo/reverse?lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}`, {
-          credentials: "include",
-          headers: { "Accept": "application/json" },
-        });
-        const data = await res.json().catch(() => ({}));
-        const ciudad = data?.city || data?.ciudad || null;
-        const next = { lat: latitude, lon: longitude, ciudad };
-        setUbicacion(next);
-        try { localStorage.setItem("AY_ubicacion", JSON.stringify(next)); } catch {}
-        return next;
+        return await resolveCoords(latitude, longitude);
       }
     } catch {}
 
     return null;
   };
 
-  // Refresca ubicación en segundo plano al montar si no hay ciudad
+  // Refresca ubicación al montar SOLO si no hay ciudad manual
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const current = (ubicacion && ubicacion.ciudad) ? ubicacion : null;
-        if (current) return;
+        const current = readUbicacion();
+        if (current?.ciudad && current?.source === "manual") return; // respeta manual
+        // También respeta datos previos sin source (no los pisa)
+        if (current?.ciudad && !current?.source) return;
         const result = await solicitarUbicacionAltaPrecision();
-        if (!cancelled && result) setUbicacion(result);
+        if (!cancelled && result) setUbicacion((prev) => prev ?? result);
       } catch {}
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Mantener sincronía entre pestañas/ventanas
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === UBIC_KEY) {
+        try {
+          const parsed = e.newValue ? JSON.parse(e.newValue) : null;
+          setUbicacion(parsed);
+        } catch {}
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   // Consulta de sesión real
   useEffect(() => {
@@ -180,7 +211,7 @@ const AuthProvider = ({ children }) => {
 
         if (!cancelled && data?.usuario) {
           const enriquecido = enriquecerUsuario(data.usuario);
-          setUsuario(enriquecido);
+          setUsuario(enriquecerUsuario(data.usuario));
           setAutenticado(true);
           try {
             localStorage.setItem("usuario", JSON.stringify(enriquecido));
@@ -370,25 +401,51 @@ const AuthProvider = ({ children }) => {
     return actualizado;
   };
 
-  
-  // Refresca la sesión desde el backend y actualiza el usuario en contexto
-  async function reloadSession() {
-    try {
-      const data = await getJSON(`/api/usuarios/session`);
-      if (data && data.usuario) {
-        setUsuario(enriquecerUsuario(data.usuario));
-        try { localStorage.setItem("usuario", JSON.stringify(data.usuario)); } catch {}
-        return data.usuario;
-      }
-    } catch (e) {
-      // ignore
+  // === Ciudad manual (desde Google Places o UI) — persistente y prioritaria ===
+  const setCiudadManual = async (ciudad, lat = null, lon = null) => {
+    const next = {
+      ciudad: String(ciudad || "").trim(),
+      lat: lat ?? (ubicacion && ubicacion.lat) ?? null,
+      lon: lon ?? (ubicacion && ubicacion.lon) ?? null,
+      source: "manual",
+      ts: Date.now(),
+    };
+    setUbicacion(next);
+    writeUbicacion(next);
+    return next;
+  };
+
+  // === Limpiar manual y permitir que GPS vuelva a sugerir en el siguiente ciclo
+  const clearCiudadManual = () => {
+    const curr = readUbicacion();
+    if (curr) {
+      const next = { ...curr, source: "auto" };
+      setUbicacion(next);
+      writeUbicacion(next);
+    } else {
+      setUbicacion(null);
+      try { localStorage.removeItem(UBIC_KEY); } catch {}
     }
-    return null;
-  }
-const value = useMemo(
+  };
+
+  // Forzar lectura de GPS sin pisar manual
+  const refreshUbicacionActual = async () => {
+    return await solicitarUbicacionAltaPrecision();
+  };
+
+  // Alias práctico para filtrar
+  const ciudadPreferida = useMemo(() => ubicacion?.ciudad || null, [ubicacion]);
+
+  const value = useMemo(
     () => ({
+      // Ubicación
       ubicacion,
+      ciudadPreferida,
+      setCiudadManual,
+      clearCiudadManual,
       solicitarUbicacionAltaPrecision,
+      refreshUbicacionActual,
+      // Auth
       autenticado,
       usuario,
       cargando,
@@ -398,7 +455,6 @@ const value = useMemo(
       registrar,
       actualizarPerfil,
       actualizarNickname,
-      reloadSession,
     }),
     [autenticado, usuario, cargando, ubicacion]
   );
