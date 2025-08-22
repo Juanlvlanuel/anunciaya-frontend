@@ -1,204 +1,267 @@
-import { useRef, useState, useEffect, useMemo} from"react";
-import { useAuth} from"../../../context/AuthContext";
-import { API_BASE} from"../../../services/api";
+
+import { useRef, useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
+import { useAuth } from "../../../context/AuthContext";
+import { API_BASE } from "../../../services/api";
+import { LayoutGroup, motion, AnimatePresence } from "framer-motion";
 
 /**
- * AvatarUploader (persistente) + Lightbox
- * - Conserva toda tu lógica original.
- * - Añade visor en grande al tocar la imagen.
- * - [v1 fix] Cierra al hacer clic fuera de la imagen (overlay), pero NO al hacer clic en la imagen.
+ * AvatarUploader-1 (con transición "expand from avatar" + glass overlay)
+ * - Efecto: al hacer clic, la imagen se expande desde el avatar (círculo) al centro con resorte;
+ *   al cerrar, vuelve al mismo punto.
+ * - Overlay: glassmorphism claro con blur y degradado blanco/gris translúcido.
+ * - Cierre: clic afuera, botón de cierre o tecla ESC. Bloqueo de scroll del body mientras está abierto.
+ * - Mantiene toda tu lógica original de subida/preview/normalización.
  */
-export default function AvatarUploader({ initialUrl ="", onChange, beforeUpload}) {
- const inputRef = useRef(null);
- const { usuario, actualizarPerfil} = useAuth() || {};
- const userInitial = usuario?.fotoPerfil || usuario?.avatarUrl ||"";
+export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload }) {
+  const inputRef = useRef(null);
+  const avatarRef = useRef(null);
+  const { usuario, actualizarPerfil } = useAuth() || {};
+  const userInitial = usuario?.fotoPerfil || usuario?.avatarUrl || "";
 
- // Normaliza posibles variantes de base64/data URL
- const normalizeSrc = (u) => {
- if (!u) return"";
- const s = String(u).trim();
+  // --- Helpers
+  const normalizeSrc = (u) => {
+    if (!u) return "";
+    const s = String(u).trim();
 
- // URLs válidas directas
- if (/^(blob:|https?:\/\/)/i.test(s)) return s;
+    if (/^(blob:|https?:\/\/)/i.test(s)) return s; // URLs válidas
+    if (s.startsWith("/uploads/")) return `${API_BASE}${s}`; // backend
+    if (/^data:image\/[a-z0-9.+-]+;base64,/i.test(s)) return s; // data url ok
 
- // Rutas relativas del backend en prod/preview (Vercel) -> anteponer API_BASE
- if (s.startsWith('/uploads/')) return `${API_BASE}${s}`;
+    // Data URL con variantes
+    if (/^data:image\/[a-z0-9.+-]+;/i.test(s)) {
+      const [head, restRaw] = s.split(",", 2);
+      const headFixed = head.replace(/base_?64/i, "base64").replace(/;?base64$/i, ";base64");
+      const rest = typeof restRaw === "string" ? restRaw : "";
+      return `${headFixed},${rest}`;
+    }
 
- // Data URL ya correcta
- if (/^data:image\/[a-z0-9.+-]+;base64,/i.test(s)) return s;
+    // base64 crudo
+    if (/^[A-Za-z0-9+/=\s]+$/.test(s) && s.replace(/\s+/g, "").length > 100) {
+      return `data:image/jpeg;base64,${s.replace(/\s+/g, "")}`;
+    }
+    return s;
+  };
 
- // Data URL con 'base_64' u otros separadores raros
- if (/^data:image\/[a-z0-9.+-]+;/i.test(s)) {
- // separa cabecera y contenido
- const [head, restRaw] = s.split(",", 2);
- const headFixed = head.replace(/base_?64/i,"base64").replace(/;?base64$/i,";base64");
- const rest = typeof restRaw ==="string" ? restRaw :"";
- return `${headFixed},${rest}`;}
+  const resolvedInitial = useMemo(() => normalizeSrc(initialUrl || userInitial || ""), [initialUrl, userInitial]);
 
- // Cadena base64"cruda" (sin prefijo data:)
- if (/^[A-Za-z0-9+/=\s]+$/.test(s) && s.replace(/\s+/g,"").length> 100) {
- return `data:image/jpeg;base64,${s.replace(/\s+/g,"")}`;}
+  const [preview, setPreview] = useState(resolvedInitial);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
- return s;};
+  // Lightbox state
+  const [showModal, setShowModal] = useState(false);
+  const [fullSrc, setFullSrc] = useState("");
 
- const resolvedInitial = useMemo(() => normalizeSrc(initialUrl || userInitial ||""), [initialUrl, userInitial]);
+  // Sincronizar preview si cambian las fuentes
+  useEffect(() => { setPreview(resolvedInitial); }, [resolvedInitial]);
 
- const [preview, setPreview] = useState(resolvedInitial);
- const [loading, setLoading] = useState(false);
- const [error, setError] = useState("");
+  // ESC para cerrar
+  useEffect(() => {
+    if (!showModal) return;
+    const onKey = (e) => { if (e.key === "Escape") setShowModal(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [showModal]);
 
- // Lightbox state
- const [showModal, setShowModal] = useState(false);
- const [fullSrc, setFullSrc] = useState("");
+  // Bloquear scroll del body
+  useEffect(() => {
+    if (!showModal) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [showModal]);
 
- // Mantener preview sincronizado si cambian las fuentes
- useEffect(() => {
- setPreview(resolvedInitial);}, [resolvedInitial]);
+  const handlePick = () => inputRef.current?.click();
 
- // Esc para cerrar modal
- useEffect(() => {
- if (!showModal) return;
- const onKey = (e) => { if (e.key ==="Escape") setShowModal(false);};
- document.addEventListener("keydown", onKey);
- return () => document.removeEventListener("keydown", onKey);}, [showModal]);
+  const openLightbox = () => {
+    const src = preview || resolvedInitial || "";
+    if (!src) return;
+    // Preload simple
+    const img = new Image();
+    img.src = normalizeSrc(src);
+    setFullSrc(normalizeSrc(src));
+    setShowModal(true);
+  };
 
- const handlePick = () => inputRef.current?.click();
+  const uploadToBackend = async (file) => {
+    const fd = new FormData();
+    fd.append("avatar", file);
+    const res = await fetch("/api/usuarios/me/avatar", {
+      method: "POST",
+      body: fd,
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const tx = await res.text().catch(() => "");
+      throw new Error(tx || "No se pudo subir el avatar.");
+    }
+    let data = {};
+    try { data = await res.json(); } catch {}
+    const url = data.url || data.fotoPerfil || data.avatarUrl || data.location || "";
+    return url;
+  };
 
- const openLightbox = () => {
- const src = preview || resolvedInitial ||"";
- if (!src) return;
- // Preload rápido
- const img = new Image();
- img.src = normalizeSrc(src);
- setFullSrc(normalizeSrc(src));
- setShowModal(true);};
+  const toFile = (blob, name, type) => {
+    try {
+      return new File([blob], name, { type });
+    } catch {
+      blob.name = name; // Safari fallback
+      blob.lastModifiedDate = new Date();
+      return blob;
+    }
+  };
 
- const uploadToBackend = async (file) => {
- const fd = new FormData();
- fd.append("avatar", file);
- const res = await fetch("/api/usuarios/me/avatar", {
- method:"POST",
- body: fd,
- credentials:"include",});
- if (!res.ok) {
- const tx = await res.text().catch(() =>"");
- throw new Error(tx ||"No se pudo subir el avatar.");}
- let data = {};
- try { data = await res.json();} catch {}
- // Posibles nombres que devuelva el backend
- const url = data.url || data.fotoPerfil || data.avatarUrl || data.location ||"";
- return url;};
+  const handleFile = async (e) => {
+    const original = e.target.files?.[0];
+    if (!original) return;
 
- const toFile = (blob, name, type) => {
- try {
- return new File([blob], name, { type});} catch {
- // Safari iOS fallback
- blob.name = name;
- blob.lastModifiedDate = new Date();
- return blob;}};
+    setError("");
+    setLoading(true);
 
- const handleFile = async (e) => {
- const original = e.target.files?.[0];
- if (!original) return;
+    // Preview rápido
+    const blobUrl = URL.createObjectURL(original);
+    setPreview(blobUrl);
 
- setError("");
- setLoading(true);
+    try {
+      // Transformación opcional
+      let toUpload = original;
+      if (typeof beforeUpload === "function") {
+        const transformed = await beforeUpload(original);
+        if (transformed instanceof Blob) {
+          const type = transformed.type || "image/jpeg";
+          const name = original.name.replace(/\.[^.]+$/, "") + ".jpg";
+          toUpload = toFile(transformed, name, type);
+        }
+      }
 
- // Preview rápido con blob URL (del original)
- const blobUrl = URL.createObjectURL(original);
- setPreview(blobUrl);
+      // Subir
+      const finalUrl = await uploadToBackend(toUpload);
 
- try {
- // 0) Transformación opcional previa (resize/compresión)
- let toUpload = original;
- if (typeof beforeUpload ==="function") {
- const transformed = await beforeUpload(original);
- if (transformed instanceof Blob) {
- const type = transformed.type ||"image/jpeg";
- const name = original.name.replace(/\.[^.]+$/,"") +".jpg";
- toUpload = toFile(transformed, name, type);}}
+      // Actualizar perfil (si aplica)
+      const payload = finalUrl ? { fotoPerfil: finalUrl } : {};
+      if (actualizarPerfil && Object.keys(payload).length) {
+        try {
+          const updated = await actualizarPerfil(payload);
+          const next = updated?.fotoPerfil || updated?.avatarUrl || finalUrl || blobUrl;
+          setPreview(next ? normalizeSrc(next) : blobUrl);
+        } catch {
+          setPreview(finalUrl ? normalizeSrc(finalUrl) : blobUrl);
+        }
+      } else {
+        setPreview(finalUrl ? normalizeSrc(finalUrl) : blobUrl);
+      }
 
- // 1) subir archivo
- const finalUrl = await uploadToBackend(toUpload);
+      onChange?.(original);
+    } catch (err) {
+      setError(err?.message || "No se pudo cargar la imagen.");
+      setPreview(resolvedInitial);
+    } finally {
+      setLoading(false);
+    }
+  };
 
- // 2) actualizar perfil en contexto (si el backend no lo hizo ya)
- const payload = finalUrl ? { fotoPerfil: finalUrl} : {};
- if (actualizarPerfil && Object.keys(payload).length) {
- try {
- const updated = await actualizarPerfil(payload);
- const next = updated?.fotoPerfil || updated?.avatarUrl || finalUrl || blobUrl;
- setPreview(next ? normalizeSrc(next) : blobUrl);} catch {
- // si falla la actualización, mantener al menos la previa final
- setPreview(finalUrl ? normalizeSrc(finalUrl) : blobUrl);}} else {
- setPreview(finalUrl ? normalizeSrc(finalUrl) : blobUrl);}
+  // Variants/transition para el efecto de expansión con resorte
+  const spring = {
+    type: "spring",
+    stiffness: 420,
+    damping: 36,
+    mass: 0.9
+  };
 
- // 3) notificar hacia arriba (archivo original que seleccionó el usuario)
- onChange?.(original);} catch (err) {
- setError(err?.message ||"No se pudo cargar la imagen.");
- // revertir al preview anterior estable si lo había
- setPreview(resolvedInitial);} finally {
- setLoading(false);}};
+  return (
+    <LayoutGroup>
+      <div className="relative">
+        {/* Avatar pequeño (origen) */}
+        <div
+          ref={avatarRef}
+          className="w-20 h-20 rounded-full bg-gray-200 overflow-hidden cursor-pointer ring-1 ring-gray-200"
+          onClick={openLightbox}
+          title={loading ? "Subiendo..." : "Ver / Cambiar foto"}
+        >
+          {preview ? (
+            <motion.img
+              layoutId="avatar-photo"
+              src={preview}
+              alt="Avatar"
+              className="w-full h-full object-cover rounded-full"
+              initial={false}
+              transition={spring}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-xs text-gray-500">Foto</div>
+          )}
+        </div>
 
- return (
- <div className="relative">
- <div
- className="w-20 h-20 rounded-full bg-gray-200 overflow-hidden cursor-pointer ring-1 ring-gray-200 dark:ring-zinc-700"
- onClick={openLightbox}
- title={loading ?"Subiendo..." :"Ver / Cambiar foto"}>
- {preview ? (
- <img src={preview} alt="Avatar" className="w-full h-full object-cover" loading="lazy" />
- ) : (
- <div className="w-full h-full flex items-center justify-center text-xs text-gray-500">Foto</div>
- )}
- </div>
+        {error ? (
+          <div className="absolute left-0 right-0 mt-5 text-[11px] text-red-600">{error}</div>
+        ) : null}
 
- {/* Botón para cambiar imagen */}
- <button
- type="button"
- onClick={(e) => { e.stopPropagation(); handlePick();}}
- className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[11px] text-blue-600 hover:underline">
- Cambiar
- </button>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleFile}
+          disabled={loading}
+        />
 
- {error ? (
- <div className="absolute left-0 right-0 mt-5 text-[11px] text-red-600">{error}</div>
- ) : null}
-
- <input
- ref={inputRef}
- type="file"
- accept="image/*"
- className="hidden"
- onChange={handleFile}
- disabled={loading}
- />
-
- {/* Lightbox modal */}
- {showModal && (
- <div className="fixed inset-0 z-[300]">
-   {/* Overlay: cierra al hacer clic */}
-   <div
-     className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-     onClick={() => setShowModal(false)}
-   />
-   {/* Contenedor central: bloquea propagación para no cerrar al hacer clic en la imagen */}
-   <div className="absolute inset-0 flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
-     <div className="relative" onClick={(e) => e.stopPropagation()}>
-       <img
-         src={fullSrc || preview}
-         alt="Avatar"
-         className="max-w-[96vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
-       />
-       <button
-         aria-label="Cerrar"
-         className="absolute top-3 right-3 rounded-full bg-white/90 hover:bg-white p-2 shadow"
-         onClick={() => setShowModal(false)}
-       >
-         <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-       </button>
-     </div>
-   </div>
- </div>
- )}
- </div>
- );}
+        {/* Lightbox fullscreen con transición compartida */}
+        {showModal && createPortal(
+          <AnimatePresence>
+            <motion.div
+              key="overlay"
+              className="fixed inset-0 z-[9999] pointer-events-auto"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              {/* Glass overlay */}
+              <motion.div
+                className="absolute inset-0 bg-gradient-to-br from-white/55 via-white/35 to-gray-200/25 backdrop-blur-xl"
+                onClick={() => setShowModal(false)}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+              />
+              {/* Contenido centrado */}
+              <div
+                className="absolute inset-0 flex items-center justify-center p-4"
+                onClick={() => setShowModal(false)}
+              >
+                <div className="relative" onClick={(e) => e.stopPropagation()}>
+                  <motion.img
+                    layoutId="avatar-photo"
+                    src={fullSrc || preview}
+                    alt="Avatar"
+                    className="max-w-[96vw] max-h-[90vh] object-contain rounded-xl shadow-2xl"
+                    initial={{ opacity: 0.25, scale: 0.2 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.2 }}
+                    transition={spring}
+                  />
+                  <motion.button
+                    aria-label="Cerrar"
+                    className="absolute top-3 right-3 rounded-full bg-white/95 hover:bg-white p-2 shadow"
+                    onClick={() => setShowModal(false)}
+                    initial={{ opacity: 0, scale: 0.7 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.7 }}
+                    transition={{ type: "spring", stiffness: 380, damping: 28 }}
+                  >
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18"/>
+                      <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+          </AnimatePresence>,
+          document.body
+        )}
+      </div>
+    </LayoutGroup>
+  );
+}

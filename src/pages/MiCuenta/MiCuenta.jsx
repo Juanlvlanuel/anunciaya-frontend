@@ -133,14 +133,14 @@ export default function MiCuenta() {
         </div>
 
         {/* ÚNICO contenedor */}
-        <div className="bg-white rounded-3xl border border-gray-200 shadow-lg shadow-gray-200/40 overflow-visible">
+        
           {active === "perfil" && <PerfilSection key={safeUser?._id || "fallback"} user={safeUser} onSave={actualizarPerfil} />}
           {active === "seguridad" && <SeguridadSection />}
           {active === "historial" && <HistorialSection user={safeUser} onUpgrade={goUpgrade} />}
           {active === "notificaciones" && <NotificacionesSection />}
           {active === "plan" && <PlanSection user={safeUser} />}
           {active === "soporte" && <SoporteSection />}
-        </div>
+        
       </div>
     </div>
   );

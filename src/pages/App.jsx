@@ -1,4 +1,4 @@
-// ✅ src/pages/App-1.jsx — aplica has-bottom-nav con useLayoutEffect (antes del primer paint)
+// ✅ src/pages/App-1.jsx — padding inferior solo cuando autenticado
 import { useState, useEffect, useContext, useRef, useLayoutEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
@@ -78,17 +78,14 @@ function App() {
     }
   }, [autenticado, navigate]);
 
-  // 🔹 NUEVO: preparar padding global ANTES del primer paint cuando autenticado
+  // 🔹 Preparar variable CSS de altura de barra inferior si autenticado (sin clases globales en body)
   useLayoutEffect(() => {
     if (typeof document === "undefined") return;
     const root = document.documentElement;
-    const body = document.body;
     if (autenticado) {
       root.style.setProperty("--bottom-nav-h", "70px");
-      body.classList.add("has-bottom-nav");
     } else {
-      body.classList.remove("has-bottom-nav");
-      root.style.removeProperty("--bottom-nav-h");
+      try { root.style.removeProperty("--bottom-nav-h"); } catch {}
     }
   }, [autenticado]);
 
@@ -96,27 +93,27 @@ function App() {
 
   return (
     <>
-      <div className="pb-bottom-safe">
+      <div className={autenticado ? "pb-bottom-safe" : ""}>
         <AppRoutes
-        abrirModalLogin={openLogin}
-        abrirModalRegistro={(tipo) => {
-          setEsLogin(false);
-          setModalAbierto(true);
-          console.log("Registrarse como:", tipo);
-        }}
-      />
-
-      <Tools />
-
-      <ChatPanelPortal />
-
-      {typeof window !== "undefined" && (
-        <LoginModal
-          isOpen={modalAbierto}
-          onClose={() => setModalAbierto(false)}
-          isLogin={esLogin}
+          abrirModalLogin={openLogin}
+          abrirModalRegistro={(tipo) => {
+            setEsLogin(false);
+            setModalAbierto(true);
+            console.log("Registrarse como:", tipo);
+          }}
         />
-      )}
+
+        <Tools />
+
+        <ChatPanelPortal />
+
+        {typeof window !== "undefined" && (
+          <LoginModal
+            isOpen={modalAbierto}
+            onClose={() => setModalAbierto(false)}
+            isLogin={esLogin}
+          />
+        )}
       </div>
 
       {typeof window !== "undefined" && autenticado && <MobileBottomNav />}

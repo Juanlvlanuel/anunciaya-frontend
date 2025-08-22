@@ -48,7 +48,7 @@ export default function PerfilHeader({ user = {}, onUpdate, onResendVerification
       el.focus();
       try {
         el.setSelectionRange(len, len);
-      } catch {}
+      } catch { }
       el.style.height = "auto";
       el.style.height = `${el.scrollHeight}px`;
     }
@@ -69,7 +69,7 @@ export default function PerfilHeader({ user = {}, onUpdate, onResendVerification
           el.style.pointerEvents = "none";
         }
       });
-    } catch {}
+    } catch { }
   }, []);
 
   const resizeImage = (file, maxSize = 512, quality = 0.82) =>
@@ -128,15 +128,15 @@ export default function PerfilHeader({ user = {}, onUpdate, onResendVerification
         )}`
       );
       if (typeof res?.exists === "boolean") return !!res.exists;
-    } catch {}
+    } catch { }
     try {
       const list = await (typeof searchUsers === "function"
         ? searchUsers(nick, { limit: 3, exclude: String(usuario?._id || usuario?.id || "") })
         : getJSON(
-            `/api/usuarios/search?q=${encodeURIComponent(nick)}&limit=3&exclude=${encodeURIComponent(
-              String(usuario?._id || usuario?.id || "")
-            )}`
-          ));
+          `/api/usuarios/search?q=${encodeURIComponent(nick)}&limit=3&exclude=${encodeURIComponent(
+            String(usuario?._id || usuario?.id || "")
+          )}`
+        ));
       if (Array.isArray(list) && list.length) {
         const lower = String(nick).toLowerCase();
         return list.some(
@@ -145,7 +145,7 @@ export default function PerfilHeader({ user = {}, onUpdate, onResendVerification
             String(u?.nickname || u?.nick || u?.usuario || "").toLowerCase() === lower
         );
       }
-    } catch {}
+    } catch { }
     return false;
   }
 
@@ -194,7 +194,7 @@ export default function PerfilHeader({ user = {}, onUpdate, onResendVerification
       if (!root) return;
       const input = root.querySelector('input[type="file"]');
       if (input) input.click();
-    } catch {}
+    } catch { }
   };
 
   const copyEmail = async () => {
@@ -202,7 +202,7 @@ export default function PerfilHeader({ user = {}, onUpdate, onResendVerification
       await navigator.clipboard.writeText(correo || "");
       setCopied(true);
       setTimeout(() => setCopied(false), 1100);
-    } catch {}
+    } catch { }
   };
 
   const resendVerification = async () => {
@@ -219,22 +219,22 @@ export default function PerfilHeader({ user = {}, onUpdate, onResendVerification
         setResendOk(true);
         setTimeout(() => setResendOk(false), 1200);
       }
-    } catch {}
+    } catch { }
     setResending(false);
   };
 
   return (
-    <section className="relative w-full max-w-md mx-auto rounded-2xl border border-gray-100 bg-gradient-to-br from-white/80 to-gray-50/60 backdrop-blur-md shadow-xl px-7 sm:px-8 py-8 sm:py-9 overflow-hidden">
+    <section className="relative w-full max-w-md mx-auto rounded-2xl border border-gray-100 bg-gradient-to-br from-white/95 to-gray-200/90 backdrop-blur-md shadow-xl px-7 sm:px-8 py-8 sm:py-9 overflow-hidden">
       {/* Glow/gradiente decorativo */}
       <div className="pointer-events-none absolute -inset-16 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.08),transparent_45%),radial-gradient(circle_at_bottom_right,rgba(99,102,241,0.08),transparent_45%)]" />
 
       <div className="relative flex flex-col items-center text-center gap-4">
         {/* Avatar con anillo animado */}
         <div className="relative">
-          <span className="absolute -inset-2 rounded-full bg-[conic-gradient(from_0deg,theme(colors.blue.500),theme(colors.indigo.500),theme(colors.purple.500),theme(colors.blue.500))] opacity-20 blur-[6px] animate-[spin_12s_linear_infinite]" />
+          <span className="absolute -inset-2 rounded-full bg-[conic-gradient(from_0deg,#3b82f6,#6366f1,#a855f7,#3b82f6)] opacity-20 blur-[6px] animate-[spin_12s_linear_infinite]" />
           <div className="relative rounded-full p-1 ring-1 ring-gray-200 shadow bg-white">
             <div ref={uploaderRef}>
-              <AvatarUploader initialUrl={fotoPerfil} beforeUpload={beforeUpload} onChange={() => {}} />
+              <AvatarUploader initialUrl={fotoPerfil} beforeUpload={beforeUpload} onChange={() => { }} />
             </div>
           </div>
 
@@ -252,7 +252,7 @@ export default function PerfilHeader({ user = {}, onUpdate, onResendVerification
             ) : (
               <Camera className="w-4 h-4 text-gray-700 group-hover:text-white" />
             )}
-            <span className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition bg-gradient-to-r from-blue-500 to-purple-500 -z-10" />
+            <span className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition bg-[linear-gradient(90deg,#3b82f6_0%,#6366f1_60%,#a855f7_100%)] -z-10" />
           </button>
         </div>
 
@@ -260,17 +260,17 @@ export default function PerfilHeader({ user = {}, onUpdate, onResendVerification
         <div className="w-fit mx-auto text-center">
           {!editing ? (
             <>
-              <h2 className="text-3xl leading-normal font-bold tracking-wide bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent break-words whitespace-pre-wrap px-2 drop-shadow">
+              <h2 className="text-3xl leading-normal font-bold tracking-wide bg-[linear-gradient(90deg,#3b82f6_0%,#6366f1_60%,#a855f7_100%)] bg-clip-text text-transparent break-words whitespace-pre-wrap px-2 drop-shadow">
                 {currentNick || "mi_nick"}
               </h2>
               {/* línea visible solo cuando NO se edita */}
-              <div className="mt-1 h-0.5 w-full max-w-[28rem] bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 rounded-full opacity-60 mx-auto" />
+              <div className="mt-1 h-0.5 w-full max-w-[28rem] bg-[linear-gradient(90deg,#3b82f6_0%,#6366f1_60%,#a855f7_100%)] rounded-full opacity-60 mx-auto" />
               {/* botón lápiz + texto centrados */}
               <div className="flex justify-center items-center gap-3 mt-3">
                 <button
                   type="button"
                   aria-label="Editar nickname"
-                  className="group w-10 h-10 rounded-full bg-white/80 backdrop-blur border border-gray-200 shadow-md hover:shadow-lg hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500 transition active:scale-95 flex items-center justify-center"
+                  className="group w-10 h-10 rounded-full bg-white/80 backdrop-blur border border-gray-200 shadow-md hover:shadow-lg hover:bg-[linear-gradient(90deg,#3b82f6_0%,#6366f1_60%,#a855f7_100%)] transition active:scale-95 flex items-center justify-center"
                   onClick={() => setEditing(true)}
                   title="Editar perfil"
                 >
@@ -285,7 +285,7 @@ export default function PerfilHeader({ user = {}, onUpdate, onResendVerification
             <>
               <textarea
                 ref={nickInputRef}
-                className="text-3xl leading-normal font-bold tracking-wide bg-transparent border-none outline-none focus:outline-none focus:border-none focus:ring-0 px-1 text-center bg-gradient-to-r from-blue-700 to-purple-700 bg-clip-text text-transparent w-full max-w-full break-words resize-none overflow-hidden caret-blue-600"
+                className="text-3xl leading-normal font-bold tracking-wide bg-transparent border-none outline-none focus:outline-none focus:border-none focus:ring-0 px-1 text-center bg-[linear-gradient(90deg,#3b82f6_0%,#6366f1_60%,#a855f7_100%)] bg-clip-text text-transparent w-full max-w-full break-words resize-none overflow-hidden caret-blue-600"
                 value={nickDraft}
                 onChange={(e) => setNickDraft(e.target.value)}
                 onInput={(e) => {
@@ -357,7 +357,7 @@ export default function PerfilHeader({ user = {}, onUpdate, onResendVerification
 
         {/* Chips */}
         <div className="mt-1.5 flex flex-wrap items-center justify-center gap-2">
-          <span className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-full text-white shadow-lg bg-gradient-to-r from-blue-500 to-indigo-500">
+          <span className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-full text-white shadow-lg bg-[linear-gradient(90deg,#3b82f6_0%,#6366f1_60%,#a855f7_100%)]">
             <Package className="w-3.5 h-3.5" />
             {plan}
           </span>
@@ -366,9 +366,8 @@ export default function PerfilHeader({ user = {}, onUpdate, onResendVerification
             type="button"
             onClick={resendVerification}
             disabled={verificado || resending}
-            className={`inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-full text-white shadow-lg ${
-              verificado ? "bg-green-500" : "bg-amber-500 hover:brightness-95 active:scale-95"
-            }`}
+            className={`inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-full text-white shadow-lg ${verificado ? "bg-green-500" : "bg-amber-500 hover:brightness-95 active:scale-95"
+              }`}
             aria-label={verificado ? "Correo verificado" : "Reenviar verificación"}
             title={verificado ? "Correo verificado" : "Reenviar verificación"}
           >

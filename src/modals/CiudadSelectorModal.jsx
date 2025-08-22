@@ -130,14 +130,12 @@ export default function CiudadSelectorModal({ isOpen, onClose }) {
 
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Ciudad
-                </label>
                 <CiudadesAutocompleteGoogle
                   apiKey={import.meta.env.VITE_GOOGLE_MAPS_KEY}
                   onSelect={handleSelect}
                   placeholder="Escribe tu ciudad…"
                   forceFromList={true}
+                  label=""
                 />
                 {status === "ok" && (
                   <div className="text-xs text-green-600 mt-1">

@@ -161,7 +161,7 @@ const HomeNoLogeadoMobile = () => {
   return (
     <div
       className="
-        min-h-[100dvh] flex flex-col pb-[calc(env(safe-area-inset-bottom,0px))]
+        min-h-[100dvh] flex flex-col pb-[calc(env(safe-area-inset-bottom,0px))] pb-bottom-safe
         bg-[url('/src/assets/fondo-inicio-mobile.jpg')]
         bg-cover
         bg-[position:70%_top]
@@ -176,7 +176,7 @@ const HomeNoLogeadoMobile = () => {
 
       {/* 1. Caja ÚNETE a la plataforma */}
       <motion.div
-        className="w-full flex justify-center mt-8 mb-5"
+        className="w-full flex justify-center mt-10 mb-4"
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 1.2 }}
@@ -206,7 +206,7 @@ const HomeNoLogeadoMobile = () => {
       <main className="
         flex-1 flex flex-col
         items-center
-        justify-center
+        justify-start
         w-full
         mt-15
       "><samp></samp>
@@ -383,13 +383,12 @@ const HomeNoLogeadoMobile = () => {
             onSeleccionarPerfil={handleSeleccionPerfil}
           />
         </div>
-        <div className="flex-1"></div>
       </main>
 
       {/* Carrousel fijo */}
       <motion.div
         className={`
-          w-full fixed bottom-0 left-0 z-40 flex justify-center pointer-events-none
+          w-full fixed bottom-4 left-0 z-40 flex justify-center pointer-events-none
           transition-transform duration-500
           ${showFooter ? "translate-y-0 opacity-100" : "translate-y-28 opacity-0"}
         `}
