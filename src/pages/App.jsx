@@ -1,9 +1,9 @@
-// ✅ src/pages/App-1.jsx (FastUX: prefetch de MiCuenta tras login)
-import { useState, useEffect, useContext, useRef } from "react";
+// ✅ src/pages/App-1.jsx — aplica has-bottom-nav con useLayoutEffect (antes del primer paint)
+import { useState, useEffect, useContext, useRef, useLayoutEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import SplashScreen from "../components/SplashScreen";
-import { FLAGS, getFlag, setFlag, removeFlag, getSuppressLoginOnce, clearSuppressLoginOnce } from "../utils/authStorage";
+import { FLAGS, getFlag, removeFlag, getSuppressLoginOnce, clearSuppressLoginOnce } from "../utils/authStorage";
 
 import "../styles/chat-twemoji.css";
 import { Tools } from "../components/Tools";
@@ -66,7 +66,7 @@ function App() {
   // 🚀 Prefetch del chunk de /mi-cuenta cuando el usuario se autentica
   useEffect(() => {
     if (autenticado) {
-      try { import("../pages/MiCuenta"); } catch {}
+      try { import("../pages/MiCuenta/MiCuenta.jsx"); } catch {}
       try {
         const ret = getFlag(FLAGS.retAfterLogin);
         if (ret) {
@@ -78,11 +78,26 @@ function App() {
     }
   }, [autenticado, navigate]);
 
+  // 🔹 NUEVO: preparar padding global ANTES del primer paint cuando autenticado
+  useLayoutEffect(() => {
+    if (typeof document === "undefined") return;
+    const root = document.documentElement;
+    const body = document.body;
+    if (autenticado) {
+      root.style.setProperty("--bottom-nav-h", "70px");
+      body.classList.add("has-bottom-nav");
+    } else {
+      body.classList.remove("has-bottom-nav");
+      root.style.removeProperty("--bottom-nav-h");
+    }
+  }, [autenticado]);
+
   if (cargando) return <SplashScreen />;
 
   return (
     <>
-      <AppRoutes
+      <div className="pb-bottom-safe">
+        <AppRoutes
         abrirModalLogin={openLogin}
         abrirModalRegistro={(tipo) => {
           setEsLogin(false);
@@ -93,8 +108,6 @@ function App() {
 
       <Tools />
 
-      {typeof window !== "undefined" && autenticado && <MobileBottomNav />}
-
       <ChatPanelPortal />
 
       {typeof window !== "undefined" && (
@@ -104,6 +117,9 @@ function App() {
           isLogin={esLogin}
         />
       )}
+      </div>
+
+      {typeof window !== "undefined" && autenticado && <MobileBottomNav />}
     </>
   );
 }

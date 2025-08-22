@@ -1,162 +1,158 @@
-import { useState, useEffect } from "react";
-import { useAuth } from "../../../context/AuthContext";
-import CiudadSelectorModal from "../../../modals/CiudadSelectorModal.jsx";
+// PerfilDatosForm-1.jsx
+// Versión inline: Autocomplete + botón "Usar mi ubicación" sin modal.
 
-/**
- * Formulario de datos personales. Permite editar y enviar:
- * { nombre, telefono, ciudad }
- * onSubmit(values) -> Promise(usuarioActualizado | {usuario})
- * Si no se pasa onSubmit, usa actualizarPerfil del AuthContext.
- */
-const PERFIL_DRAFT_KEY = "perfilDraft";
+import React, { useEffect, useState } from "react";
+import { useAuth } from "../../../context/AuthContext";
+import CiudadesAutocompleteGoogle from "../../../modals/CiudadesAutocompleteGoogle.jsx";
 
 export default function PerfilDatosForm({ initial = {}, onSubmit }) {
-  const { usuario, actualizarPerfil, ubicacion } = useAuth() || {};
+  const {
+    ciudadPreferida,
+    setCiudadManual,
+    solicitarUbicacionAltaPrecision,
+    forceUbicacionActual,
+  } = useAuth() || {};
 
-  const computeInitial = () => ({
-    nombre: (initial?.nombre ?? usuario?.nombre) ?? "",
-    telefono: (initial?.telefono ?? usuario?.telefono) ?? "",
-    ciudad: (initial?.ciudad ?? usuario?.ciudad ?? ubicacion?.ciudad) ?? "",
+  const [form, setForm] = useState({
+    nombre: initial.nombre || "",
+    telefono: initial.telefono || "",
+    ciudad: initial.ciudad || ciudadPreferida || "",
   });
-
-  const [form, setForm] = useState(computeInitial());
   const [saving, setSaving] = useState(false);
-  const [ok, setOk] = useState(false);
-  const [err, setErr] = useState("");
-  const [showCityModal, setShowCityModal] = useState(false);
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [status, setStatus] = useState("idle"); // idle|checking|ok|fail
 
-  // Sincroniza el formulario cuando cambian initial/usuario/ubicacion
   useEffect(() => {
-    let next = computeInitial();
-    try {
-      const raw = localStorage.getItem(PERFIL_DRAFT_KEY);
-      if (raw) {
-        const draft = JSON.parse(raw);
-        const hasUseful =
-          draft &&
-          typeof draft === "object" &&
-          (String(draft.nombre || "").trim() !== "" ||
-            String(draft.telefono || "").trim() !== "" ||
-            String(draft.ciudad || "").trim() !== "");
-        if (hasUseful) next = { ...next, ...draft };
-      }
-    } catch {}
-    setForm(next);
-    setOk(false);
-    setErr("");
+    // Si cambia la preferida global (por GPS u otro), reflejarla si el usuario no ha tecleado algo distinto
+    setForm((f) => (f.ciudad ? f : { ...f, ciudad: ciudadPreferida || "" }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initial?.nombre, initial?.telefono, initial?.ciudad, usuario?.nombre, usuario?.telefono, usuario?.ciudad, ubicacion?.ciudad]);
+  }, [ciudadPreferida]);
 
-  const handle = (e) => {
-    const next = { ...form, [e.target.name]: e.target.value };
-    setForm(next);
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm((f) => ({ ...f, [name]: value }));
+  };
+
+  const handleCitySelect = (item) => {
+    // item: { label, placeId }
+    const label = item?.label || "";
+    setForm((f) => ({ ...f, ciudad: label }));
+    setStatus("ok");
+    setCiudadManual && setCiudadManual(label);
+  };
+
+  const handleUseCurrent = async () => {
     try {
-      localStorage.setItem(PERFIL_DRAFT_KEY, JSON.stringify(next));
-    } catch {}
-    if (ok) setOk(false);
-    if (err) setErr("");
+      setGpsLoading(true);
+      setStatus("checking");
+      const res = (forceUbicacionActual || solicitarUbicacionAltaPrecision)
+        ? await (forceUbicacionActual
+            ? forceUbicacionActual()
+            : solicitarUbicacionAltaPrecision({ force: true }))
+        : null;
+
+      const label =
+        res?.ciudad || res?.city || res?.label || res?.nombre || res?.name || "";
+
+      if (label) {
+        setForm((f) => ({ ...f, ciudad: label }));
+        setCiudadManual && setCiudadManual(label);
+        setStatus("ok");
+      } else {
+        setStatus("fail");
+      }
+    } catch (e) {
+      setStatus("fail");
+    } finally {
+      setGpsLoading(false);
+    }
   };
 
   const submit = async (e) => {
-    e.preventDefault();
-    setErr("");
-    setOk(false);
+    e?.preventDefault?.();
+    if (!onSubmit) return;
+    setSaving(true);
     try {
-      setSaving(true);
-      const saver = onSubmit || actualizarPerfil;
-      if (!saver) throw new Error("No hay handler para guardar.");
-      const result = await saver(form);
-
-      // Normaliza respuesta del backend/contexto
-      const u = (result && (result.usuario || result)) || {};
-      const updated = {
-        nombre: u.nombre ?? form.nombre ?? "",
-        telefono: u.telefono ?? form.telefono ?? "",
-        ciudad: u.ciudad ?? form.ciudad ?? "",
-      };
-      setForm(updated);
-      try { localStorage.removeItem(PERFIL_DRAFT_KEY); } catch {}
-      setOk(true);
-    } catch (e) {
-      setErr(e?.message || "No se pudo guardar");
+      await onSubmit(form);
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <form onSubmit={submit} className="space-y-3">
-      <Field label="Nombre">
+    <form onSubmit={submit} className="space-y-4">
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1">
+          Nombre
+        </label>
         <input
+          type="text"
           name="nombre"
           value={form.nombre}
-          onChange={handle}
-          className="w-full px-3 py-2 rounded-lg border bg-white dark:border-zinc-700"
+          onChange={handleChange}
+          className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
         />
-      </Field>
+      </div>
 
-      <Field label="Teléfono">
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1">
+          Teléfono
+        </label>
         <input
+          type="tel"
           name="telefono"
           value={form.telefono}
-          onChange={handle}
-          className="w-full px-3 py-2 rounded-lg border bg-white dark:border-zinc-700"
+          onChange={handleChange}
+          className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
         />
-      </Field>
+      </div>
 
-      <Field label="Ciudad">
-        <div className="flex flex-col gap-2">
-          <input
-            name="ciudad"
-            value={form.ciudad || ubicacion?.ciudad || ""}
-            readOnly
-            placeholder="Elige tu ciudad"
-            className="w-full px-3 py-2 rounded-lg border bg-white dark:border-zinc-700"
-          />
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1">
+          Ciudad
+        </label>
+        <div className="flex gap-2 items-start">
+          <div className="flex-1">
+            <CiudadesAutocompleteGoogle
+              apiKey={import.meta.env.VITE_GOOGLE_MAPS_KEY}
+              onSelect={handleCitySelect}
+              placeholder="Escribe tu ciudad…"
+              forceFromList={true}
+              defaultValue={form.ciudad}
+            />
+            {status === "ok" && (
+              <div className="text-[11px] text-green-600 mt-1">
+                Ciudad seleccionada ✔
+              </div>
+            )}
+            {status === "fail" && (
+              <div className="text-[11px] text-amber-600 mt-1">
+                No pudimos obtener tu ubicación actual.
+              </div>
+            )}
+          </div>
+
           <button
             type="button"
-            onClick={() => setShowCityModal(true)}
-            className="w-full px-3 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-sm"
+            onClick={handleUseCurrent}
+            disabled={gpsLoading}
+            className="shrink-0 px-3 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+            title="Usar mi ubicación actual"
           >
-            Elegir ciudad
+            {gpsLoading ? "GPS…" : "Usar mi ubicación"}
           </button>
         </div>
-      </Field>
+      </div>
 
-      <div className="pt-2 flex items-center gap-3">
+      <div className="pt-2">
         <button
-          className="text-sm px-3 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+          type="submit"
           disabled={saving}
+          className="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm disabled:opacity-60"
         >
           {saving ? "Guardando…" : "Guardar cambios"}
         </button>
-        {ok && <span className="text-sm text-green-600">Guardado ✔</span>}
-        {err && <span className="text-sm text-amber-600">{err}</span>}
       </div>
-
-      {/* Modal selector de ciudad */}
-      <CiudadSelectorModal
-        isOpen={showCityModal}
-        onClose={() => {
-          setShowCityModal(false);
-          // sincroniza la ciudad elegida desde el contexto
-          const ctx = (ubicacion && ubicacion.ciudad) ? String(ubicacion.ciudad).trim() : "";
-          if (ctx && ctx !== String(form.ciudad || "").trim()) {
-            const next = { ...form, ciudad: ctx };
-            setForm(next);
-            try { localStorage.setItem(PERFIL_DRAFT_KEY, JSON.stringify(next)); } catch {}
-          }
-        }}
-      />
     </form>
-  );
-}
-
-function Field({ label, children }) {
-  return (
-    <label className="block">
-      <div className="text-xs font-medium text-gray-500 mb-1">{label}</div>
-      {children}
-    </label>
   );
 }

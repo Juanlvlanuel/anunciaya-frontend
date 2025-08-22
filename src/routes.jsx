@@ -19,7 +19,7 @@ const Subastas = lazy(() => import("./pages/Subastas"));
 const Rifas = lazy(() => import("./pages/Rifas"));
 const RegalaODona = lazy(() => import("./pages/RegalaODona"));
 const Empleos = lazy(() => import("./pages/Empleos"));
-const MiCuenta = lazy(() => import("./pages/MiCuenta"));
+const MiCuenta = lazy(() => import("./pages/MiCuenta/MiCuenta.jsx"));
 const VerificarCorreo = lazy(() => import("./pages/VerificarCorreo"));
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));

@@ -1,49 +1,32 @@
-
-// CiudadesAutocompleteGoogle.jsx
-// Autocompletado con Google Places (solo ciudades de México).
-// - Restringe a country MX y types=(cities).
-// - Forza selección válida de sugerencia (opcional).
-// - Sin librerías externas: inyecta el script de Maps JS dinámicamente.
-// - Requiere una API Key de Google Maps JavaScript API con Places habilitado.
+// CiudadesAutocompleteGoogle-1.jsx
+// Autocompletado de ciudades (MX) SIN el widget deprecado.
+// Usa AutocompleteService + PlacesService y renderiza un dropdown propio.
+// Props compatibles: { apiKey, onSelect, label?, placeholder?, forceFromList?, defaultValue?, className?, inputClassName? }
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-function loadGoogleScript(apiKey) {
-  const id = "google-maps-js";
-  if (window.google && window.google.maps && window.google.maps.places) return Promise.resolve();
+function loadMaps(apiKey) {
+  const id = "gmaps-js";
+  if (window.google?.maps?.places) return Promise.resolve(true);
   if (document.getElementById(id)) {
     return new Promise((resolve) => {
-      const check = () => {
-        if (window.google && window.google.maps && window.google.maps.places) resolve();
-        else setTimeout(check, 200);
-      };
-      check();
+      const t = setInterval(() => {
+        if (window.google?.maps?.places) { clearInterval(t); resolve(true); }
+      }, 100);
     });
   }
   return new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.id = id;
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&language=es`;
-    script.async = true;
-    script.defer = true;
-    script.onload = () => resolve();
-    script.onerror = (e) => reject(e);
-    document.head.appendChild(script);
+    const s = document.createElement("script");
+    s.id = id;
+    s.async = true;
+    s.defer = true;
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&language=es`;
+    s.onload = () => resolve(true);
+    s.onerror = reject;
+    document.head.appendChild(s);
   });
 }
 
-/**
- * CiudadesAutocompleteGoogle
- * @param {Object} props
- * @param {string} props.apiKey - Google Maps JavaScript API key (con Places).
- * @param {(value: {label: string, placeId: string, state?: string}) => void} [props.onSelect]
- * @param {string} [props.label]
- * @param {string} [props.placeholder]
- * @param {boolean} [props.forceFromList] - Si true, solo acepta valores seleccionados desde sugerencias.
- * @param {string} [props.defaultValue]
- * @param {string} [props.className]
- * @param {string} [props.inputClassName]
- */
 export default function CiudadesAutocompleteGoogle({
   apiKey,
   onSelect,
@@ -52,90 +35,141 @@ export default function CiudadesAutocompleteGoogle({
   forceFromList = true,
   defaultValue = "",
   className = "",
-  inputClassName = ""
+  inputClassName = "",
 }) {
   const inputRef = useRef(null);
-  const [value, setValue] = useState(defaultValue);
+  const svcRef = useRef(null);
+  const detailsRef = useRef(null);
+  const mapDivRef = useRef(null);
+
+  const [ready, setReady] = useState(false);
+  const [value, setValue] = useState(defaultValue || "");
+  const [open, setOpen] = useState(false);
+  const [preds, setPreds] = useState([]);
   const [valid, setValid] = useState(!forceFromList || !!defaultValue);
-  const lastPickedRef = useRef(null);
-  const acRef = useRef(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!apiKey) return;
-    let listener = null;
-    let autocomplete = null;
-    loadGoogleScript(apiKey).then(() => {
-      if (!inputRef.current) return;
-      const options = {
-        types: ["(cities)"],
-        componentRestrictions: { country: "mx" },
-      };
-      autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, options);
+    setValue(defaultValue || "");
+    setValid(!forceFromList || !!defaultValue);
+  }, [defaultValue, forceFromList]);
 
-      listener = autocomplete.addListener("place_changed", () => {
-        const place = autocomplete.getPlace();
-        // Validar que sea ciudad en MX
-        const comps = place.address_components || [];
-        const country = comps.find(c => c.types.includes("country"))?.short_name;
-        const locality = comps.find(c => c.types.includes("locality"))?.long_name
-          || comps.find(c => c.types.includes("administrative_area_level_2"))?.long_name; // fallback para algunos casos
-        const admin1 = comps.find(c => c.types.includes("administrative_area_level_1"))?.long_name;
+  // Init Places services
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      await loadMaps(apiKey);
+      if (cancelled) return;
+      const places = window.google?.maps?.places;
+      if (!places) return;
+      svcRef.current = new places.AutocompleteService();
+      // Details necesita un map o div para contexto
+      const div = document.createElement("div");
+      mapDivRef.current = div;
+      detailsRef.current = new places.PlacesService(div);
+      setReady(true);
+    })();
+    return () => { cancelled = true; };
+  }, [apiKey]);
 
-        if (country === "MX" && (locality || place.name)) {
-          const label = locality ? `${locality}${admin1 ? ", " + admin1 : ""}` : place.name;
-          const payload = { label, placeId: place.place_id, state: admin1 };
-          lastPickedRef.current = payload;
-          setValue(label);
-          setValid(true);
-          onSelect && onSelect(payload);
-        } else {
-          // No válido para nuestra restricción
-          lastPickedRef.current = null;
-          setValid(false);
-        }
-      });
-
-      acRef.current = autocomplete;
-    });
-
-    return () => {
-      if (listener) window.google.maps.event.removeListener(listener);
-      acRef.current = null;
+  // Debounce helper
+  const debounce = (fn, ms) => {
+    let t;
+    return (...args) => {
+      clearTimeout(t);
+      t = setTimeout(() => fn(...args), ms);
     };
-  }, [apiKey, onSelect, forceFromList]);
+  };
 
-  function handleBlur() {
-    if (!forceFromList) return;
-    if (!lastPickedRef.current || lastPickedRef.current.label !== value) {
-      // Si el valor no coincide con el último pick válido, lo limpiamos
+  const queryPreds = useMemo(
+    () => debounce((text) => {
+      if (!svcRef.current) return;
+      if (!text) { setPreds([]); return; }
+      setLoading(true);
+      svcRef.current.getPlacePredictions(
+        {
+          input: text,
+          types: ["(cities)"],
+          componentRestrictions: { country: "mx" },
+        },
+        (res) => {
+          setLoading(false);
+          setPreds(Array.isArray(res) ? res : []);
+        }
+      );
+    }, 180),
+    []
+  );
+
+  const handleChange = (e) => {
+    const v = e.target.value;
+    setValue(v);
+    setValid(!forceFromList); // hasta seleccionar de la lista
+    setOpen(true);
+    queryPreds(v);
+  };
+
+  const pickPrediction = (p) => {
+    // Obtener detalles para formatear "Ciudad, Estado"
+    if (!detailsRef.current) return;
+    detailsRef.current.getDetails({ placeId: p.place_id, fields: ["address_components", "name", "formatted_address", "place_id"] }, (place) => {
+      const comps = place?.address_components || [];
+      const locality =
+        comps.find((c) => c.types.includes("locality"))?.long_name ||
+        comps.find((c) => c.types.includes("administrative_area_level_2"))?.long_name ||
+        place?.name ||
+        p.structured_formatting?.main_text;
+      const admin1 = comps.find((c) => c.types.includes("administrative_area_level_1"))?.long_name;
+      const label = `${locality || ""}${admin1 ? ", " + admin1 : ""}`.trim();
+      setValue(label);
+      setOpen(false);
+      setPreds([]);
+      setValid(true);
+      onSelect && onSelect({ label, placeId: place?.place_id || p.place_id, state: admin1 });
+    });
+  };
+
+  const handleBlur = () => {
+    // Cerrar menú un poco después para permitir click
+    setTimeout(() => setOpen(false), 120);
+    if (forceFromList && !valid) {
       setValue("");
-      setValid(false);
     }
-  }
+  };
 
   return (
     <div className={`relative ${className}`}>
-      {label && (
-        <label className="block mb-1 text-sm font-medium text-gray-700">
-          {label}
-        </label>
-      )}
+      {label && <label className="block mb-1 text-sm font-medium text-gray-700">{label}</label>}
 
       <input
         ref={inputRef}
         type="text"
         value={value}
         placeholder={placeholder}
-        onChange={(e) => {
-          setValue(e.target.value);
-          setValid(!forceFromList);
-          lastPickedRef.current = null;
-        }}
+        onChange={handleChange}
+        onFocus={() => { if (value) setOpen(true); }}
         onBlur={handleBlur}
         className={`w-full rounded-xl border ${valid ? "border-gray-300" : "border-red-400"} px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white ${inputClassName}`}
         autoComplete="off"
         spellCheck={false}
       />
+
+      {open && preds.length > 0 && (
+        <div className="absolute z-[200] left-0 right-0 mt-1 max-h-56 overflow-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+          {preds.map((p) => (
+            <button
+              key={p.place_id}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => pickPrediction(p)}
+              className="w-full text-left px-3 py-2 hover:bg-gray-50"
+            >
+              <div className="text-sm text-gray-900">{p.structured_formatting?.main_text || p.description}</div>
+              <div className="text-xs text-gray-500">{p.structured_formatting?.secondary_text || ""}</div>
+            </button>
+          ))}
+        </div>
+      )}
 
       {!valid && forceFromList && (
         <p className="mt-1 text-xs text-red-600">Selecciona una ciudad de la lista.</p>

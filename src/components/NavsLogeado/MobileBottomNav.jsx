@@ -1,23 +1,22 @@
-import React, { useContext, useEffect, useRef } from "react";
+import React, { useContext, useLayoutEffect, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { FaHome, FaUser, FaTags, FaSignOutAlt } from "react-icons/fa";
-import { BsGrid3X3GapFill } from "react-icons/bs";
 import { AuthContext } from "../../context/AuthContext";
 import { setSuppressLoginOnce, setFlag } from "../../utils/authStorage";
 import Tools from "../Tools/Tools.jsx";
 
 /**
- * MobileBottomNav
- * Se conserva el acomodo y estilos de los 4 íconos actuales (texto en 1 línea).
- * Se inserta el botón azul (solo ícono) justo al centro, entre el 2° y 3°.
- * Rutas intactas.
+ * MobileBottomNav (v2):
+ * - NO escribe padding directo en body; en su lugar:
+ *    1) fija CSS var --bottom-nav-h en :root según altura real (ResizeObserver)
+ *    2) agrega/clase "has-bottom-nav" al body para aplicar padding vía CSS global
+ * - Evita cualquier "doble padding" en refresh.
  */
 
 const items = [
   { label: "Inicio", icon: <FaHome size={26} />, action: "home" },
   { label: "Mi Cuenta", icon: <FaUser size={26} />, action: "mi-cuenta" },
-  // (Botón Tools irá aquí en el render)
   { label: "Mis Compras", icon: <FaTags size={26} />, action: "compras" },
   { label: "Salir", icon: <FaSignOutAlt size={26} />, action: "salir" },
 ];
@@ -27,17 +26,33 @@ const MobileBottomNavContent = () => {
   const navigate = useNavigate();
   const navRef = useRef(null);
 
-  // Mantener padding inferior para no tapar contenido
-  useEffect(() => {
-    const setHeights = () => {
-      const h = navRef.current?.offsetHeight || 70;
-      document.body.style.paddingBottom = `calc(${h}px + env(safe-area-inset-bottom, 0px))`;
+  // Gestiona variable CSS + clase global
+  useLayoutEffect(() => {
+    const el = navRef.current;
+    const root = document.documentElement;
+    const body = document.body;
+
+    const apply = () => {
+      const h = (el?.offsetHeight || 70);
+      root.style.setProperty("--bottom-nav-h", `${h}px`);
+      // body class removed
     };
-    setHeights();
-    window.addEventListener("resize", setHeights);
+    apply();
+
+    let ro;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(apply);
+      if (el) ro.observe(el);
+    }
+    const onResize = () => apply();
+    window.addEventListener("resize", onResize);
+
     return () => {
-      window.removeEventListener("resize", setHeights);
-      try { document.body.style.paddingBottom = ""; } catch { }
+      window.removeEventListener("resize", onResize);
+      if (ro && el) ro.unobserve(el);
+      // limpiar
+      /* no body class to remove */
+      try { root.style.removeProperty("--bottom-nav-h"); } catch {}
     };
   }, []);
 
@@ -53,9 +68,9 @@ const MobileBottomNavContent = () => {
         navigate("/compras");
         break;
       case "salir":
-        try { setSuppressLoginOnce(true); setFlag("logoutAt", String(Date.now())); } catch { }
-        try { await cerrarSesion?.(); } catch { }
-        try { navigate("/", { replace: true, state: { showLogin: false } }); } catch { }
+        try { setSuppressLoginOnce(true); setFlag("logoutAt", String(Date.now())); } catch {}
+        try { await cerrarSesion?.(); } catch {}
+        try { navigate("/", { replace: true, state: { showLogin: false } }); } catch {}
         break;
       default:
         break;
@@ -63,12 +78,9 @@ const MobileBottomNavContent = () => {
   };
 
   const openTools = () => {
-    try {
-      window.dispatchEvent(new Event("open-tools-sidebar"));
-    } catch { }
+    try { window.dispatchEvent(new Event("open-tools-sidebar")); } catch {}
   };
 
-  // Construimos el orden: 2 primeros, Tools, 2 últimos
   const ordered = [items[0], items[1], { label: "__TOOLS__" }, items[2], items[3]];
 
   return (
@@ -78,9 +90,8 @@ const MobileBottomNavContent = () => {
         className="fixed bottom-0 inset-x-0 z-[99999] h-[70px] bg-white/90 backdrop-blur-md border-t border-black/5 flex items-center text-[#111827] text-xs shadow-lg md:hidden"
       >
         <div className="w-full flex items-center justify-evenly px-2">
-          {ordered.map((item, idx) => {
+          {ordered.map((item) => {
             if (item.label === "__TOOLS__") {
-              // Botón central azul, SOLO ícono (sin texto)
               return (
                 <button
                   key="tools-center"
@@ -114,7 +125,6 @@ const MobileBottomNavContent = () => {
         </div>
       </nav>
 
-      {/* Montamos el controlador de Tools (BottomSheet + TemplatePicker) */}
       <Tools />
     </>
   );

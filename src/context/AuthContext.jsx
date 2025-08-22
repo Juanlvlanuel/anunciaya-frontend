@@ -93,12 +93,12 @@ const AuthProvider = ({ children }) => {
 
   // Solicita ubicación con alta precisión y resuelve ciudad vía backend (/api/geo/reverse).
   // ⚠️ No sobreescribe si ya existe ciudad manual (source:"manual").
-  const solicitarUbicacionAltaPrecision = async () => {
+  const solicitarUbicacionAltaPrecision = async (opts = {}) => {
     if (typeof navigator === "undefined" || !("geolocation" in navigator)) return null;
 
-    // Respetar manual
+    // Respetar manual (a menos que se fuerce)
     const curr = readUbicacion();
-    if (curr?.source === "manual" && curr?.ciudad) return curr;
+    if (!opts.force && curr?.source === "manual" && curr?.ciudad) return curr;
 
     const askPosition = (opts) =>
       new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, opts));
@@ -112,9 +112,9 @@ const AuthProvider = ({ children }) => {
       const ciudad = data?.city || data?.ciudad || null;
       const next = { lat: latitude, lon: longitude, ciudad, source: "auto", ts: Date.now() };
 
-      // Solo setear si NO hay manual
+      // Setear siempre si se fuerza; de lo contrario respeta manual
       const now = readUbicacion();
-      if (!(now?.source === "manual" && now?.ciudad)) {
+      if (opts.force || !(now?.source === "manual" && now?.ciudad)) {
         setUbicacion(next);
         writeUbicacion(next);
       }
@@ -429,9 +429,11 @@ const AuthProvider = ({ children }) => {
   };
 
   // Forzar lectura de GPS sin pisar manual
-  const refreshUbicacionActual = async () => {
-    return await solicitarUbicacionAltaPrecision();
+  const refreshUbicacionActual = async (opts = {}) => {
+    return await solicitarUbicacionAltaPrecision(opts);
   };
+  const forceUbicacionActual = async () => await solicitarUbicacionAltaPrecision({ force: true });
+
 
   // Alias práctico para filtrar
   const ciudadPreferida = useMemo(() => ubicacion?.ciudad || null, [ubicacion]);

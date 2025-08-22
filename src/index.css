@@ -90,9 +90,6 @@ html, body { background: transparent !important; }
   :root{ --bottom-nav-h: 0px; }    /* en desktop no hay barra inferior */
 }
 
-/* Empuja TODO el contenido de la app por encima del menú */
-/* body padding-bottom removed; now managed by MobileBottomNav */
-
 /* Utilidades para elementos fijados al fondo (sheets, toasts, popups) */
 @layer utilities {
   .bottom-safe { bottom: var(--safe-bottom-offset); }           /* posicionados con bottom */

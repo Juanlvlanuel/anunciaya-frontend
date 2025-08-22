@@ -21,6 +21,23 @@
       crossorigin="anonymous"
       src="https://connect.facebook.net/es_LA/sdk.js"
     ></script>
+  
+    <!-- Early reserve for BottomNav on first paint if user was logged in before -->
+    <script>
+      (function(){
+        try {
+          var was = localStorage.getItem('wasLoggedIn') === '1';
+          if (was) {
+            var root = document.documentElement;
+            root.style.setProperty('--bottom-nav-h', '70px');
+            document.addEventListener('DOMContentLoaded', function(){
+              document.body.classList.add('has-bottom-nav');
+            });
+          }
+        } catch(e){}
+      })();
+    </script>
+
   </head>
   <body>
     <div id="root"></div>

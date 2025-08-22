@@ -21,6 +21,22 @@ console.log("GOOGLE_CLIENT_ID en PROD =>", clientId);
 
 const USER_ID = import.meta.env.VITE_TEST_USER_ID;
 
+// 🚫 Filtro de warnings de Google Maps en consola
+const originalWarn = console.warn;
+console.warn = (...args) => {
+  if (
+    typeof args[0] === "string" &&
+    (
+      args[0].includes("Google Maps JavaScript API") ||
+      args[0].includes("Autocomplete") ||
+      args[0].includes("PlacesService")
+    )
+  ) {
+    return; // ignorar esos warnings
+  }
+  originalWarn(...args);
+};
+
 const Root = () => {
   // Carga SDK de Facebook una sola vez
   useEffect(() => {
