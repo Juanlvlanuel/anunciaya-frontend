@@ -20,9 +20,8 @@ async function shrinkImage(file, { maxW = 1024, maxH = 1024, quality = 0.85 } = 
 }
 
 /**
- * AvatarUploader-2
- * - Corrige error de Cloudinary: elimina por completo cualquier uso de upload_preset en FormData.
- * - Mantiene compresión WebP y animaciones.
+ * AvatarUploader-3
+ * - FIX definitivo: añade `signature` al FormData (subida firmada) y NO envía `upload_preset`.
  */
 export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload }) {
   const inputRef = useRef(null);
@@ -99,7 +98,7 @@ export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload
     const uid = usuario?._id || "me";
     const env = (typeof window !== "undefined" && /localhost|127\.0\.0\.1/.test(window.location.host)) ? "dev" : "prod";
 
-    // 🔐 Usar helper con Authorization automático
+    // 🔐 Firma desde backend
     const sign = await postJSON(`/api/media/sign`, {
       env,
       folder: `anunciaya/${env}/users/${uid}/avatar`,
@@ -111,13 +110,14 @@ export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload
     fd.append("file", file);
     fd.append("api_key", sign.apiKey);
     fd.append("timestamp", sign.timestamp);
+    fd.append("signature", sign.signature); // 🔑 campo requerido para subida firmada
     if (sign.folder) fd.append("folder", sign.folder);
     if (sign.public_id) fd.append("public_id", sign.public_id);
     if (typeof sign.overwrite !== "undefined") fd.append("overwrite", String(sign.overwrite));
     if (typeof sign.invalidate !== "undefined") fd.append("invalidate", String(sign.invalidate));
     if (sign.tags) fd.append("tags", sign.tags);
     if (sign.context) fd.append("context", sign.context);
-    // 🚫 NO se agrega nunca upload_preset en FormData
+    // 🚫 NO enviar upload_preset
 
     const cloudUrl = `https://api.cloudinary.com/v1_1/${sign.cloudName}/auto/upload`;
     const upRes = await fetch(cloudUrl, { method: "POST", body: fd });
@@ -193,7 +193,8 @@ export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload
           ref={avatarRef}
           className="w-20 h-20 rounded-full bg-gray-200 overflow-hidden cursor-pointer ring-1 ring-gray-200"
           onClick={openLightbox}
-          title={loading ? "Subiendo..." : "Ver / Cambiar foto"}
+          title={loading ? "Subiendo..." : "Ver / Cambiar foto"
+         }
         >
           {preview ? (
             <motion.img
