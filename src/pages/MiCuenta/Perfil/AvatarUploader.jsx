@@ -20,9 +20,8 @@ async function shrinkImage(file, { maxW = 1024, maxH = 1024, quality = 0.85 } = 
 }
 
 /**
- * AvatarUploader-1
- * - Usa postJSON() para firmar en /api/media/sign (incluye Authorization y refresh automático).
- * - No envía upload_preset en el body; el backend lo asume por defecto para avatar.
+ * AvatarUploader-2
+ * - Corrige error de Cloudinary: elimina por completo cualquier uso de upload_preset en FormData.
  * - Mantiene compresión WebP y animaciones.
  */
 export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload }) {
@@ -102,7 +101,6 @@ export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload
 
     // 🔐 Usar helper con Authorization automático
     const sign = await postJSON(`/api/media/sign`, {
-      // upload_preset se asume en el backend para avatar
       env,
       folder: `anunciaya/${env}/users/${uid}/avatar`,
       tags: [`app:anunciaya`, `env:${env}`, `cat:Users`, `user:${uid}`],
@@ -119,7 +117,7 @@ export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload
     if (typeof sign.invalidate !== "undefined") fd.append("invalidate", String(sign.invalidate));
     if (sign.tags) fd.append("tags", sign.tags);
     if (sign.context) fd.append("context", sign.context);
-    // ❌ No enviar upload_preset en firmados
+    // 🚫 NO se agrega nunca upload_preset en FormData
 
     const cloudUrl = `https://api.cloudinary.com/v1_1/${sign.cloudName}/auto/upload`;
     const upRes = await fetch(cloudUrl, { method: "POST", body: fd });
