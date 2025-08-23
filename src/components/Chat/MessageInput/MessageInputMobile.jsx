@@ -3,7 +3,23 @@
 // enterKeyHint, y handlers con useCallback. Mantiene compatibilidad con tu flujo actual.
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { FaPaperclip, FaPaperPlane, FaSmile } from "react-icons/fa";
+
+        // ---- Client-side compressor (WebP) ----
+        async function shrinkImage(file, { maxW = 1600, maxH = 1600, quality = 0.82 } = {}) {
+          const bitmap = await createImageBitmap(file);
+          const scale = Math.min(1, maxW / bitmap.width, maxH / bitmap.height);
+          const w = Math.max(1, Math.round(bitmap.width * scale));
+          const h = Math.max(1, Math.round(bitmap.height * scale));
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
+          ctx.drawImage(bitmap, 0, 0, w, h);
+          const blob = await new Promise((res) => canvas.toBlob(res, 'image/webp', quality));
+          if (!blob) return file;
+          return new File([blob], (file.name || 'image').replace(/\.[^.]+$/, '') + '.webp', { type: 'image/webp' });
+        }
+        import { FaPaperclip, FaPaperPlane, FaSmile } from "react-icons/fa";
 import { useChat } from "../../../context/ChatContext";
 import EmojiPickerPro from "../EmojiPicker/EmojiPicker";
 import { API_BASE } from "../../../services/api";
@@ -174,26 +190,85 @@ export default function MessageInputMobile() {
   }, []);
 
   // ---- Upload de imágenes
-  async function uploadImage(file) {
+  
+async function uploadImage(file) {
     if (!file.type.startsWith("image/")) throw new Error("Solo se permiten imágenes.");
     if (file.size > MAX_SIZE_MB * 1024 * 1024) throw new Error(`La imagen supera ${MAX_SIZE_MB} MB.`);
 
+    // === 1) Pedir firma segura al backend ===
+    const mid = `${Date.now().toString(36)}${Math.random().toString(36).slice(2,8)}`;
+    const env = (typeof window !== "undefined" && /localhost|127\.0\.0\.1/.test(window.location.host)) ? "dev" : "prod";
+    const chatId = String(activeChatId || "general");
+    const owner = String(currentUserId || "anon");
+
+    const signRes = await fetch(`${API_BASE}/api/media/sign`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        upload_preset: "chat_image",
+        chatId,
+        messageId: mid,
+        senderId: owner,
+        env,
+      }),
+    });
+    if (!signRes.ok) {
+      const msg = await (async () => { try { return await signRes.text(); } catch { return ""; } })();
+      throw new Error(msg || "No se pudo generar firma de Cloudinary.");
+    }
+    const sign = await signRes.json();
+
+    // === 2) Subir directo a Cloudinary ===
+    file = await shrinkImage(file, { maxW: 1600, maxH: 1600, quality: 0.82 });
     const fd = new FormData();
     fd.append("file", file);
+    fd.append("api_key", sign.apiKey);
+    fd.append("timestamp", sign.timestamp);
+    fd.append("folder", sign.folder);
+    fd.append("signature", sign.signature);
 
-    const res = await fetch(`${API_BASE}/api/upload/single`, { method: "POST", body: fd });
-    if (!res.ok) {
-      const msg = await (async () => { try { return await res.text(); } catch { return ""; } })();
-      throw new Error(msg || "Error al subir la imagen.");
+    if (sign.public_id) fd.append("public_id", sign.public_id);
+    if (sign.tags) fd.append("tags", sign.tags);
+    if (sign.context) fd.append("context", sign.context);
+    if (typeof sign.overwrite !== "undefined") fd.append("overwrite", String(sign.overwrite));
+    if (typeof sign.invalidate !== "undefined") fd.append("invalidate", String(sign.invalidate));
+
+    const cloudUrl = `https://api.cloudinary.com/v1_1/${sign.cloudName}/auto/upload`;
+    const upRes = await fetch(cloudUrl, { method: "POST", body: fd });
+    if (!upRes.ok) {
+      const msg = await (async () => { try { return await upRes.text(); } catch { return ""; } })();
+      throw new Error(msg || "Error subiendo a Cloudinary.");
     }
-    const json = await res.json();
-    const raw = json.url; // puede venir relativo (/uploads/...)
-    const thumbRaw = json.thumbUrl || null;
-    const url = absUrl(raw);
-    const thumbUrl = absUrl(thumbRaw);
-    const mime = json.mimeType || file.type || "image/*";
-    return { url, thumbUrl, name: file.name, filename: file.name, mimeType: mime, isImage: true };
+    const up = await upRes.json();
+
+    // === 3) Generar thumbUrl con transformación PRO ===
+    const secureUrl = up.secure_url || up.url;
+    const mime = up.resource_type ? `${up.resource_type}/*` : (file.type || "image/*");
+
+    function makeThumb(url) {
+      try {
+        const u = new URL(url);
+        // Insert transformation after /upload/
+        u.pathname = u.pathname.replace(/\/upload\/(v\d+\/)?/, (m, v) => `/upload/w_400,h_400,c_fill,q_auto,f_auto/${v||""}`);
+        return u.toString();
+      } catch {
+        return url;
+      }
+    }
+
+    const thumbUrl = makeThumb(secureUrl);
+
+    return {
+      url: secureUrl,
+      thumbUrl,
+      name: file.name,
+      filename: file.name,
+      mimeType: mime,
+      isImage: true,
+    };
   }
+
 
   const revokePreview = (url) => {
     try { if (url && url.startsWith("blob:")) URL.revokeObjectURL(url); } catch {}

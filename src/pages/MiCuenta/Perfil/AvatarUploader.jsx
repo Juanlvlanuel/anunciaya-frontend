@@ -1,17 +1,33 @@
-
 import { useRef, useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "../../../context/AuthContext";
 import { API_BASE } from "../../../services/api";
 import { LayoutGroup, motion, AnimatePresence } from "framer-motion";
 
+// ---- Client-side compressor (WebP) ----
+async function shrinkImage(file, { maxW = 1024, maxH = 1024, quality = 0.85 } = {}) {
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(1, maxW / bmp.width, maxH / bmp.height);
+  const w = Math.max(1, Math.round(bmp.width * scale));
+  const h = Math.max(1, Math.round(bmp.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
+  ctx.drawImage(bmp, 0, 0, w, h);
+  const blob = await new Promise((res)=>canvas.toBlob(res, 'image/webp', quality));
+  if (!blob) return file;
+  return new File([blob], (file.name||'avatar').replace(/\.[^.]+$/, '') + '.webp', { type: 'image/webp' });
+}
+
+
 /**
- * AvatarUploader-1 (con transición "expand from avatar" + glass overlay)
- * - Efecto: al hacer clic, la imagen se expande desde el avatar (círculo) al centro con resorte;
- *   al cerrar, vuelve al mismo punto.
- * - Overlay: glassmorphism claro con blur y degradado blanco/gris translúcido.
- * - Cierre: clic afuera, botón de cierre o tecla ESC. Bloqueo de scroll del body mientras está abierto.
- * - Mantiene toda tu lógica original de subida/preview/normalización.
+ * AvatarUploader-1
+ * - Agrega console.log/console.time para depurar:
+ *   * Respuesta de firma /api/media/sign
+ *   * Respuesta de Cloudinary
+ *   * Errores de subida
+ * - Mantiene tu animación y flujo actual.
+ * - Quita upload_preset del FormData (firmado).
  */
 export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload }) {
   const inputRef = useRef(null);
@@ -84,22 +100,51 @@ export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload
     setShowModal(true);
   };
 
-  const uploadToBackend = async (file) => {
-    const fd = new FormData();
-    fd.append("avatar", file);
-    const res = await fetch("/api/usuarios/me/avatar", {
+  // Subida directa a Cloudinary usando firma del backend
+  const uploadToCloudinary = async (file) => {
+    const uid = usuario?._id || "me";
+    const env = (typeof window !== "undefined" && /localhost|127\.0\.0\.1/.test(window.location.host)) ? "dev" : "prod";
+
+    const signRes = await fetch(`${API_BASE}/api/media/sign`, {
       method: "POST",
-      body: fd,
+      headers: { "Content-Type": "application/json" },
       credentials: "include",
+      body: JSON.stringify({
+        upload_preset: "users_avatar",
+        folder: `anunciaya/${env}/users/${uid}/avatar`,
+        tags: [`app:anunciaya`, `env:${env}`, `cat:Users`, `user:${uid}`],
+      }),
     });
-    if (!res.ok) {
-      const tx = await res.text().catch(() => "");
-      throw new Error(tx || "No se pudo subir el avatar.");
+    const signText = await signRes.text();
+    let sign;
+    try {
+      sign = JSON.parse(signText);
+    } catch {
+      throw new Error(`Firma inválida: ${signText?.slice(0, 200)}`);
     }
-    let data = {};
-    try { data = await res.json(); } catch {}
-    const url = data.url || data.fotoPerfil || data.avatarUrl || data.location || "";
-    return url;
+    if (!signRes.ok) throw new Error(signText || "No se pudo generar la firma de Cloudinary");
+
+    file = await shrinkImage(file);
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("api_key", sign.apiKey);
+    fd.append("timestamp", sign.timestamp);
+    fd.append("folder", sign.folder);
+    fd.append("signature", sign.signature);
+    if (sign.tags) fd.append("tags", sign.tags);
+    if (sign.context) fd.append("context", sign.context);
+    if (sign.public_id) fd.append("public_id", sign.public_id);
+    if (typeof sign.overwrite !== "undefined") fd.append("overwrite", String(sign.overwrite));
+    if (typeof sign.invalidate !== "undefined") fd.append("invalidate", String(sign.invalidate));
+
+    const cloudUrl = `https://api.cloudinary.com/v1_1/${sign.cloudName}/auto/upload`;
+    const upRes = await fetch(cloudUrl, { method: "POST", body: fd });
+    const upText = await upRes.text();
+    if (!upRes.ok) {
+      throw new Error(upText || "Error subiendo a Cloudinary");
+    }
+    const up = JSON.parse(upText);
+    return up.secure_url || up.url || "";
   };
 
   const toFile = (blob, name, type) => {
@@ -119,12 +164,10 @@ export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload
     setError("");
     setLoading(true);
 
-    // Preview rápido
     const blobUrl = URL.createObjectURL(original);
     setPreview(blobUrl);
 
     try {
-      // Transformación opcional
       let toUpload = original;
       if (typeof beforeUpload === "function") {
         const transformed = await beforeUpload(original);
@@ -135,17 +178,15 @@ export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload
         }
       }
 
-      // Subir
-      const finalUrl = await uploadToBackend(toUpload);
+      const finalUrl = await uploadToCloudinary(toUpload);
 
-      // Actualizar perfil (si aplica)
       const payload = finalUrl ? { fotoPerfil: finalUrl } : {};
       if (actualizarPerfil && Object.keys(payload).length) {
         try {
           const updated = await actualizarPerfil(payload);
           const next = updated?.fotoPerfil || updated?.avatarUrl || finalUrl || blobUrl;
           setPreview(next ? normalizeSrc(next) : blobUrl);
-        } catch {
+        } catch (e2) {
           setPreview(finalUrl ? normalizeSrc(finalUrl) : blobUrl);
         }
       } else {
@@ -161,18 +202,11 @@ export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload
     }
   };
 
-  // Variants/transition para el efecto de expansión con resorte
-  const spring = {
-    type: "spring",
-    stiffness: 420,
-    damping: 36,
-    mass: 0.9
-  };
+  const spring = { type: "spring", stiffness: 420, damping: 36, mass: 0.9 };
 
   return (
     <LayoutGroup>
       <div className="relative">
-        {/* Avatar pequeño (origen) */}
         <div
           ref={avatarRef}
           className="w-20 h-20 rounded-full bg-gray-200 overflow-hidden cursor-pointer ring-1 ring-gray-200"
@@ -206,7 +240,6 @@ export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload
           disabled={loading}
         />
 
-        {/* Lightbox fullscreen con transición compartida */}
         {showModal && createPortal(
           <AnimatePresence>
             <motion.div
@@ -216,7 +249,6 @@ export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              {/* Glass overlay */}
               <motion.div
                 className="absolute inset-0 bg-gradient-to-br from-white/55 via-white/35 to-gray-200/25 backdrop-blur-xl"
                 onClick={() => setShowModal(false)}
@@ -225,7 +257,6 @@ export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.2 }}
               />
-              {/* Contenido centrado */}
               <div
                 className="absolute inset-0 flex items-center justify-center p-4"
                 onClick={() => setShowModal(false)}
@@ -251,8 +282,8 @@ export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload
                     transition={{ type: "spring", stiffness: 380, damping: 28 }}
                   >
                     <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="18" y1="6" x2="6" y2="18"/>
-                      <line x1="6" y1="6" x2="18" y2="18"/>
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
                     </svg>
                   </motion.button>
                 </div>

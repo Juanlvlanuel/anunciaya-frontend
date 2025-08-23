@@ -41,6 +41,20 @@ const getBestUrl = (a) => {
   return absUrl(u);
 };
 
+function makeThumbFromFull(url) {
+  try {
+    if (!url) return "";
+    const u = new URL(url);
+    // Only for Cloudinary-style URLs that contain /upload/
+    if (!/\/upload\//.test(u.pathname)) return url;
+    u.pathname = u.pathname.replace(/\/upload\/(v\d+\/)?/, (m, v) => `/upload/w_400,h_400,c_fill,q_auto,f_auto/${v || ""}`);
+    return u.toString();
+  } catch {
+    return url || "";
+  }
+}
+
+
 const getFullUrl = (a) => {
   const u =
     a?.url ||
@@ -55,6 +69,20 @@ const getFullUrl = (a) => {
     "";
   return absUrl(u);
 };
+
+function makeThumbFromFull(url) {
+  try {
+    if (!url) return "";
+    const u = new URL(url);
+    // Only for Cloudinary-style URLs that contain /upload/
+    if (!/\/upload\//.test(u.pathname)) return url;
+    u.pathname = u.pathname.replace(/\/upload\/(v\d+\/)?/, (m, v) => `/upload/w_400,h_400,c_fill,q_auto,f_auto/${v || ""}`);
+    return u.toString();
+  } catch {
+    return url || "";
+  }
+}
+
 
 function normalizeReply(rt) {
   if (!rt) return null;
@@ -107,6 +135,13 @@ export default function MessageMobile({
   const bubbleRef = useRef(null);
   const [menuPos, setMenuPos] = useState(null);
   const [fullscreenImg, setFullscreenImg] = useState(null);
+
+  useEffect(() => {
+    if (!fullscreenImg) return;
+    const onKey = (e) => { if (e.key === 'Escape') setFullscreenImg(null); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [fullscreenImg]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -322,13 +357,14 @@ export default function MessageMobile({
               {archivos.map((a, i) => {
                 const isImg = isProbablyImage(a);
                 if (isImg) {
-                  const thumb = getBestUrl(a);
                   const full = getFullUrl(a);
+                  let thumb = getBestUrl(a);
+                  if (!thumb || thumb === full) thumb = makeThumbFromFull(full);
                   return (
                     <div key={i} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                       <div
                         className="rounded-lg overflow-hidden border bg-black/5 cursor-pointer max-w-[35vw]"
-                        onClick={() => full && setFullscreenImg(full)}
+                        onClick={() => full && setFullscreenImg(full)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") full && setFullscreenImg(full); }}
                         title={a.name || a.filename || a.originalName || ""}
                       >
                         {thumb ? (
@@ -337,6 +373,8 @@ export default function MessageMobile({
                             alt={a.name || a.filename || "img"}
                             className="w-full h-auto max-h-28 object-cover"
                             loading="lazy"
+                            decoding="async"
+                            sizes="(max-width: 480px) 35vw, 320px"
                             draggable="false"
                           />
                         ) : (
