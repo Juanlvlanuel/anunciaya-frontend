@@ -108,8 +108,8 @@ export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload
     file = await shrinkImage(file);
     const fd = new FormData();
     fd.append("file", file);
-    fd.append("api_key", sign.apiKey);
-    fd.append("timestamp", sign.timestamp);
+    fd.append("api_key", String(sign.apiKey));
+    fd.append("timestamp", String(sign.timestamp));
     fd.append("signature", sign.signature); // 🔑 campo requerido para subida firmada
     if (sign.folder) fd.append("folder", sign.folder);
     if (sign.public_id) fd.append("public_id", sign.public_id);
@@ -119,7 +119,7 @@ export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload
     if (sign.context) fd.append("context", sign.context);
     // 🚫 NO enviar upload_preset
 
-    const cloudUrl = `https://api.cloudinary.com/v1_1/${sign.cloudName}/auto/upload`;
+    const cloudUrl = `https://api.cloudinary.com/v1_1/${sign.cloudName}/image/upload`;
     const upRes = await fetch(cloudUrl, { method: "POST", body: fd });
     const upText = await upRes.text();
     if (!upRes.ok) {
