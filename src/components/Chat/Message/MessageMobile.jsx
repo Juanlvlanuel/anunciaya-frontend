@@ -70,18 +70,7 @@ const getFullUrl = (a) => {
   return absUrl(u);
 };
 
-function makeThumbFromFull(url) {
-  try {
-    if (!url) return "";
-    const u = new URL(url);
-    // Only for Cloudinary-style URLs that contain /upload/
-    if (!/\/upload\//.test(u.pathname)) return url;
-    u.pathname = u.pathname.replace(/\/upload\/(v\d+\/)?/, (m, v) => `/upload/w_400,h_400,c_fill,q_auto,f_auto/${v || ""}`);
-    return u.toString();
-  } catch {
-    return url || "";
-  }
-}
+
 
 
 function normalizeReply(rt) {

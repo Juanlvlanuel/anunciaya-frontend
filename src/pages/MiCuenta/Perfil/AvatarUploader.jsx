@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "../../../context/AuthContext";
-import { API_BASE } from "../../../services/api";
+import { API_BASE, postJSON } from "../../../services/api";
 import { LayoutGroup, motion, AnimatePresence } from "framer-motion";
 
 // ---- Client-side compressor (WebP) ----
@@ -19,15 +19,11 @@ async function shrinkImage(file, { maxW = 1024, maxH = 1024, quality = 0.85 } = 
   return new File([blob], (file.name||'avatar').replace(/\.[^.]+$/, '') + '.webp', { type: 'image/webp' });
 }
 
-
 /**
  * AvatarUploader-1
- * - Agrega console.log/console.time para depurar:
- *   * Respuesta de firma /api/media/sign
- *   * Respuesta de Cloudinary
- *   * Errores de subida
- * - Mantiene tu animación y flujo actual.
- * - Quita upload_preset del FormData (firmado).
+ * - Usa postJSON() para firmar en /api/media/sign (incluye Authorization y refresh automático).
+ * - No envía upload_preset en el body; el backend lo asume por defecto para avatar.
+ * - Mantiene compresión WebP y animaciones.
  */
 export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload }) {
   const inputRef = useRef(null);
@@ -93,7 +89,6 @@ export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload
   const openLightbox = () => {
     const src = preview || resolvedInitial || "";
     if (!src) return;
-    // Preload simple
     const img = new Image();
     img.src = normalizeSrc(src);
     setFullSrc(normalizeSrc(src));
@@ -105,37 +100,26 @@ export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload
     const uid = usuario?._id || "me";
     const env = (typeof window !== "undefined" && /localhost|127\.0\.0\.1/.test(window.location.host)) ? "dev" : "prod";
 
-    const signRes = await fetch(`${API_BASE}/api/media/sign`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        upload_preset: "users_avatar",
-        folder: `anunciaya/${env}/users/${uid}/avatar`,
-        tags: [`app:anunciaya`, `env:${env}`, `cat:Users`, `user:${uid}`],
-      }),
+    // 🔐 Usar helper con Authorization automático
+    const sign = await postJSON(`/api/media/sign`, {
+      // upload_preset se asume en el backend para avatar
+      env,
+      folder: `anunciaya/${env}/users/${uid}/avatar`,
+      tags: [`app:anunciaya`, `env:${env}`, `cat:Users`, `user:${uid}`],
     });
-    const signText = await signRes.text();
-    let sign;
-    try {
-      sign = JSON.parse(signText);
-    } catch {
-      throw new Error(`Firma inválida: ${signText?.slice(0, 200)}`);
-    }
-    if (!signRes.ok) throw new Error(signText || "No se pudo generar la firma de Cloudinary");
 
     file = await shrinkImage(file);
     const fd = new FormData();
     fd.append("file", file);
     fd.append("api_key", sign.apiKey);
     fd.append("timestamp", sign.timestamp);
-    fd.append("folder", sign.folder);
-    fd.append("signature", sign.signature);
-    if (sign.tags) fd.append("tags", sign.tags);
-    if (sign.context) fd.append("context", sign.context);
+    if (sign.folder) fd.append("folder", sign.folder);
     if (sign.public_id) fd.append("public_id", sign.public_id);
     if (typeof sign.overwrite !== "undefined") fd.append("overwrite", String(sign.overwrite));
     if (typeof sign.invalidate !== "undefined") fd.append("invalidate", String(sign.invalidate));
+    if (sign.tags) fd.append("tags", sign.tags);
+    if (sign.context) fd.append("context", sign.context);
+    // ❌ No enviar upload_preset en firmados
 
     const cloudUrl = `https://api.cloudinary.com/v1_1/${sign.cloudName}/auto/upload`;
     const upRes = await fetch(cloudUrl, { method: "POST", body: fd });
