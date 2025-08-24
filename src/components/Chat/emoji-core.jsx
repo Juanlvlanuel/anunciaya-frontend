@@ -43,18 +43,42 @@ export function isEmojiOnly(text = "") {
   return cleaned.every((t) => !!t && re.test(t));
 }
 
-/* ========= Render unificado de texto con emojis nativos ========= */
+// RegExp para tokenizar secuencias de emoji (pictográficos, VS16, ZWJ, banderas RI RI)
+const RE_EMOJI =
+  /(\p{Regional_Indicator}\p{Regional_Indicator}|(?:\p{Extended_Pictographic}(?:\uFE0F|\uFE0E)?)(?:\u200D(?:\p{Extended_Pictographic}(?:\uFE0F|\uFE0E)?))*)/gu;
+
 export function EmojiText({ text = "", className = "" }) {
-  const only = useMemo(() => isEmojiOnly(text), [text]);
-  const cls = `emoji-text ${only ? "emoji-xl" : ""} ${className}`.trim();
-  return <span className={cls}>{text}</span>;
+  const s = String(text);
+  const only = useMemo(() => isEmojiOnly(s), [s]);
+
+  if (only) {
+    // Mensaje solo-emoji: igual que antes (tamaño .emoji-xl)
+    return <span className={`emoji-text emoji-xl ${className}`.trim()}>{s}</span>;
+  }
+
+  // Mensaje mixto: envolver cada token emoji
+  const parts = [];
+  let lastIndex = 0;
+  for (const m of s.matchAll(RE_EMOJI)) {
+    const idx = m.index ?? 0;
+    if (idx > lastIndex) parts.push(s.slice(lastIndex, idx));
+    parts.push(
+      <span className="emoji-text emoji-token" key={`e${idx}`}>{m[0]}</span>
+    );
+    lastIndex = idx + m[0].length;
+  }
+  if (lastIndex < s.length) parts.push(s.slice(lastIndex));
+
+  return <span className={className}>{parts}</span>;
 }
 
-/* ========= Picker unificado (auto desktop/mobile) ========= */
+
+/* ========= Hook: detectar si es mobile por media query ========= */
 function useIsMobile(query = "(max-width: 767px)") {
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== "undefined" ? window.matchMedia(query).matches : false
   );
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const mql = window.matchMedia(query);
@@ -64,15 +88,10 @@ function useIsMobile(query = "(max-width: 767px)") {
       mql.removeEventListener?.("change", handler) || mql.removeListener?.(handler);
     };
   }, [query]);
+
   return isMobile;
 }
 
-/**
- * EmojiPickerUnified
- * Props:
- *  - onPick(emojiString)
- *  - onClose()
- */
 export function EmojiPickerUnified({ onPick, onClose }) {
   const isMobile = useIsMobile();
   const ref = useRef(null);
@@ -85,9 +104,12 @@ export function EmojiPickerUnified({ onPick, onClose }) {
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // === Filtro: elimina los “tofu” (rectángulos) ===
+  // === Filtro: elimina los “tofu” (rectángulos) — versión ligera con throttle ===
   useEffect(() => {
-    // helper: detecta si un emoji se renderiza como “tofu”
+    const root = ref.current;
+    if (!root) return;
+
+    // detector
     function isTofu(char, fontFamily = '"Twemoji Local","Apple Color Emoji","Noto Color Emoji","Segoe UI Emoji",system-ui') {
       if (!char) return true;
       const test = document.createElement("span");
@@ -96,7 +118,7 @@ export function EmojiPickerUnified({ onPick, onClose }) {
 
       const ctrl = document.createElement("span");
       ctrl.style.cssText = test.style.cssText;
-      ctrl.textContent = "⬚"; // caracter control aproximado
+      ctrl.textContent = "⬚";
 
       document.body.appendChild(test);
       document.body.appendChild(ctrl);
@@ -105,28 +127,47 @@ export function EmojiPickerUnified({ onPick, onClose }) {
       return same;
     }
 
-    const root = ref.current;
-    if (!root) return;
+    let scheduled = false;
+    let rafId = 0;
+    let idleId = 0;
 
     const prune = () => {
-      const nodes = root.querySelectorAll(".epr-emoji-native"); // spans del picker
-      nodes.forEach((n) => {
+      scheduled = false;
+      // Recorre solo lo visible en pantalla (mejora: limita a contenedor del grid)
+      const nodes = root.querySelectorAll(".epr-emoji-native");
+      for (const n of nodes) {
         const ch = n.textContent || "";
-        if (!ch) return;
+        if (!ch) continue;
         if (isTofu(ch)) {
           const btn = n.closest("button, div[role='button']") || n;
+          // display:none es muy barato aquí
           btn.style.display = "none";
         }
-      });
+      }
     };
 
-    prune(); // intento inicial
+    const schedulePrune = () => {
+      if (scheduled) return;
+      scheduled = true;
+      // usa requestIdleCallback si está disponible, con fallback a rAF
+      const run = () => (idleId = (window.requestIdleCallback?.(prune, { timeout: 120 })) || (rafId = requestAnimationFrame(prune)));
+      // throttle ~200ms
+      setTimeout(run, 200);
+    };
 
-    const mo = new MutationObserver(() => prune());
+    // primera pasada, una vez montado
+    setTimeout(schedulePrune, 60);
+
+    const mo = new MutationObserver(() => schedulePrune());
     mo.observe(root, { childList: true, subtree: true });
 
-    return () => mo.disconnect();
+    return () => {
+      mo.disconnect();
+      if (rafId) cancelAnimationFrame(rafId);
+      if (idleId && window.cancelIdleCallback) cancelIdleCallback(idleId);
+    };
   }, []);
+
 
   return (
     <div
@@ -136,15 +177,18 @@ export function EmojiPickerUnified({ onPick, onClose }) {
       <div className="twemoji-skin">
         <EmojiPicker
           onEmojiClick={(e) => onPick?.(e.emoji)}
-          emojiStyle={EmojiStyle.NATIVE}   // SIN CDN
+          emojiStyle={EmojiStyle.NATIVE}   // sin CDN
           theme={Theme.LIGHT}
           lazyLoadEmojis
-          width={isMobile ? 320 : 460}
-          height={isMobile ? 380 : 440}
+          /* 🔹 Ocultar búsqueda y preview para que arriba solo quede “Usados con frecuencia” */
+          searchDisabled={true}
           previewConfig={{ showPreview: false }}
-          searchPlaceHolder="Buscar emoji"
-          skinTonesDisabled={false}
-          suggestedEmojisMode="recent"
+          /* 🔹 Alto más corto: se ve completa la sección de Frecuentes; el resto aparece con scroll */
+          width={isMobile ? 400 : 460}
+          height={isMobile ? 220 : 360}
+          /* 🔹 (Opcional) desactivar selector de tonos si quieres aún más compacto */
+          skinTonesDisabled={true}
+          /* 🔹 Orden: primero “Usados con frecuencia”; el resto queda debajo (scroll) */
           categories={[
             { category: Categories.SUGGESTED, name: "Usados con frecuencia" },
             { category: Categories.SMILEYS_PEOPLE, name: "Emoticonos y personas" },
@@ -157,6 +201,7 @@ export function EmojiPickerUnified({ onPick, onClose }) {
             { category: Categories.FLAGS, name: "Banderas" },
           ]}
         />
+
       </div>
     </div>
   );

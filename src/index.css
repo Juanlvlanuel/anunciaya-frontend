@@ -77,12 +77,12 @@ body {
   transition: box-shadow .2s;
 }
 
-/* ===== Texto con emojis de color ===== */
+/* ===== Texto con emojis de color + caret alineado ===== */
 /* Emojis nativos sin contorno (iOS/Android/Windows) */
+.chat-emoji-font,
 .emoji-text {
   font-family:
     "Twemoji Local",
-    /* ← nuestra fuente local primero */
     "Apple Color Emoji",
     "Noto Color Emoji",
     "Segoe UI Emoji",
@@ -93,6 +93,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
 
 
 
@@ -261,36 +262,55 @@ body.dark {
 .twemoji-skin,
 .twemoji-skin * {
   font-family: "Twemoji Local",
-               "Apple Color Emoji",
-               "Noto Color Emoji",
-               "Segoe UI Emoji",
-               system-ui, -apple-system, sans-serif !important;
+    "Apple Color Emoji",
+    "Noto Color Emoji",
+    "Segoe UI Emoji",
+    system-ui, -apple-system, sans-serif !important;
 }
 
 /* Ajuste específico para el grid del picker */
 .EmojiPickerReact .epr-emoji-native {
   font-family: "Twemoji Local",
-               "Apple Color Emoji",
-               "Noto Color Emoji",
-               "Segoe UI Emoji",
-               system-ui, -apple-system, sans-serif !important;
+    "Apple Color Emoji",
+    "Noto Color Emoji",
+    "Segoe UI Emoji",
+    system-ui, -apple-system, sans-serif !important;
   line-height: 1 !important;
-  font-size: 1.35rem; /* tamaño consistente con Twemoji */
+  font-size: 1.35rem;
+  /* tamaño consistente con Twemoji */
 }
 
 
+/* Base: que las imágenes de emoji escalen con el texto (em) */
 .emoji-text img {
-  width: 20px;
-  height: 20px;
+  width: 1em !important;
+  height: 1em !important;
   display: inline-block;
   vertical-align: -0.2em;
 }
 
-/* === Chat: emojis más grandes SOLO en los mensajes impresos === */
+
+/* Mensajes: que sigan escalando con el tamaño de fuente del contenedor */
 .msg-text .emoji-text img,
 .msg-text .emoji-text img.emoji,
 .msg-text .emoji-text img.twemoji {
-  width: 28px;
-  height: 28px;
+  width: 1em !important;
+  height: 1em !important;
   vertical-align: middle;
 }
+
+
+/* Emojis dentro de texto (tokenizados en EmojiText.jsx) */
+.emoji-token {
+  font-size: 1.45em;     /* tamaño del emoji */
+  line-height: 1em;
+  vertical-align: -0.1em; /* súbelo un poco respecto al texto */
+}
+
+.emoji-token img {
+  width: 1em !important;
+  height: 1em !important;
+  vertical-align: middle;
+}
+
+

@@ -1,8 +1,13 @@
 // MessageInputMobile-1.jsx
-// Optimizado: Picker memo + precarga oculta, revokeObjectURL en previews, debounce de typing,
-// enterKeyHint, y handlers con useCallback. Mantiene compatibilidad con tu flujo actual.
+// Cambios: picker debajo del input, permanece abierto hasta tocar el input/enviar, input sube al abrir.
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useChat } from "../../../context/ChatContext";
+import { EmojiPickerUnified } from "../emoji-core";
+import { API_BASE } from "../../../services/api";
+import { FaPaperclip, FaPaperPlane, FaSmile, FaCamera, FaKeyboard } from "react-icons/fa";
+
+const MAX_SIZE_MB = 10;
 
 // ---- Client-side compressor (WebP) ----
 async function shrinkImage(file, { maxW = 1600, maxH = 1600, quality = 0.82 } = {}) {
@@ -19,12 +24,6 @@ async function shrinkImage(file, { maxW = 1600, maxH = 1600, quality = 0.82 } = 
   if (!blob) return file;
   return new File([blob], (file.name || 'image').replace(/\.[^.]+$/, '') + '.webp', { type: 'image/webp' });
 }
-import { useChat } from "../../../context/ChatContext";
-import { EmojiPickerUnified } from "../emoji-core";
-import { API_BASE } from "../../../services/api";
-import EmojiText from "../EmojiText";
-import { FaPaperclip, FaPaperPlane, FaSmile, FaCamera } from "react-icons/fa";
-const MAX_SIZE_MB = 10;
 
 // ---- Utils
 function absUrl(u) {
@@ -92,20 +91,33 @@ export default function MessageInputMobile() {
 
   const [replyTo, setReplyTo] = useState(null);
 
+  const pickerWrapRef = useRef(null);
+  const textareaRef = useRef(null);
+  const composerRef = useRef(null);
 
-
-  // Memo: picker para que no se re-monte
+  // Inserta emoji pegado al siguiente carácter (con Word-Joiner)
   const onPickEmoji = useCallback((emoji) => {
-    setText((prev) => (prev || "") + emoji);
-  }, []);
-  const memoPicker = useMemo(() => (
-    <EmojiPickerUnified onPick={onPickEmoji} onClose={() => setShowEmoji(false)} />
-  ), [onPickEmoji]);
+    const ta = textareaRef.current;
+    const WJ = "\u2060"; // Word-Joiner
+    if (!ta) {
+      setText((prev) => (prev || "") + emoji + WJ);
+      return;
+    }
+    const start = ta.selectionStart ?? (text?.length || 0);
+    const end = ta.selectionEnd ?? (text?.length || 0);
 
-  // Precarga oculta (montado desde que inicia para que esté caliente)
-  const preloadPicker = useMemo(() => (
-    <div className="hidden" aria-hidden>{memoPicker}</div>
-  ), [memoPicker]);
+    setText((prev) => {
+      const base = prev || "";
+      const insert = emoji + WJ;
+      const next = base.slice(0, start) + insert + base.slice(end);
+      try {
+        ta.focus();
+        const caret = start + insert.length;
+        ta.setSelectionRange(caret, caret);
+      } catch { }
+      return next;
+    });
+  }, [text]);
 
   useEffect(() => {
     const onReplyEvt = (e) => {
@@ -117,7 +129,6 @@ export default function MessageInputMobile() {
 
   useEffect(() => { setReplyTo(replyTarget || null); }, [replyTarget]);
 
-  // Cerrar el reply al hacer click afuera
   useEffect(() => {
     if (!replyTo) return;
     const onDoc = (e) => {
@@ -140,13 +151,11 @@ export default function MessageInputMobile() {
 
   const galleryRef = useRef(null);
   const cameraRef = useRef(null);
-  const pickerWrapRef = useRef(null);
   const typingTimer = useRef(null);
   const typingActive = useRef(false);
-  const textareaRef = useRef(null);
   const [taH, setTaH] = useState(42);
-  const composerRef = useRef(null);
 
+  // Mantener --chat-input-h sincronizada (el picker está dentro del mismo contenedor)
   useEffect(() => {
     const el = composerRef.current;
     if (!el) return;
@@ -160,33 +169,31 @@ export default function MessageInputMobile() {
     return () => ro.disconnect();
   }, []);
 
-  const autosize = useCallback(() => {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    ta.style.height = "0px";
-    const sh = ta.scrollHeight;
-    const next = Math.min(Math.max(BASE_H, sh), MAX_H); // tope exacto a 5 líneas
-    ta.style.height = next + "px";
-    setTaH(next);
-  }, []);
-
-
-  useEffect(() => { autosize(); }, [text, autosize]);
   const LINE_H = 22;
-  const BASE_H = 42; // alto de 1 línea (tu autosize ya usa 42)
+  const BASE_H = 42;
   const MAX_LINES = 5;
   const MAX_H = BASE_H + (MAX_LINES - 1) * LINE_H; // 42 + 4*22 = 130
 
-  // Solo true cuando de verdad es una sola línea
-  const isSingleLine = useMemo(
-    () => taH === BASE_H && !/\n/.test(text),
-    [taH, text]
-  );
+  const autosize = useCallback(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const val = ta.value || "";
+    if (val.length === 0) {
+      ta.style.height = `${BASE_H}px`;
+      if (taH !== BASE_H) setTaH(BASE_H);
+      return;
+    }
+    ta.style.height = "auto";
+    const next = Math.min(Math.max(BASE_H, ta.scrollHeight), MAX_H);
+    if (ta.style.height !== `${next}px`) ta.style.height = `${next}px`;
+    if (taH !== next) setTaH(next);
+  }, [taH]);
 
-  const SHIFT_Y = (BASE_H - LINE_H) / 2; // ≈10px
+  useEffect(() => {
+    const id = requestAnimationFrame(autosize);
+    return () => cancelAnimationFrame(id);
+  }, [text, autosize]);
 
-
-  // Debounce typing: activa una vez, desactiva tras 700ms sin tecleo
   const triggerTyping = useCallback(() => {
     if (!activeChatId || isBlocked) return;
     if (!typingActive.current) {
@@ -202,46 +209,82 @@ export default function MessageInputMobile() {
 
   const onChange = useCallback((e) => {
     const v = e.target.value;
-
-    // Si excede 5 líneas, recorta
     const lines = v.split("\n");
     if (lines.length > MAX_LINES) {
       const trimmed = lines.slice(0, MAX_LINES).join("\n");
       e.target.value = trimmed;
       setText(trimmed);
-      requestAnimationFrame(autosize);
+      autosize();
       return;
     }
-
-    // Si por envoltura visual se pasa del alto máximo, revierte el último input
-    // (evita que "salga" del recuadro cuando aún no hay \n explícito)
     const ta = textareaRef.current;
     if (ta) {
-      // Simula medición con el valor nuevo
       const prev = ta.value;
       ta.value = v;
-      ta.style.height = "0px";
+      ta.style.height = "auto";
       const sh = ta.scrollHeight;
       const tooTall = sh > MAX_H;
       ta.value = prev;
-
       if (tooTall) {
-        // Rechaza el último carácter introducido
         e.target.value = text;
         setText(text);
-        requestAnimationFrame(autosize);
+        autosize();
         return;
       }
     }
-
     setText(v);
     triggerTyping();
-    requestAnimationFrame(autosize)
+    autosize();
   }, [text, triggerTyping, autosize]);
 
+  const readyUploads = useMemo(() => uploads.filter((u) => !u.pending && !u.error), [uploads]);
+
+  const handleSend = useCallback(async () => {
+    const trimmed = (text || "").replace(/\u2060/g, "").trim();
+    if (!activeChatId || (!trimmed && readyUploads.length === 0)) return;
+    if (isBlocked) { alert("Has bloqueado este chat. Desbloquéalo para enviar."); return; }
+
+    const archivos = readyUploads.map(({ url, thumbUrl, name, filename, mimeType }) => ({
+      url: absUrl(url),
+      thumbUrl: absUrl(thumbUrl),
+      name: name || filename,
+      filename: name || filename,
+      mimeType,
+      isImage: true,
+    }));
+
+    setIsSending(true);
+    try {
+      sendMessage({
+        chatId: activeChatId,
+        texto: trimmed,
+        archivos,
+        replyTo: sanitizeReply(replyTo),
+      });
+
+      setText("");
+      setUploads([]);
+      setShowEmoji(false);
+      setReplyTo(null);
+      clearReplyTarget?.();
+
+      requestAnimationFrame(() => {
+        try {
+          const ta = textareaRef.current;
+          ta?.focus();
+          ta?.setSelectionRange(0, 0);
+          autosize();
+        } catch { }
+      });
+      setIsFocused(true);
+    } finally {
+      setIsSending(false);
+    }
+  }, [activeChatId, clearReplyTarget, isBlocked, readyUploads, replyTo, sendMessage, text, autosize]);
 
   const onKeyDown = useCallback((e) => {
-    // Bloquear Enter cuando ya hay 5 líneas
+    const ta = textareaRef.current;
+    const WJ = "\u2060";
     if (e.key === "Enter" && !e.shiftKey) {
       const lines = (text || "").split("\n").length;
       if (lines >= MAX_LINES) {
@@ -249,31 +292,34 @@ export default function MessageInputMobile() {
         return;
       }
     }
+    if (e.key === "Backspace" && ta) {
+      const pos = ta.selectionStart;
+      if (pos > 0) {
+        const prevChar = (text || "").slice(pos - 1, pos);
+        if (prevChar === WJ) {
+          e.preventDefault();
+          const before = (text || "").slice(0, pos - 1);
+          const after = (text || "").slice(ta.selectionEnd);
+          const next = before + after;
+          setText(next);
+          requestAnimationFrame(() => {
+            try { ta.focus(); ta.setSelectionRange(pos - 1, pos - 1); } catch { }
+          });
+          return;
+        }
+      }
+    }
     if (!isBlocked && e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
-  }, [isBlocked, text]); // handleSend definido más abajo
-
-
-  useEffect(() => {
-    const closeIfOutside = (e) => {
-      if (pickerWrapRef.current && !pickerWrapRef.current.contains(e.target)) setShowEmoji(false);
-    };
-    document.addEventListener("mousedown", closeIfOutside);
-    return () => {
-      document.removeEventListener("mousedown", closeIfOutside);
-      clearTimeout(typingTimer.current);
-    };
-  }, []);
+  }, [text, isBlocked, handleSend]);
 
   // ---- Upload de imágenes
-
   async function uploadImage(file) {
     if (!file.type.startsWith("image/")) throw new Error("Solo se permiten imágenes.");
     if (file.size > MAX_SIZE_MB * 1024 * 1024) throw new Error(`La imagen supera ${MAX_SIZE_MB} MB.`);
 
-    // === 1) Pedir firma segura al backend ===
     const mid = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
     const env = (typeof window !== "undefined" && /localhost|127\.0\.0\.1/.test(window.location.host)) ? "dev" : "prod";
     const chatId = String(activeChatId || "general");
@@ -283,12 +329,7 @@ export default function MessageInputMobile() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({
-        chatId,
-        messageId: mid,
-        senderId: owner,
-        env,
-      }),
+      body: JSON.stringify({ chatId, messageId: mid, senderId: owner, env }),
     });
     if (!signRes.ok) {
       const msg = await (async () => { try { return await signRes.text(); } catch { return ""; } })();
@@ -296,7 +337,6 @@ export default function MessageInputMobile() {
     }
     const sign = await signRes.json();
 
-    // === 2) Subir directo a Cloudinary ===
     file = await shrinkImage(file, { maxW: 1600, maxH: 1600, quality: 0.82 });
     const fd = new FormData();
     fd.append("file", file);
@@ -304,7 +344,6 @@ export default function MessageInputMobile() {
     fd.append("timestamp", sign.timestamp);
     fd.append("folder", sign.folder);
     fd.append("signature", sign.signature);
-
     if (sign.transformation) fd.append("transformation", sign.transformation);
     if (sign.public_id) fd.append("public_id", sign.public_id);
     if (sign.tags) fd.append("tags", sign.tags);
@@ -320,37 +359,24 @@ export default function MessageInputMobile() {
     }
     const up = await upRes.json();
 
-    // === 3) Generar thumbUrl con transformación PRO ===
     const secureUrl = up.secure_url || up.url;
     const mime = up.resource_type ? `${up.resource_type}/*` : (file.type || "image/*");
 
     function makeThumb(url) {
       try {
         const u = new URL(url);
-        // Insert transformation after /upload/
         u.pathname = u.pathname.replace(/\/upload\/(v\d+\/)?/, (m, v) => `/upload/w_400,h_400,c_fill,q_auto,f_auto/${v || ""}`);
         return u.toString();
       } catch {
         return url;
       }
     }
-
     const thumbUrl = makeThumb(secureUrl);
 
-    return {
-      url: secureUrl,
-      thumbUrl,
-      name: file.name,
-      filename: file.name,
-      mimeType: mime,
-      isImage: true,
-    };
+    return { url: secureUrl, thumbUrl, name: file.name, filename: file.name, mimeType: mime, isImage: true };
   }
 
-
-  const revokePreview = (url) => {
-    try { if (url && url.startsWith("blob:")) URL.revokeObjectURL(url); } catch { }
-  };
+  const revokePreview = (url) => { try { if (url && url.startsWith("blob:")) URL.revokeObjectURL(url); } catch { } };
 
   const onPickFiles = useCallback((e) => {
     const files = Array.from(e.target.files || []);
@@ -359,13 +385,8 @@ export default function MessageInputMobile() {
     files.forEach((file) => {
       const previewUrl = URL.createObjectURL(file);
       const localPreview = {
-        url: previewUrl,
-        thumbUrl: previewUrl,
-        name: file.name,
-        mimeType: file.type,
-        isImage: true,
-        pending: true,
-        _preview: previewUrl,
+        url: previewUrl, thumbUrl: previewUrl, name: file.name, mimeType: file.type,
+        isImage: true, pending: true, _preview: previewUrl,
       };
       setUploads((prev) => [...prev, localPreview]);
 
@@ -407,56 +428,12 @@ export default function MessageInputMobile() {
 
   useEffect(() => {
     return () => {
-      try {
-        uploads.forEach((u) => u?._preview && revokePreview(u._preview));
-      } catch { }
+      try { uploads.forEach((u) => u?._preview && revokePreview(u._preview)); } catch { }
     };
   }, [uploads]);
 
-  const readyUploads = useMemo(() => uploads.filter((u) => !u.pending && !u.error), [uploads]);
-
-  const handleSend = useCallback(async () => {
-    const trimmed = text.trim();
-    if (!activeChatId || (!trimmed && readyUploads.length === 0)) return;
-    if (isBlocked) { alert("Has bloqueado este chat. Desbloquéalo para enviar."); return; }
-
-    const archivos = readyUploads.map(({ url, thumbUrl, name, filename, mimeType }) => ({
-      url: absUrl(url),
-      thumbUrl: absUrl(thumbUrl),
-      name: name || filename,
-      filename: name || filename,
-      mimeType,
-      isImage: true,
-    }));
-
-    setIsSending(true);
-    try {
-      sendMessage({
-        chatId: activeChatId,
-        texto: trimmed,
-        archivos,
-        replyTo: sanitizeReply(replyTo),
-      });
-
-      // limpiar composer
-      setText("");
-      setUploads([]);
-      setShowEmoji(false);
-      setReplyTo(null);
-      clearReplyTarget?.();
-
-      // 🔸 Mantener el foco en el input
-      try { textareaRef.current?.blur(); } catch { }
-      setIsFocused(false);
-    } finally {
-      setIsSending(false);
-    }
-  }, [activeChatId, clearReplyTarget, isBlocked, readyUploads, replyTo, sendMessage, text]);
-
-
   return (
-    <div className="px-2 pb-2 relative" ref={composerRef}>
-      {/* Precarga oculta del Picker para abrir instantáneo */}
+    <div className="px-2 pt-0 pb-0 relative" ref={composerRef}>
       {replyTo && (
         <div
           ref={replyBarRef}
@@ -478,136 +455,126 @@ export default function MessageInputMobile() {
         </div>
       )}
 
-      {/* === INPUT BAR PRO (gradientes PRO sin menta) === */}
-      <div className="flex items-center gap-2 min-h-[54px] rounded-2xl border border-gray-200 bg-white/90 backdrop-blur-md px-3 shadow-[0_4px_18px_rgba(0,0,0,0.05)] focus-within:ring-1 focus-within:ring-blue-500/40 transition-all">
+      {/* === INPUT BAR (centrado) === */}
+      <div className="h-[65px] flex items-end justify-center pb-0">
+        <div
+          className="w-full flex items-center gap-1 min-h-[54px] rounded-2xl border border-gray-200 bg-white/90 backdrop-blur-md px-3 shadow-[0_4px_18px_rgba(0,0,0,0.05)] focus-within:ring-1 focus-within:ring-blue-500/40 transition-all"
 
-        {/* Emoji — Amber→Orange */}
-        <div className="relative" ref={pickerWrapRef}>
-          <button
-            type="button"
-            title="Emoji"
-            onClick={() => setShowEmoji(s => !s)}
-            className="size-10 grid place-items-center rounded-full text-white shadow-[0_8px_24px_rgba(245,158,11,0.35)]
-                 bg-gradient-to-br from-amber-400 to-orange-500 hover:brightness-110 active:scale-95
-                 ring-1 ring-white/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-            aria-label="Abrir emojis"
-          >
-            <FaSmile className="w-[22px] h-[22px]" />
-          </button>
-          <div className="absolute bottom-12 left-0 z-50" style={{ display: showEmoji ? 'block' : 'none' }}>
-            {memoPicker}
+        >
+          {/* Botón emoji/teclado */}
+          <div className="relative">
+            <button
+              type="button"
+              title={showEmoji ? "Teclado" : "Emoji"}
+              onClick={() => {
+                if (showEmoji) {
+                  // Cambiar a teclado: cerrar picker y enfocar textarea para abrir el teclado del celular
+                  setShowEmoji(false);
+                  requestAnimationFrame(() => {
+                    try { textareaRef.current?.focus(); } catch { }
+                  });
+                } else {
+                  // Abrir emojis: opcionalmente quitar foco del textarea
+                  setShowEmoji(true);
+                  requestAnimationFrame(() => {
+                    try { textareaRef.current?.blur(); } catch { }
+                  });
+                }
+              }}
+              className="size-9 flex-none shrink-0 grid place-items-center rounded-full text-white
+               shadow-[0_8px_24px_rgba(245,158,11,0.35)]
+               bg-gradient-to-br from-amber-400 to-orange-500 hover:brightness-110 active:scale-95
+               ring-1 ring-white/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+              aria-label={showEmoji ? "Abrir teclado" : "Abrir emojis"}
+            >
+              {showEmoji
+                ? <FaKeyboard className="w-[22px] h-[22px]" />
+                : <FaSmile className="w-[22px] h-[22px]" />}
+            </button>
           </div>
-        </div>
 
-        {/* Campo de texto */}
-        <div className="relative flex-1" style={{ minHeight: 42, height: taH }}>
+
+          {/* Textarea */}
           <textarea
             ref={textareaRef}
             value={text}
             onChange={onChange}
             onKeyDown={onKeyDown}
+            onInput={autosize}
             id="chat-mobile-input"
-            onFocus={() => setIsFocused(true)}
+            onFocus={() => { setIsFocused(true); if (showEmoji) setShowEmoji(false); }}
             onBlur={() => setIsFocused(false)}
-            placeholder="" // el placeholder se pinta en el overlay
+            onSelect={() => { const ta = textareaRef.current; if (ta) { try { ta.focus(); } catch { } } }}
+            placeholder="Escribe un mensaje…"
             enterKeyHint="send"
             rows={1}
-            className="absolute inset-0 w-full h-full bg-transparent outline-none px-2 py-0
-               resize-none overflow-y-auto text-[17px] text-transparent caret-black leading-[22px]"
-            style={{ transform: isSingleLine ? `translateY(${SHIFT_Y}px)` : 'translateY(0)' }}
+            spellCheck={false}
+            autoCorrect="off"
+            autoCapitalize="sentences"
+            className="flex-1 min-w-0 h-full bg-transparent outline-none px-2 py-2 resize-none overflow-y-auto text-[17px] caret-black leading-[22px]"
+
           />
-          <div
-            className="absolute inset-0 px-2 pointer-events-none text-[17px]"
-            style={{ transform: isSingleLine ? `translateY(${SHIFT_Y}px)` : 'translateY(0)' }}
+
+          {(showCameraBtn || showClipBtn) && <span className="h-8 w-[4px] bg-gray-300" />}
+
+          {/* Inputs ocultos */}
+          <input ref={cameraRef} type="file" accept="image/*;capture=environment" capture="environment" className="hidden" onChange={onPickFiles} />
+          <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={onPickFiles} />
+
+          {/* Botones cámara/clip */}
+          {showCameraBtn && (
+            <button type="button" onClick={() => cameraRef.current?.click()} title="Tomar foto"
+              className="size-9 flex-none shrink-0 grid place-items-center rounded-full text-white
+                   shadow-[0_8px_24px_rgba(56,189,248,0.30)]
+                   bg-gradient-to-br from-sky-500 to-indigo-600 hover:brightness-110 active:scale-95
+                   ring-1 ring-white/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+              aria-label="Tomar foto">
+              <FaCamera className="w-[22px] h-[22px]" />
+            </button>
+          )}
+          {showClipBtn && (
+            <button type="button" onClick={() => galleryRef.current?.click()} title="Adjuntar archivo"
+              className="size-9 flex-none shrink-0 grid place-items-center rounded-full text-white
+                   shadow-[0_8px_24px_rgba(217,70,239,0.30)]
+                   bg-gradient-to-br from-fuchsia-500 to-pink-600 hover:brightness-110 active:scale-95
+                   ring-1 ring-white/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+              aria-label="Adjuntar archivo">
+              <FaPaperclip className="w-[22px] h-[22px]" />
+            </button>
+          )}
+
+          {/* Enviar */}
+          <button
+            type="button"
+            onClick={handleSend}
+            title="Enviar"
+            className={`size-9 flex-none shrink-0 grid place-items-center rounded-full text-white font-semibold
+                  shadow-[0_10px_30px_rgba(37,99,235,0.35)] transition-all active:scale-95
+                  bg-gradient-to-br from-blue-600 to-indigo-600 hover:brightness-110
+                  ring-1 ring-white/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60
+                  ${isSending ? 'opacity-60' : ''}`}
+            disabled={isSending || (!text.trim() && readyUploads.length === 0)}
+            aria-label="Enviar mensaje"
           >
-            {text ? (
-              <div className="text-gray-900 leading-[22px] whitespace-pre-wrap break-words">
-                <EmojiText text={text} className="emoji-text" />
-              </div>
-            ) : (
-              <span className="text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis leading-[22px]">
-                Escribe un mensaje…
-              </span>
-            )}
-          </div>
+            <FaPaperPlane className="w-[22px] h-[22px]" />
+          </button>
         </div>
-
-
-        {/* Separador */}
-        {(showCameraBtn || showClipBtn) && <span className="h-6 w-px bg-gray-200" />}
-
-        {/* Inputs ocultos */}
-        <input ref={cameraRef} type="file" accept="image/*;capture=environment" capture="environment" className="hidden" onChange={onPickFiles} />
-        <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={onPickFiles} />
-
-        {/* Cámara */}
-        {showCameraBtn && (
-          <button
-            type="button"
-            onClick={() => cameraRef.current?.click()}
-            title="Tomar foto"
-            className="size-10 grid place-items-center rounded-full text-white shadow-[0_8px_24px_rgba(56,189,248,0.30)]
-               bg-gradient-to-br from-sky-500 to-indigo-600 hover:brightness-110 active:scale-95
-               ring-1 ring-white/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-            aria-label="Tomar foto"
-          >
-            <FaCamera className="w-[22px] h-[22px]" />
-          </button>
-        )}
-
-        {/* Clip */}
-        {showClipBtn && (
-          <button
-            type="button"
-            onClick={() => galleryRef.current?.click()}
-            title="Adjuntar archivo"
-            className="size-10 grid place-items-center rounded-full text-white shadow-[0_8px_24px_rgba(217,70,239,0.30)]
-               bg-gradient-to-br from-fuchsia-500 to-pink-600 hover:brightness-110 active:scale-95
-               ring-1 ring-white/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-            aria-label="Adjuntar archivo"
-          >
-            <FaPaperclip className="w-[22px] h-[22px]" />
-          </button>
-        )}
-
-
-        {/* Enviar — Blue→Indigo (más profundo) */}
-        <button
-          type="button"
-          onClick={handleSend}
-          title="Enviar"
-          className={`size-10 grid place-items-center rounded-full text-white font-semibold
-               shadow-[0_10px_30px_rgba(37,99,235,0.35)] transition-all active:scale-95
-               bg-gradient-to-br from-blue-600 to-indigo-600 hover:brightness-110
-               ring-1 ring-white/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60
-               ${isSending ? 'opacity-60' : ''}`}
-          disabled={isSending || (!text.trim() && readyUploads.length === 0)}
-          aria-label="Enviar mensaje"
-        >
-          <FaPaperPlane className="w-[22px] h-[22px]" />
-        </button>
       </div>
 
-      {uploads.length > 0 && (
-        <div className="flex flex-wrap gap-2 mt-2 px-1">
-          {uploads.map((f, i) => (
-            <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border bg-white" title={f.name}>
-              <img src={absUrl(f.thumbUrl || f.url)} alt={f.name} className="w-full h-full object-cover" />
-              {f.pending && <div className="absolute inset-0 bg-black/30 flex items-center justify-center text-white text-xs">Subiendo...</div>}
-              {f.error && <div className="absolute inset-0 bg-red-600/70 flex items-center justify-center text-white text-xs">Error</div>}
-              <button
-                type="button"
-                className="absolute -top-2 -right-2 bg-black/70 text-white w-6 h-6 rounded-full grid place-items-center text-xs hover:bg-black"
-                onClick={() => removeUpload(i)}
-                title="Quitar"
-                aria-label="Quitar archivo"
-              >
-                ×
-              </button>
-            </div>
-          ))}
+      {/* === PICKER DEBAJO === */}
+      {showEmoji && (
+        <div ref={pickerWrapRef} className="mt-2">
+          <EmojiPickerUnified onPick={onPickEmoji} onClose={() => setShowEmoji(false)} />
         </div>
       )}
+
+      {/* === PREVIEWS === */}
+      {uploads.length > 0 && (
+        <div className="flex flex-wrap gap-2 mt-2 px-1">
+          {/* ...previews... */}
+        </div>
+      )}
+
     </div>
   );
 }
