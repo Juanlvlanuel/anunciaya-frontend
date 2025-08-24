@@ -1,46 +1,46 @@
 <!DOCTYPE html>
 <html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AnunciaYA</title>
 
-    <!-- 🚀 FastUX: Preconnect / DNS-prefetch para acelerar handshake con Google OAuth -->
-    <link rel="preconnect" href="https://accounts.google.com" crossorigin />
-    <link rel="dns-prefetch" href="https://accounts.google.com" />
-    <link rel="preconnect" href="https://ssl.gstatic.com" crossorigin />
-    <link rel="dns-prefetch" href="https://ssl.gstatic.com" />
-    <link rel="preconnect" href="https://apis.google.com" crossorigin />
-    <link rel="dns-prefetch" href="https://apis.google.com" />
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AnunciaYA</title>
 
-    <!-- ✅ SDK de Facebook (se mantiene) -->
-    <script
-      async
-      defer
-      crossorigin="anonymous"
-      src="https://connect.facebook.net/es_LA/sdk.js"
-    ></script>
+  <!-- 🚀 FastUX: Preconnect / DNS-prefetch para acelerar handshake con Google OAuth -->
+  <link rel="preconnect" href="https://accounts.google.com" crossorigin />
+  <link rel="dns-prefetch" href="https://accounts.google.com" />
+  <link rel="preconnect" href="https://ssl.gstatic.com" crossorigin />
+  <link rel="dns-prefetch" href="https://ssl.gstatic.com" />
+  <link rel="preconnect" href="https://apis.google.com" crossorigin />
+  <link rel="dns-prefetch" href="https://apis.google.com" />
+  <!-- Preload del LCP (logo/hero) -->
+  <link rel="preload" as="image" href="/src/assets/logo-anunciaya.png" />
   
-    <!-- Early reserve for BottomNav on first paint if user was logged in before -->
-    <script>
-      (function(){
-        try {
-          var was = localStorage.getItem('wasLoggedIn') === '1';
-          if (was) {
-            var root = document.documentElement;
-            root.style.setProperty('--bottom-nav-h', '70px');
-            document.addEventListener('DOMContentLoaded', function(){
-              document.body.classList.add('has-bottom-nav');
-            });
-          }
-        } catch(e){}
-      })();
-    </script>
+  <!-- ✅ SDK de Facebook (se mantiene) -->
+  <script async defer crossorigin="anonymous" src="https://connect.facebook.net/es_LA/sdk.js"></script>
 
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+  <!-- Early reserve for BottomNav on first paint if user was logged in before -->
+  <script>
+    (function () {
+      try {
+        var was = localStorage.getItem('wasLoggedIn') === '1';
+        if (was) {
+          var root = document.documentElement;
+          root.style.setProperty('--bottom-nav-h', '70px');
+          document.addEventListener('DOMContentLoaded', function () {
+            document.body.classList.add('has-bottom-nav');
+          });
+        }
+      } catch (e) { }
+    })();
+  </script>
+
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+
 </html>

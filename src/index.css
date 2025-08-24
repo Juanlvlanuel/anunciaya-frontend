@@ -2,127 +2,226 @@
 @tailwind components;
 @tailwind utilities;
 
+
+/* === Twemoji autohospedado === */
+@font-face {
+  font-family: "Twemoji Local";
+  src: url("/font/twemoji/TwemojiMozilla.ttf") format("truetype");
+  font-display: swap;
+}
+
 /* ===== Resets útiles ===== */
 input[type=number]::-webkit-inner-spin-button,
-input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-input[type=number]{ -moz-appearance: textfield; }
+input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type=number] {
+  -moz-appearance: textfield;
+}
 
 input[type="search"]::-webkit-search-cancel-button,
-input[type="search"]::-webkit-search-clear-button { display:none !important; -webkit-appearance:none; }
-input[type="search"]::-ms-clear{ display:none !important; }
-input[type="search"]::-moz-search-clear{ display:none !important; }
+input[type="search"]::-webkit-search-clear-button {
+  display: none !important;
+  -webkit-appearance: none;
+}
 
-html, body { background: transparent !important; }
+input[type="search"]::-ms-clear {
+  display: none !important;
+}
+
+input[type="search"]::-moz-search-clear {
+  display: none !important;
+}
+
+html,
+body {
+  background: transparent !important;
+}
 
 /* ===== Animación existente ===== */
 @keyframes vibrar {
-  0%{transform:translateX(0)}15%{transform:translateX(-5px)}30%{transform:translateX(5px)}
-  45%{transform:translateX(-5px)}60%{transform:translateX(5px)}75%{transform:translateX(-5px)}
-  100%{transform:translateX(0)}
+  0% {
+    transform: translateX(0)
+  }
+
+  15% {
+    transform: translateX(-5px)
+  }
+
+  30% {
+    transform: translateX(5px)
+  }
+
+  45% {
+    transform: translateX(-5px)
+  }
+
+  60% {
+    transform: translateX(5px)
+  }
+
+  75% {
+    transform: translateX(-5px)
+  }
+
+  100% {
+    transform: translateX(0)
+  }
 }
-.animate-resaltar-bienvenida{
-  box-shadow:0 0 0 4px #2563eb,0 10px 24px rgba(0,0,0,.12)!important;
-  animation:vibrar .6s cubic-bezier(.36,.07,.19,.97) both; transition:box-shadow .2s;
+
+.animate-resaltar-bienvenida {
+  box-shadow: 0 0 0 4px #2563eb, 0 10px 24px rgba(0, 0, 0, .12) !important;
+  animation: vibrar .6s cubic-bezier(.36, .07, .19, .97) both;
+  transition: box-shadow .2s;
 }
 
 /* ===== Texto con emojis de color ===== */
-.emoji-text{
-  font-family:system-ui,-apple-system,"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",
-               "Segoe UI Symbol","Segoe UI",sans-serif !important;
-  writing-mode: horizontal-tb !important;
+/* Emojis nativos sin contorno (iOS/Android/Windows) */
+.emoji-text {
+  font-family:
+    "Twemoji Local",
+    /* ← nuestra fuente local primero */
+    "Apple Color Emoji",
+    "Noto Color Emoji",
+    "Segoe UI Emoji",
+    system-ui, -apple-system, sans-serif !important;
+  font-variant-emoji: emoji;
+  line-height: 1.1;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* ===== Twemoji / Apple datasource ===== */
-.emoji-img{
-  height:1.25em;
-  width:1.25em;
-  vertical-align:-0.2em;
-  display:inline-block;
+
+
+/* === Emojis grandes al estilo WhatsApp, SIN imágenes ni CDN === */
+.emoji-xl {
+  font-size: 2.75rem;
+  line-height: 1.1;
 }
 
-/* ===== Mensajes SOLO con emojis (estilo WhatsApp: grandes) ===== */
-.emoji-only{
-  font-size:2.6rem !important;    /* grande, muy similar a WhatsApp */
-  line-height:1.1 !important;
-}
-.emoji-only .emoji-img{
-  width:1em;
-  height:1em;
-  vertical-align:middle;
+@media (min-width: 480px) {
+  .emoji-xl {
+    font-size: 3rem;
+  }
 }
 
 /* ===== Filas de mensajes (alineación) ===== */
-.msg-row{ display:flex; width:100%; }
-.msg-row.out{ justify-content:flex-end; }
-.msg-row.in{  justify-content:flex-start; }
+.msg-row {
+  display: flex;
+  width: 100%;
+}
+
+.msg-row.out {
+  justify-content: flex-end;
+}
+
+.msg-row.in {
+  justify-content: flex-start;
+}
 
 /* ===== Burbujas ===== */
-.msg-bubble{
-  display:inline-block;
-  max-width:78%;
-  padding:10px 12px;
-  border-radius:10px;
-  line-height:1.4;
-  white-space:pre-wrap;
-  word-break:break-word;
+.msg-bubble {
+  display: inline-block;
+  max-width: 78%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
   writing-mode: horizontal-tb !important;
 }
 
-.msg-row.out .msg-bubble{ background:#2563eb; color:#fff; }
-.msg-row.in  .msg-bubble{ background:#ffffff; color:#2563eb; }
+.msg-row.out .msg-bubble {
+  background: #2563eb;
+  color: #fff;
+}
 
-.fix-touch, .fix-touch * { touch-action: auto !important; }
+.msg-row.in .msg-bubble {
+  background: #ffffff;
+  color: #2563eb;
+}
+
+.fix-touch,
+.fix-touch * {
+  touch-action: auto !important;
+}
 
 
 /* Chat scroll container: evita saltos y respeta el input sin hueco extra */
-[data-chat-scroll]{
+[data-chat-scroll] {
   scroll-padding-bottom: calc(64px + env(safe-area-inset-bottom));
   overflow-anchor: none;
 }
 
 /* ===== Altura del menú inferior (fallback si aún no montó) ===== */
 :root {
-  --bottom-nav-h: 70px; /* altura barra inferior en móvil */
+  --bottom-nav-h: 70px;
+  /* altura barra inferior en móvil */
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
   --safe-bottom-offset: calc(var(--bottom-nav-h) + var(--safe-area-bottom));
 }
-@media (min-width: 768px){
-  :root{ --bottom-nav-h: 0px; }    /* en desktop no hay barra inferior */
+
+@media (min-width: 768px) {
+  :root {
+    --bottom-nav-h: 0px;
+  }
 }
 
 /* Utilidades para elementos fijados al fondo (sheets, toasts, popups) */
 @layer utilities {
-  .bottom-safe { bottom: var(--safe-bottom-offset); }           /* posicionados con bottom */
-  .pb-bottom-safe { padding-bottom: var(--safe-bottom-offset); }/* contenedores */
-  .mb-bottom-safe { margin-bottom: var(--safe-bottom-offset); } /* márgenes */
+  .bottom-safe {
+    bottom: var(--safe-bottom-offset);
+  }
+
+  .pb-bottom-safe {
+    padding-bottom: var(--safe-bottom-offset);
+  }
+
+  .mb-bottom-safe {
+    margin-bottom: var(--safe-bottom-offset);
+  }
 }
 
-
 /* ====== FORZAR TEMA CLARO EN TODOS LOS DISPOSITIVOS ====== */
-:root { color-scheme: light; }
+:root {
+  color-scheme: light;
+}
 
 /* Fondo y color de texto base SIEMPRE claros (anula el transparent anterior) */
-html, body {
+html,
+body {
   background: #ffffff !important;
   color: #111111;
 }
 
 /* Por si el SO intenta dark-mode */
 @media (prefers-color-scheme: dark) {
-  html, body { background: #ffffff !important; color: #111111 !important; }
+
+  html,
+  body {
+    background: #ffffff !important;
+    color: #111111 !important;
+  }
 }
 
-/* Contenedores comunes (por si algún wrapper aplica herencias) */
-#root, .app-root, [data-chat-scroll], .chat-panel, .chat-window {
+/* Contenedores comunes (por si algún wrapper aplica herencias)
+   Importante: NO incluimos [data-chat-scroll] aquí para permitir fondos dinámicos */
+#root,
+.app-root,
+.chat-panel,
+.chat-window {
   background: #ffffff !important;
 }
 
-
-
 /* ===== Overrides extra para neutralizar variantes Tailwind bajo .dark ===== */
-html.dark, body.dark { color-scheme: light !important; }
+html.dark,
+body.dark {
+  color-scheme: light !important;
+}
 
-/* Fondos oscuros comunes → blanco */
 .dark .bg-zinc-900,
 .dark .bg-zinc-800,
 .dark .bg-gray-900,
@@ -131,22 +230,19 @@ html.dark, body.dark { color-scheme: light !important; }
   background-color: #ffffff !important;
 }
 
-/* Fondos intermedios → gris muy claro */
 .dark .bg-zinc-700,
 .dark .bg-gray-800,
 .dark .bg-neutral-800 {
   background-color: #f8fafc !important;
 }
 
-/* Bordes oscuros → gris claro */
 .dark .border-zinc-700,
 .dark .border-zinc-600,
 .dark .border-gray-700,
 .dark .border-neutral-700 {
-  border-color: #e5e7eb !important; /* Tailwind gray-200 */
+  border-color: #e5e7eb !important;
 }
 
-/* Texto claro forzado a oscuro legible */
 .dark .text-white,
 .dark .text-zinc-100,
 .dark .text-zinc-200,
@@ -155,9 +251,46 @@ html.dark, body.dark { color-scheme: light !important; }
   color: #111111 !important;
 }
 
-/* Hovers que antes se iban a oscuro */
 .dark .hover\:bg-zinc-800:hover,
 .dark .hover\:bg-gray-800:hover,
 .dark .hover\:bg-neutral-800:hover {
-  background-color: #f3f4f6 !important; /* gray-100 */
+  background-color: #f3f4f6 !important;
+}
+
+/* === Forzar Twemoji Local dentro de emoji-picker-react === */
+.twemoji-skin,
+.twemoji-skin * {
+  font-family: "Twemoji Local",
+               "Apple Color Emoji",
+               "Noto Color Emoji",
+               "Segoe UI Emoji",
+               system-ui, -apple-system, sans-serif !important;
+}
+
+/* Ajuste específico para el grid del picker */
+.EmojiPickerReact .epr-emoji-native {
+  font-family: "Twemoji Local",
+               "Apple Color Emoji",
+               "Noto Color Emoji",
+               "Segoe UI Emoji",
+               system-ui, -apple-system, sans-serif !important;
+  line-height: 1 !important;
+  font-size: 1.35rem; /* tamaño consistente con Twemoji */
+}
+
+
+.emoji-text img {
+  width: 20px;
+  height: 20px;
+  display: inline-block;
+  vertical-align: -0.2em;
+}
+
+/* === Chat: emojis más grandes SOLO en los mensajes impresos === */
+.msg-text .emoji-text img,
+.msg-text .emoji-text img.emoji,
+.msg-text .emoji-text img.twemoji {
+  width: 28px;
+  height: 28px;
+  vertical-align: middle;
 }

@@ -175,65 +175,46 @@ const AuthProvider = ({ children }) => {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  // Consulta de sesión real
-  useEffect(() => {
-    let cancelled = false;
-    async function checkSession() {
-      try {
-        setCargando(true);
-        const token = localStorage.getItem("token");
-        const hadSession = localStorage.getItem("wasLoggedIn") === "1";
+  // Consulta de sesión real (una sola vez, usando la caché de api.js)
+useEffect(() => {
+  let cancelled = false;
+  let fetched = false;
 
-        if (!token && hadSession) {
-          try {
-            const r = await fetch(`${API_BASE}/api/usuarios/auth/refresh`, {
-              method: "POST",
-              credentials: "include",
-              headers: { "Content-Type": "application/json" },
-              body: "{}",
-            });
-            if (r.ok) {
-              const j = await r.json().catch(() => ({}));
-              const newToken = j?.token;
-              if (newToken) {
-                localStorage.setItem("token", newToken);
-                try { localStorage.setItem("wasLoggedIn", "1"); } catch {}
-                try { setAuthSession && setAuthSession({ accessToken: newToken, user: (typeof getAuthSession === "function" ? getAuthSession()?.user : null) || null }); } catch {}
-              }
-            }
-          } catch {}
-        }
+  async function checkSession() {
+    if (fetched) return;
+    fetched = true;
+    try {
+      setCargando(true);
 
-        const data = await getJSON(`/api/usuarios/session`, {
-          headers: {},
-          credentials: "include",
-        });
+      const data = await getJSON(`/api/usuarios/session`, {
+        headers: {},
+        credentials: "include",
+      });
 
-        if (!cancelled && data?.usuario) {
-          const enriquecido = enriquecerUsuario(data.usuario);
-          setUsuario(enriquecerUsuario(data.usuario));
-          setAutenticado(true);
-          try {
-            localStorage.setItem("usuario", JSON.stringify(enriquecido));
-          } catch {}
-        }
-      } catch (e) {
-        try { localStorage.removeItem("token"); } catch {}
-        try { localStorage.removeItem("usuario"); } catch {}
-        try { localStorage.removeItem("wasLoggedIn"); } catch {}
-        if (!cancelled) {
-          setAutenticado(false);
-          setUsuario(null);
-        }
-      } finally {
-        if (!cancelled) setCargando(false);
+      if (!cancelled && data?.usuario) {
+        const enriquecido = enriquecerUsuario(data.usuario);
+        setUsuario(enriquecido);
+        setAutenticado(true);
+        try { localStorage.setItem("usuario", JSON.stringify(enriquecido)); } catch {}
       }
+    } catch (e) {
+      try { localStorage.removeItem("token"); } catch {}
+      try { localStorage.removeItem("usuario"); } catch {}
+      try { localStorage.removeItem("wasLoggedIn"); } catch {}
+      if (!cancelled) {
+        setAutenticado(false);
+        setUsuario(null);
+      }
+    } finally {
+      if (!cancelled) setCargando(false);
     }
-    checkSession();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  }
+
+  checkSession();
+  return () => { cancelled = true; };
+// eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
+
 
   const hidratarEnSegundoPlano = (token) => {
     (async () => {

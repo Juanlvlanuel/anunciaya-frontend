@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { io } from "socket.io-client";
-import { getJSON, API_BASE } from "../services/api";
+import { getJSON, API_BASE, clearSessionCache } from "../services/api";
 import { AuthContext } from "./AuthContext";
 import { getAuthSession, setAuthSession } from "../utils/authStorage";
 
@@ -30,17 +30,17 @@ function makeNotifiers() {
   const playBeep = async () => {
     if (!hasInteracted.current || document.visibilityState !== "visible") return;
     const ctx = ensureAudioContext(); if (!ctx) return;
-    if (ctx.state === "suspended") { try { await ctx.resume(); } catch {} }
+    if (ctx.state === "suspended") { try { await ctx.resume(); } catch { } }
     try {
       const o = ctx.createOscillator(); const g = ctx.createGain();
       o.type = "sine"; o.frequency.value = 880; g.gain.value = 0.04;
       o.connect(g); g.connect(ctx.destination);
-      o.start(); setTimeout(() => { try { o.stop(); } catch {} }, 140);
-    } catch {}
+      o.start(); setTimeout(() => { try { o.stop(); } catch { } }, 140);
+    } catch { }
   };
   const vibrate = () => {
     if (!hasInteracted.current || document.visibilityState !== "visible") return;
-    if ("vibrate" in navigator) { try { navigator.vibrate([60]); } catch {} }
+    if ("vibrate" in navigator) { try { navigator.vibrate([60]); } catch { } }
   };
   return { attach, playBeep, vibrate };
 }
@@ -48,27 +48,54 @@ function makeNotifiers() {
 export default function ChatProvider({ children }) {
   const getAuthHeaders = useCallback(() => {
     let token = "";
-    try { const s = (typeof getAuthSession === "function") ? getAuthSession() : null; token = s?.accessToken || ""; } catch {}
+    try { const s = (typeof getAuthSession === "function") ? getAuthSession() : null; token = s?.accessToken || ""; } catch { }
+    if (!token) { try { token = localStorage.getItem("token") || ""; } catch { } }
     const headers = { "Content-Type": "application/json" };
     if (token) { headers["Authorization"] = `Bearer ${token}`; headers["x-auth-token"] = token; }
     return headers;
   }, []);
 
+  // Usa el refresh oficial de api.js (evita duplicados/401)
   const tryRefresh = useCallback(async () => {
     try {
-      const r = await fetch(`${API_BASE}/api/usuarios/auth/refresh`, {
+      const res = await fetch(`${API_BASE}/api/usuarios/auth/refresh`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Accept": "application/json" },
-        body: "{}",
         credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
       });
-      if (!r.ok) return false;
-      const j = await r.json();
-      const _acc = j?.token || j?.accessToken || j?.access || j?.jwt;
-      if (_acc) { try { const s = (typeof getAuthSession === "function") ? getAuthSession() : null; const user = s?.user || null; if (typeof setAuthSession === "function") setAuthSession({ accessToken: _acc, user }); } catch {} return true; }
-    } catch {}
-    return false;
+
+      if (!res.ok) {
+        // Si el backend responde 401, no hay cookie rid → limpia y no reintentes
+        try { localStorage.removeItem("token"); } catch { }
+        try { setAuthSession && setAuthSession({ accessToken: null, user: null }); } catch { }
+        return false;
+      }
+
+      let j = {};
+      try { j = await res.json(); } catch { j = {}; }
+
+      const _acc = j?.token || j?.accessToken || j?.jwt;
+      if (!_acc) return false;
+
+      try { localStorage.setItem("token", _acc); } catch { }
+
+      try {
+        const s = (getAuthSession && getAuthSession()) || null;
+        const user = s?.user || JSON.parse(localStorage.getItem("usuario") || "null");
+        if (setAuthSession) setAuthSession({ accessToken: _acc, user });
+      } catch { }
+
+      try { clearSessionCache(); } catch { }
+
+      return true;
+    } catch {
+      return false;
+    }
   }, []);
+
+
+
 
   const { usuario } = useContext(AuthContext);
 
@@ -79,13 +106,12 @@ export default function ChatProvider({ children }) {
   const [typingMap, setTypingMap] = useState({});
   const [statusMap, setStatusMap] = useState({});
 
-  // Reply target (compartido)
   const [replyTarget, setReplyTarget] = useState(null);
   const clearReplyTarget = () => setReplyTarget(null);
 
   const me = useMemo(() => {
     if (usuario?._id) return String(usuario._id);
-    try { const u = JSON.parse(localStorage.getItem("usuario") || "{}"); if (u && u._id) return String(u._id); } catch {}
+    try { const u = JSON.parse(localStorage.getItem("usuario") || "{}"); if (u && u._id) return String(u._id); } catch { }
     return (String(localStorage.getItem("uid") || "") || String(localStorage.getItem("userId") || ""));
   }, [usuario]);
 
@@ -95,7 +121,7 @@ export default function ChatProvider({ children }) {
 
   const socketRef = useRef(null);
   const notifiersRef = useRef(makeNotifiers());
-
+  const lastRefreshAttemptRef = useRef(0);
   useEffect(() => { notifiersRef.current.attach(); }, []);
 
   useEffect(() => {
@@ -130,7 +156,7 @@ export default function ChatProvider({ children }) {
         const incoming = { ...mensaje };
         if (!incoming.replyTo && incoming.reply) incoming.replyTo = incoming.reply;
         clearReplyTarget();
-      setMessages((m) => {
+        setMessages((m) => {
           const list = m[chatId] || [];
           const idx = list.findIndex((x) => String(x?._id) === String(incoming?._id));
           const next = idx >= 0 ? [...list.slice(0, idx), incoming, ...list.slice(idx + 1)] : [...list, incoming];
@@ -148,19 +174,19 @@ export default function ChatProvider({ children }) {
       s.on("chat:typing", ({ chatId, usuarioId, typing }) => { setTypingMap((t) => ({ ...t, [chatId]: typing ? usuarioId : null })); });
       s.on("chat:messageEdited", ({ chatId, mensaje }) => {
         clearReplyTarget();
-      setMessages((m) => {
+        setMessages((m) => {
           const list = m[chatId] || []; const idx = list.findIndex((x) => String(x?._id) === String(mensaje?._id));
           if (idx === -1) return m; const next = list.slice(); next[idx] = { ...list[idx], ...mensaje }; return { ...m, [chatId]: next };
         });
       });
       s.on("chat:messageDeleted", ({ chatId, messageId }) => {
         clearReplyTarget();
-      setMessages((m) => { const list = m[chatId] || []; const next = list.filter((x) => String(x?._id) !== String(messageId)); return { ...m, [chatId]: next }; });
+        setMessages((m) => { const list = m[chatId] || []; const next = list.filter((x) => String(x?._id) !== String(messageId)); return { ...m, [chatId]: next }; });
       });
 
       socketRef.current = s; setSocket(s);
     }, 400);
-    return () => { clearTimeout(timer); try { socketRef.current?.disconnect(); } catch {} socketRef.current = null; setSocket(null); };
+    return () => { clearTimeout(timer); try { socketRef.current?.disconnect(); } catch { } socketRef.current = null; setSocket(null); };
   }, [me, wsURL]);
 
   useEffect(() => {
@@ -182,14 +208,36 @@ export default function ChatProvider({ children }) {
 
   const ensureFreshToken = useCallback(async () => {
     try {
-      const tok = ((getAuthSession && getAuthSession())?.accessToken) || "";
+      // No intentes refresh si nunca se inició sesión (evita 401 en frío)
+      const was = localStorage.getItem("wasLoggedIn") === "1";
+      if (!was) return;
+
+      let tok = ""; try { tok = (getAuthSession && getAuthSession())?.accessToken || ""; } catch { }
+      if (!tok) { try { tok = localStorage.getItem("token") || ""; } catch { } }
       if (!tok) return;
+
+      // Debounce para evitar dobles llamadas (StrictMode/visibilidad)
+      const nowMs = Date.now();
+      if (nowMs - (lastRefreshAttemptRef.current || 0) < 5000) return;
+      lastRefreshAttemptRef.current = nowMs;
+
+      // Si el token vence en <=90s, refresca
       let exp = 0;
-      try { const [, payload] = String(tok).split("."); if (payload) { const json = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/"))); exp = Number(json?.exp || 0); } } catch {}
+      try {
+        const [, payload] = String(tok).split(".");
+        if (payload) {
+          const json = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+          exp = Number(json?.exp || 0);
+        }
+      } catch { /* token malformado: forzará refresh */ }
+
       const now = Math.floor(Date.now() / 1000);
-      if (exp - now <= 90) { await tryRefresh(); }
-    } catch {}
+      if (!exp || exp - now <= 90) {
+        await tryRefresh();
+      }
+    } catch { }
   }, [tryRefresh]);
+
 
   useEffect(() => {
     const onVisible = () => { if (document.visibilityState === "visible") ensureFreshToken(); };
@@ -205,7 +253,7 @@ export default function ChatProvider({ children }) {
       if (res.status === 401 && await tryRefresh()) {
         res = await fetch(`${API_BASE}/api/chat`, { method: "GET", headers: getAuthHeaders(), credentials: "include" });
       }
-      if (!res.ok) { let msg = `HTTP ${res.status}`; try { const j = await res.json(); msg = j?.mensaje || j?.error || msg; } catch {} console.error("[loadChats] fallo:", msg); return; }
+      if (!res.ok) { let msg = `HTTP ${res.status}`; try { const j = await res.json(); msg = j?.mensaje || j?.error || msg; } catch { } console.error("[loadChats] fallo:", msg); return; }
       const data = await res.json();
       const normalized = (Array.isArray(data) ? data : []).map((c) => ({
         ...c,
@@ -247,7 +295,7 @@ export default function ChatProvider({ children }) {
       res = await fetch(`${API_BASE}/api/chat/${chatId}/block`, { method: "POST", headers: getAuthHeaders(), credentials: "include" });
     }
     if (res.status === 401) throw new Error("Sesión no válida o expirada. Inicia sesión nuevamente.");
-    if (!res.ok) { let msg = "No se pudo bloquear el chat"; try { const j = await res.json(); msg = j?.mensaje || j?.error || msg; } catch {} throw new Error(msg); }
+    if (!res.ok) { let msg = "No se pudo bloquear el chat"; try { const j = await res.json(); msg = j?.mensaje || j?.error || msg; } catch { } throw new Error(msg); }
     await loadChats(); return true;
   }, [getAuthHeaders, loadChats, tryRefresh]);
 
@@ -258,7 +306,7 @@ export default function ChatProvider({ children }) {
       res = await fetch(`${API_BASE}/api/chat/${chatId}/block`, { method: "DELETE", headers: getAuthHeaders(), credentials: "include" });
     }
     if (res.status === 401) throw new Error("Sesión no válida o expirada. Inicia sesión nuevamente.");
-    if (!res.ok) { let msg = "No se pudo desbloquear el chat"; try { const j = await res.json(); msg = j?.mensaje || j?.error || msg; } catch {} throw new Error(msg); }
+    if (!res.ok) { let msg = "No se pudo desbloquear el chat"; try { const j = await res.json(); msg = j?.mensaje || j?.error || msg; } catch { } throw new Error(msg); }
     await loadChats(); return true;
   }, [getAuthHeaders, loadChats, tryRefresh]);
 
@@ -273,7 +321,6 @@ export default function ChatProvider({ children }) {
     return { _id, texto, preview: replyTo.preview || texto || "", autor: autor || null };
   }
 
-  // --- funciones que se referencian en value (declararlas ANTES del useMemo) ---
   const sendMessage = useCallback(({ chatId, emisorId, texto, archivos = [], replyTo = null, forwardOf = null }) => {
     const meId = me;
     const sender = emisorId || meId;
@@ -297,7 +344,7 @@ export default function ChatProvider({ children }) {
           const realId = String(ackMsg._id); const j = next.findIndex((x) => String(x?._id) === realId);
           if (j >= 0) next[j] = ackMsg; else next.push(ackMsg);
         } else {
-          try { if (ack && ack.error) alert(ack.error); } catch {}
+          try { if (ack && ack.error) alert(ack.error); } catch { }
           next.push({ ...optimistic, _temp: false, _failed: true });
         }
         return { ...m, [chatId]: next };
@@ -313,6 +360,33 @@ export default function ChatProvider({ children }) {
     try { socketRef.current?.emit("chat:deleteMessage", { messageId }, (ack) => cb?.(ack)); } catch (e) { cb?.({ ok: false, error: e?.message }); }
   }, []);
 
+
+  const setChatBackground = useCallback(async (chatId, url) => {
+    if (!chatId) return false;
+    try {
+      let res = await fetch(`${API_BASE}/api/chat/${chatId}/background`, {
+        method: "PATCH",
+        headers: getAuthHeaders(),
+        credentials: "include",
+        body: JSON.stringify({ backgroundUrl: url || "" })
+      });
+      if (res.status === 401 && await tryRefresh()) {
+        res = await fetch(`${API_BASE}/api/chat/${chatId}/background`, {
+          method: "PATCH",
+          headers: getAuthHeaders(),
+          credentials: "include",
+          body: JSON.stringify({ backgroundUrl: url || "" })
+        });
+      }
+      if (!res.ok) { try { const j = await res.json(); throw new Error(j?.mensaje || j?.error || "No se pudo guardar el fondo"); } catch { throw new Error("No se pudo guardar el fondo"); } }
+      await loadChats();
+      return true;
+    } catch (e) {
+      console.error("[setChatBackground]", e);
+      return false;
+    }
+  }, [getAuthHeaders, tryRefresh, loadChats]);
+
   const value = useMemo(() => ({
     currentUserId: me,
     chats, activeChatId, setActiveChatId,
@@ -320,6 +394,7 @@ export default function ChatProvider({ children }) {
     sendMessage, editMessageLive, deleteMessageLive,
     typingMap, setTyping, statusMap, blockChat, unblockChat,
     replyTarget, setReplyTarget, clearReplyTarget,
+    setChatBackground,
   }), [me, chats, activeChatId, messages, typingMap, statusMap, loadChats, loadMessages, blockChat, unblockChat, editMessageLive]);
 
   function setTyping(chatId, who) { setTypingMap((t) => ({ ...t, [chatId]: who })); }

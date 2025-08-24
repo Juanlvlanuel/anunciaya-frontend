@@ -10,6 +10,11 @@ const HeaderLogeadoMobile = () => {
         <img
           src={logo}
           alt="AnunciaYA"
+          width="160"       // ajusta al tamaño real en tu UI
+          height="44"       // ajusta al tamaño real en tu UI
+          loading="eager"
+          decoding="async"
+          fetchpriority="high"
           className="w-[260px] max-w-[64vw] mx-auto drop-shadow-lg"
         />
       </Link>

@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FaPaperclip, FaPaperPlane, FaSmile, FaImages } from "react-icons/fa";
 import { useChat } from "../../../context/ChatContext";
-import EmojiPickerPro from "../EmojiPicker/EmojiPicker";
+import { EmojiPickerUnified } from "../emoji-core";
 import { API_BASE } from "../../../services/api";
 
 const MAX_SIZE_MB = 10;
@@ -182,7 +182,7 @@ export default function MessageInputDesktop() {
           </button>
           {showEmoji && (
             <div className="absolute bottom-12 left-0 z-50">
-              <EmojiPickerPro onPick={handlePickEmoji} onClose={() => setShowEmoji(false)} />
+              <EmojiPickerUnified onPick={handlePickEmoji} onClose={() => setShowEmoji(false)} />
             </div>
           )}
         </div>

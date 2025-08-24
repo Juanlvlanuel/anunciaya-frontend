@@ -1,4 +1,0 @@
-/* Tamaños por defecto para los <img> de Twemoji dentro del texto */
-.twemoji { width: 1.35em; height: 1.35em; vertical-align: -0.2em; }
-/* Cuando el mensaje es SOLO emoji, muéstralos grandes */
-.twemoji-big { width: 3.1em; height: 3.1em; vertical-align: -0.25em; }

@@ -1,12 +1,13 @@
 // MessageMobile-1.jsx
-// Pegado a la orilla: usa w-fit y ml-auto/mr-auto. Burbujas solo para texto.
-// Mantiene tarjeta de Respuesta moderna, render de imágenes y fullscreen.
-// Mejora: tarjeta de respuesta robusta (detecta replyTo/repliedTo/reply/cita y varios formatos).
+// Versión limpia: sin helpers de emojis embebidos. Usa isEmojiOnly desde ../emoji-utils.
+// Render de texto nativo con .emoji-text (+ .emoji-xl cuando corresponde).
+// Adjuntos/imágenes mantienen el flujo simple con fullscreen portal.
 
 import { useMemo, useRef, useState, useEffect } from "react";
-import twemoji from "twemoji";
 import { getAuthSession } from "../../../utils/authStorage";
 import { API_BASE } from "../../../services/api";
+import ReactDOM from "react-dom";
+import { EmojiText, isEmojiOnly } from "../emoji-core";
 
 const isProbablyImage = (a) => {
   if (!a) return false;
@@ -54,7 +55,6 @@ function makeThumbFromFull(url) {
   }
 }
 
-
 const getFullUrl = (a) => {
   const u =
     a?.url ||
@@ -69,9 +69,6 @@ const getFullUrl = (a) => {
     "";
   return absUrl(u);
 };
-
-
-
 
 function normalizeReply(rt) {
   if (!rt) return null;
@@ -116,6 +113,9 @@ export default function MessageMobile({
   );
 
   const mine = msg?.mine === true || (myId && senderId && myId === senderId);
+  // id estable para coordinar el menú entre mensajes
+  const msgId = String(msg?._id || `${senderId}-${msg?.createdAt || ""}`);
+
 
   const [menuOpen, setMenuOpen] = useState(false);
   const holdTimer = useRef(null);
@@ -131,6 +131,30 @@ export default function MessageMobile({
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [fullscreenImg]);
+
+  // Coordina "solo 1 menú abierto"
+  useEffect(() => {
+    const onOpen = (e) => {
+      const id = e?.detail?.id;
+      if (id && id !== msgId) {
+        setMenuOpen(false);
+        setMenuPos(null);
+      }
+    };
+    const onCloseAll = () => {
+      setMenuOpen(false);
+      setMenuPos(null);
+      setFullscreenImg(null);
+    };
+    window.addEventListener("chat:menu:open", onOpen);
+    window.addEventListener("chat:menu:closeAll", onCloseAll);
+    return () => {
+      window.removeEventListener("chat:menu:open", onOpen);
+      window.removeEventListener("chat:menu:closeAll", onCloseAll);
+    };
+  }, [msgId]);
+
+
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -222,52 +246,16 @@ export default function MessageMobile({
     return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }, [msg]);
 
-  const escapeHTML = (s) =>
-    String(s || "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/\"/g, "&quot;")
-      .replace(/'/g, "&#39;");
-
-  const isEmojiOnly = (text) => {
-    if (!text) return false;
-    const stripped = String(text)
-      .replace(/\s+/g, "")
-      .replace(/\u200D/g, "")
-      .replace(/[\uFE0E\uFE0F]/g, "")
-      .replace(/[\u{1F3FB}-\u{1F3FF}]/gu, "");
-    if (!stripped) return false;
-
-    const RI = "\\p{Regional_Indicator}";
-    const pattern = new RegExp(`^(?:\\p{Extended_Pictographic}+|${RI}{2})+$`, "u");
-    return pattern.test(stripped);
-  };
-
-  const html = useMemo(() => {
-    const safe = escapeHTML(String(msg?.texto || ""));
-    return twemoji.parse(safe, {
-      folder: "64",
-      ext: ".png",
-      className: "emoji-img",
-      callback: (icon) =>
-        `https://cdn.jsdelivr.net/npm/emoji-datasource-apple/img/apple/64/${icon}.png`,
-      attributes: () => ({ draggable: "false", loading: "lazy" }),
-    });
-  }, [msg?.texto]);
-
-  const emojiOnly = isEmojiOnly(msg?.texto);
-  const showTextBubble = !!msg?.texto && !emojiOnly;
-  const textBubbleClass = showTextBubble
-    ? (mine
-        ? "px-3 py-2 rounded-2xl shadow-sm border bg-blue-600 text-white border-blue-600"
-        : "px-3 py-2 rounded-2xl shadow-sm border bg-white text-gray-800")
-    : "";
-
   const startLongPress = () => {
+    if (menuOpen) return;                // <- evita doble apertura
+    setFullscreenImg(null);
     clearTimeout(holdTimer.current);
-    holdTimer.current = setTimeout(() => setMenuOpen(true), LONG_PRESS_MS);
+    holdTimer.current = setTimeout(() => {
+      window.dispatchEvent(new CustomEvent("chat:menu:open", { detail: { id: msgId } }));
+      setMenuOpen(true);
+    }, LONG_PRESS_MS);
   };
+
   const cancelLongPress = () => clearTimeout(holdTimer.current);
 
   const doPin = () => {
@@ -276,24 +264,48 @@ export default function MessageMobile({
     onTogglePin?.(msg._id, !pinned);
   };
 
+
+
   // === Nueva: normalizar reply de distintas formas ===
   const replyRaw = msg?.replyTo || msg?.repliedTo || msg?.reply || msg?.cita || null;
   const reply = useMemo(() => normalizeReply(replyRaw), [replyRaw]);
 
+  // Solo-emojis para 1 o MÁS emojis (banderas incluidas)
+  const emojiOnly = useMemo(() => {
+    const s = String(msg?.texto || "").trim();
+    if (!s) return false;
+    // Si tu helper acepta secuencias, úsalo:
+    try { if (isEmojiOnly(s, { allowSequence: true, requireSingle: false })) return true; } catch { }
+    // Fallback robusto con Unicode (emoji + ZWJ + VS + espacios)
+    return /^(?:[\p{Extended_Pictographic}\p{Regional_Indicator}\uFE0F\u200D\u{E0061}-\u{E007A}\u{E0020}\u{E007F}\s])+$/u.test(s);
+  }, [msg?.texto]);
+
+  const showTextBubble = !!msg?.texto && !emojiOnly;
+  const textBubbleClass = showTextBubble
+    ? (mine
+      ? "px-3 py-2 rounded-2xl shadow-sm border bg-blue-600 text-white border-blue-600"
+      : "px-3 py-2 rounded-2xl shadow-sm border bg-white text-gray-800")
+    : "";
+
   return (
     <div className="px-2">
       <div
-        className={`relative w-fit ${mine ? "ml-auto" : "mr-auto"} ${pinned ? "ring-2 ring-amber-300 rounded-2xl" : ""}`}
+        className={`relative w-fit max-w-[88vw] min-w-0 ${mine ? "ml-auto" : "mr-auto"} ${pinned ? "ring-2 ring-amber-300 rounded-2xl" : ""}`}
         onTouchStart={startLongPress}
         onTouchEnd={cancelLongPress}
         onTouchMove={cancelLongPress}
         onMouseDown={startLongPress}
         onMouseUp={cancelLongPress}
         onMouseLeave={cancelLongPress}
-        onContextMenu={(e) => { e.preventDefault(); setMenuOpen(true); }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setFullscreenImg(null);
+          window.dispatchEvent(new CustomEvent("chat:menu:open", { detail: { id: msgId } }));
+          setMenuOpen(true);
+        }}
       >
         <div ref={bubbleRef} className="relative">
-          {/* Reply card moderna pegada a la orilla (autor + texto o miniatura) */}
+          {/* Reply card */}
           {reply && (
             <div className={`mb-1 ${mine ? "flex justify-end" : "flex justify-start"}`}>
               <div
@@ -311,12 +323,13 @@ export default function MessageMobile({
                   </div>
 
                   {reply.img ? (
-                    <div className="rounded-md overflow-hidden border bg-black/5 max-w-[45vw]">
+                    <div className="rounded-md overflow-hidden border bg-black/5 max-w-[45vw] aspect-[4/3]">
                       <img
                         src={reply.img}
                         alt="preview respuesta"
-                        className="w-full h-auto max-h-24 object-cover"
+                        className="w-full h-full object-cover"
                         loading="lazy"
+                        decoding="async"
                         draggable="false"
                       />
                     </div>
@@ -331,14 +344,18 @@ export default function MessageMobile({
           )}
 
           {/* Texto */}
-          {!!msg?.texto && (
-            <div className={textBubbleClass}>
-              <div
-                className={`text-[15px] leading-snug ${emojiOnly ? "emoji-only" : ""} emoji-text`}
-                dangerouslySetInnerHTML={{ __html: html }}
-              />
-            </div>
-          )}
+          <div
+            className={`${textBubbleClass} msg-text max-w-full overflow-hidden whitespace-pre-wrap break-words`}
+            style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+          >
+            <EmojiText
+              text={String(msg.texto)}
+              className="emoji-text select-text"
+              style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+            />
+          </div>
+
+
 
           {/* Adjuntos / imágenes */}
           {Array.isArray(archivos) && archivos.length > 0 && (
@@ -352,22 +369,30 @@ export default function MessageMobile({
                   return (
                     <div key={i} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                       <div
-                        className="rounded-lg overflow-hidden border bg-black/5 cursor-pointer max-w-[35vw]"
-                        onClick={() => full && setFullscreenImg(full)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") full && setFullscreenImg(full); }}
+                        className="rounded-lg overflow-hidden border bg-black/5 cursor-pointer w-[35vw] max-w-[280px] aspect-square"
+                        onClick={() => {
+                          if (!full) return;
+                          // cerrar cualquier menú antes de abrir fullscreen
+                          setMenuOpen(false);
+                          setMenuPos(null);
+                          window.dispatchEvent(new Event("chat:menu:closeAll")); // <- agrega esta línea
+                          setFullscreenImg(full);
+                        }}
                         title={a.name || a.filename || a.originalName || ""}
                       >
                         {thumb ? (
                           <img
                             src={thumb}
                             alt={a.name || a.filename || "img"}
-                            className="w-full h-auto max-h-28 object-cover"
+                            className="w-full h-full object-cover"
                             loading="lazy"
                             decoding="async"
-                            sizes="(max-width: 480px) 35vw, 320px"
+                            width="400"
+                            height="400"
                             draggable="false"
                           />
                         ) : (
-                          <div className="p-3 text-xs">{a.name || a.filename || "imagen"}</div>
+                          <div className="w-full h-full grid place-items-center text-xs">imagen</div>
                         )}
                       </div>
                     </div>
@@ -391,32 +416,95 @@ export default function MessageMobile({
           )}
 
           {/* Fullscreen */}
-          {fullscreenImg && (
-            <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50" onClick={() => setFullscreenImg(null)}>
-              <img src={fullscreenImg} alt="full" className="max-w-[95%] max-h-[95%] object-contain" draggable="false" />
-            </div>
-          )}
+          {fullscreenImg &&
+            ReactDOM.createPortal(
+              <div
+                className="fixed inset-0 z-[10000] bg-gradient-to-br from-white/55 via-white/35 to-gray-200/25 backdrop-blur flex items-center justify-center"
+                role="dialog"
+                aria-modal="true"
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                }}
+                onClick={() => setFullscreenImg(null)}
+              >
+                <div
+                  className="max-w-[95%] max-h-[95%] pointer-events-auto"
+                  onClick={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  <img
+                    src={fullscreenImg}
+                    alt="Imagen"
+                    className="max-w-full max-h-[85vh] object-contain"
+                    draggable="false"
+                  />
+                </div>
+              </div>,
+              document.body
+            )
+          }
 
-          {/* Menú contextual */}
-          {menuOpen && menuPos && (
-            <div
-              ref={menuRef}
-              className="fixed z-50 w-32 max-w-[92vw] rounded-xl border bg-white shadow-xl overflow-hidden"
-              style={{ left: menuPos.x, top: menuPos.y }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <MenuItem icon="/icons/icon-responder.png" label="Responder" onClick={() => { setMenuOpen(false); setMenuPos(null); try { onReply?.(msg); } catch {} try { window.dispatchEvent(new CustomEvent("chat:reply", { detail: { message: msg } })); } catch {} }} />
-              <MenuItem icon="/icons/icon-reenviar.png" label="Reenviar" onClick={(e) => { setMenuOpen(false); setMenuPos(null); onForward?.(e); }} />
-              <MenuItem icon="/icons/icon-favorito.png" label={pinned ? "Desfijar" : "Fijar"} onClick={doPin} />
-              {mine && (
-                <>
-                  <MenuItem icon="/icons/icon-editar.png" label="Editar" onClick={() => { setMenuOpen(false); setMenuPos(null); onEdit?.(msg); }} />
-                  <MenuItem icon="/icons/icon-borrar.png" label="Borrar" onClick={() => { setMenuOpen(false); setMenuPos(null); onDelete?.(msg); }} />
-                </>
-              )}
-            </div>
-          )}
         </div>
+        {/* Menú contextual (estilo del archivo que enviaste) */}
+        {menuOpen && menuPos && (
+          <div
+            ref={menuRef}
+            className="fixed z-50 w-32 max-w-[92vw] rounded-xl border bg-white shadow-xl overflow-hidden"
+            style={{ left: menuPos.x, top: menuPos.y }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MenuItem
+              icon="/icons/icon-responder.png"
+              label="Responder"
+              onClick={() => {
+                setMenuOpen(false);
+                setMenuPos(null);
+                try { onReply?.(msg); } catch { }
+                try { window.dispatchEvent(new CustomEvent("chat:reply", { detail: { message: msg } })); } catch { }
+              }}
+            />
+            <MenuItem
+              icon="/icons/icon-reenviar.png"
+              label="Reenviar"
+              onClick={() => {
+                setMenuOpen(false);
+                setMenuPos(null);
+                // enviamos un "evento" sintético para posicionar el panel en ChatWindowMobile
+                onForward?.({ currentTarget: bubbleRef.current });
+              }}
+            />
+            <MenuItem
+              icon="/icons/icon-favorito.png"
+              label={pinned ? "Desfijar" : "Fijar"}
+              onClick={doPin}
+            />
+
+            {mine && (
+              <>
+                <MenuItem
+                  icon="/icons/icon-editar.png"
+                  label="Editar"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setMenuPos(null);
+                    onEdit?.(msg);
+                  }}
+                />
+                <MenuItem
+                  icon="/icons/icon-borrar.png"
+                  label="Borrar"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setMenuPos(null);
+                    onDelete?.(msg);
+                  }}
+                />
+              </>
+            )}
+          </div>
+        )}
+
+
 
         {/* Hora */}
         <div className={`mt-1 text-[11px] text-gray-500 flex items-center gap-1 ${mine ? "justify-end" : "justify-start"}`}>

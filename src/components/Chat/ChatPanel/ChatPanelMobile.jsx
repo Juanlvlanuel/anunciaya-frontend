@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { motion } from "framer-motion";
-import { FaMoon, FaSun, FaImage, FaLink, FaTrash, FaPalette, FaSearch, FaBan, FaUnlockAlt, FaTimes } from "react-icons/fa";
+import { FaImage, FaLink, FaTrash, FaPalette, FaSearch, FaBan, FaUnlockAlt, FaTimes } from "react-icons/fa";
 import { useChat } from "../../../context/ChatContext";
-import { API_BASE, searchUsers, ensurePrivado } from "../../../services/api";
+import { API_BASE, searchUsers, ensurePrivado, media } from "../../../services/api";
 import logoChatYA from "../../../assets/logo-chatya.png"; // coloca tu PNG aquí
 import ChatList from "../ChatList/ChatList";
 import ChatWindow from "../ChatWindow/ChatWindowMobile";
@@ -10,7 +10,7 @@ import MessageInput from "../MessageInput/MessageInputMobile";
 import ReactDOM from "react-dom";
 
 export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeight = null }) {
-  const { chats, activeChatId, currentUserId, setActiveChatId, loadChats, loadMessages, statusMap, blockChat, unblockChat } = useChat();
+  const { chats, activeChatId, currentUserId, setActiveChatId, loadChats, loadMessages, statusMap, blockChat, unblockChat, setChatBackground } = useChat();
   const boxRef = useRef(null);
 
   const handleClose = () => {
@@ -146,20 +146,9 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
     }
   }, [currentChat, isBlocked, blockChat, unblockChat]);
 
-  const [theme, setTheme] = useState(() => localStorage.getItem("chatTheme") || "light");
-  const [bgUrl, setBgUrl] = useState(() => {
-    const data = localStorage.getItem("chatBgDataUrl");
-    if (data) return data;
-    return localStorage.getItem("chatBgUrl") || "";
-  });
-  const [bgOrigin, setBgOrigin] = useState(
-    () => localStorage.getItem("chatBgOrigin") ||
-      (localStorage.getItem("chatBgDataUrl") ? "data" : localStorage.getItem("chatBgUrl") ? "url" : "")
-  );
-  useEffect(() => {
-    localStorage.setItem("chatTheme", theme);
-  }, [theme]);
-
+  const theme = "light";
+  const [bgUrl, setBgUrl] = useState(() => (currentChat?.backgroundUrl || ""));
+  const [bgOrigin, setBgOrigin] = useState(() => (currentChat?.backgroundUrl ? "url" : ""));
   const [query, setQuery] = useState("");
   const [resul, setResul] = useState([]);
   const [loadingSearch, setLoadingSearch] = useState(false);
@@ -230,6 +219,47 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
   useEffect(() => {
     localStorage.setItem("chatBgCustomList", JSON.stringify(customBgs.slice(0, 30)));
   }, [customBgs]);
+  const isCloudinaryUrl = (u = "") => /res\.cloudinary\.com\//.test(String(u)) && /\/upload\//.test(String(u));
+
+  // === Persistencia local del fondo por chat+usuario ===
+  const bgStorageKey = useMemo(() => {
+    return currentUserId ? `chat:bg:GLOBAL:${currentUserId}` : null;
+  }, [currentUserId]);
+
+
+  // Sincroniza con almacenamiento local primero; si no hay, usa lo que venga del backend
+  useEffect(() => {
+    let stored = null;
+    if (bgStorageKey) {
+      try {
+        stored = JSON.parse(localStorage.getItem(bgStorageKey) || "null");
+      } catch { stored = null; }
+    }
+    if (stored?.url) {
+      setBgUrl(stored.url);
+      setBgOrigin("url");
+    } else {
+      setBgUrl(currentChat?.backgroundUrl || "");
+      setBgOrigin(currentChat?.backgroundUrl ? "url" : "");
+    }
+  }, [bgStorageKey, currentChat?.backgroundUrl, currentChat?._id]);
+
+  // Helpers para persistir/limpiar el fondo localmente
+  const persistBg = useCallback((url) => {
+    if (!bgStorageKey) return;
+    try {
+      localStorage.setItem(bgStorageKey, JSON.stringify({ url }));
+    } catch { }
+  }, [bgStorageKey]);
+
+  const clearPersist = useCallback(() => {
+    if (!bgStorageKey) return;
+    try {
+      localStorage.removeItem(bgStorageKey);
+    } catch { }
+  }, [bgStorageKey]);
+
+
 
   useEffect(() => {
     const onDoc = (e) => {
@@ -255,25 +285,109 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
     return dataUrl;
   }
 
+  function dataURLtoBlob(dataUrl) {
+    const arr = dataUrl.split(',');
+    const mime = arr[0].match(/:(.*?);/)[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) u8arr[n] = bstr.charCodeAt(n);
+    return new Blob([u8arr], { type: mime });
+  }
+
   const onPickBgFile = async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    if (!f.type.startsWith("image/")) { alert("Selecciona una imagen."); return; }
+    if (!f.type.startsWith("image/")) {
+      alert("Selecciona una imagen.");
+      return;
+    }
+
     try {
-      const dataUrl = await compressImageToDataURL(f, 1600, 0.85);
-      setBgUrl(dataUrl); setBgOrigin("data");
-      localStorage.setItem("chatBgDataUrl", dataUrl);
-      localStorage.removeItem("chatBgUrl");
-      localStorage.setItem("chatBgOrigin", "data");
-      const name = (f.name || "Mi fondo").replace(/\.[^.]+$/, "");
-      setCustomBgs((prev) => [{ name, url: dataUrl, origin: "data" }, ...prev.filter(b => b.url !== dataUrl)].slice(0, 30));
+      // 1) Comprimir a DataURL para vista previa inmediata
+      const dataUrl1 = await compressImageToDataURL(f, 1600, 0.85);
+      setBgUrl(dataUrl1);
+      setBgOrigin("data");
+      const name = (f.name || "Mi fondo").replace(/[^\w.-]/g, "");
+      setCustomBgs((prev) => [{ name, url: dataUrl1, origin: "data" }, ...prev.filter(b => b.url !== dataUrl1)].slice(0, 30));
       setShowBgMenu(false);
+
+      // 2) Subida firmada a Cloudinary
+      const cloudUrl = await uploadBgToCloud(f);   // 👈 ahora pasamos el File, no blob
+
+      // 3) Si se subió correctamente → actualizar en UI y persistir en backend
+      if (cloudUrl) {
+        setBgUrl(cloudUrl);
+        setBgOrigin("url");
+        try {
+          await setChatBackground(activeChatId, cloudUrl); // 👈 guarda en Mongo
+        } catch (err) {
+          console.error("Error guardando fondo en backend:", err);
+        }
+        // Persistir localmente para sobrevivir al refresh
+        persistBg(cloudUrl);
+
+        // 4) Guardar también en “Mis fondos” locales
+        setCustomBgs((prev) => [
+          { name: f.name || cloudUrl, url: cloudUrl, origin: "url" },
+          ...prev.filter((b) => b.url !== dataUrl1 && b.url !== cloudUrl),
+        ].slice(0, 30));
+      }
     } catch (err) {
-      console.error(err); alert("No se pudo procesar la imagen seleccionada.");
-    } finally { if (fileRef.current) fileRef.current.value = ""; }
+      console.error(err);
+      alert("No se pudo procesar la imagen seleccionada.");
+    } finally {
+      if (fileRef.current) fileRef.current.value = "";
+    }
   };
 
+
   const [urlModalOpen, setUrlModalOpen] = useState(false);
+
+  async function uploadBgToCloud(file) {
+    try {
+      const sign = await media.sign({
+        chatId: activeChatId,
+        senderId: currentUserId,
+        messageId: crypto.randomUUID?.() || Date.now().toString(),
+      });
+
+      const fd = new FormData();
+      fd.append("file", file);                               // ← usa el File, no 'val'
+      fd.append("api_key", sign.apiKey);
+      fd.append("timestamp", String(sign.timestamp));
+      fd.append("signature", sign.signature);
+
+      if (sign.transformation) {                             // ← compresión firmada
+        fd.append("transformation", sign.transformation);
+      }
+      if (sign.folder) fd.append("folder", sign.folder);
+      if (sign.public_id) fd.append("public_id", sign.public_id);
+      if (sign.tags) fd.append("tags", sign.tags);
+      if (sign.context) fd.append("context", sign.context);
+      if (sign.overwrite) fd.append("overwrite", "true");
+      if (sign.invalidate) fd.append("invalidate", "true");
+
+
+
+      const res = await fetch(
+        `https://api.cloudinary.com/v1_1/${sign.cloudName}/image/upload`,
+        { method: "POST", body: fd }
+      );
+      const json = await res.json();
+
+      if (!res.ok || !json || (!json.secure_url && !json.url)) {
+        throw new Error(json?.error?.message || "Upload fallido");
+      }
+
+      return json.secure_url || json.url;
+    } catch (err) {
+      console.error("Upload fondo Cloudinary:", err);
+      return null;
+    }
+  }
+
+
   const [bgUrlTemp, setBgUrlTemp] = useState("");
   const [bgUrlError, setBgUrlError] = useState("");
 
@@ -284,29 +398,46 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
     setShowBgMenu(false);
   };
 
-  const clearBg = () => {
-    setBgUrl(""); setBgOrigin("");
-    localStorage.removeItem("chatBgUrl");
-    localStorage.removeItem("chatBgDataUrl");
-    localStorage.removeItem("chatBgOrigin");
-    setShowBgMenu(false);
-  };
-
-  const applyCustom = (bg) => {
-    const origin = bg.origin || (bg.url?.startsWith("data:") ? "data" : "url");
-    setBgUrl(bg.url); setBgOrigin(origin);
-    if (origin === "data") {
-      localStorage.setItem("chatBgDataUrl", bg.url);
-      localStorage.removeItem("chatBgUrl");
-    } else {
-      localStorage.setItem("chatBgUrl", bg.url);
-      localStorage.removeItem("chatBgDataUrl");
+  const clearBg = async () => {
+    setBgUrl("");
+    setBgOrigin("");
+    try {
+      await setChatBackground(activeChatId, "");
+    } catch (err) {
+      console.error("Error limpiando fondo en backend:", err);
     }
-    localStorage.setItem("chatBgOrigin", origin);
+    // ⬇️ limpiar cache local para sobrevivir a refresh
+    clearPersist();
     setShowBgMenu(false);
   };
 
-  const removeCustom = (idx) => setCustomBgs((prev) => prev.filter((_, i) => i !== idx));
+
+  const applyCustom = async (bg) => {
+    const origin = bg.origin || (bg.url?.startsWith("data:") ? "data" : "url");
+    setBgUrl(bg.url);
+    setBgOrigin(origin);
+
+    if (origin === "url") {
+      try {
+        await setChatBackground(activeChatId, bg.url);
+      } catch (err) {
+        console.error("Error guardando fondo en backend:", err);
+      }
+      // ⬇️ Guardar elección local (por chat+usuario)
+      persistBg(bg.url);
+    }
+
+    setShowBgMenu(false);
+  };
+
+
+  const removeCustom = (idx) => setCustomBgs((prev) => {
+    const item = prev[idx];
+    if (item && item.url && isCloudinaryUrl(item.url)) {
+      try { media.destroy({ url: item.url }); } catch { }
+    }
+    return prev.filter((_, i) => i !== idx);
+  });
 
   const handleFavoriteToggled = async () => {
     try { await loadChats(); } catch { }
@@ -382,8 +513,6 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
             <HeaderBar
               partner={partner}
               statusText={statusText} dotClass={dotClass}
-              theme={theme}
-              setTheme={setTheme}
               fileRef={fileRef}
               showBgMenu={showBgMenu}
               setShowBgMenu={setShowBgMenu}
@@ -399,7 +528,7 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
               onBack={() => { setActiveChatId(null); setShowListMobile(true); }}
             />
 
-            <ChatWindow theme={theme} bgUrl={bgUrl} height={windowHeight} />
+            <ChatWindow bgUrl={bgUrl} height={windowHeight} />
             <div className="sticky bottom-[var(--bottom-nav-h)] bg-white border-t border-zinc-200 pb-[max(8px,env(safe-area-inset-bottom))]">
               <MessageInput />
             </div>
@@ -463,12 +592,10 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
 
                   <div className="mt-4 flex items-center justify:end gap-2">
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         setBgUrl("");
                         setBgOrigin("");
-                        localStorage.removeItem("chatBgUrl");
-                        localStorage.removeItem("chatBgDataUrl");
-                        localStorage.removeItem("chatBgOrigin");
+                        try { await setChatBackground(activeChatId, ""); } catch { }
                         setUrlModalOpen(false);
                       }}
                       className="h-9 px-3 rounded-lg border border-slate-300 hover:bg-slate-50 text-sm"
@@ -476,18 +603,62 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
                       Quitar
                     </button>
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         const val = (bgUrlTemp || "").trim();
-                        if (!val) { setBgUrlError("Escribe una URL válida o usa Quitar."); return; }
+                        if (!val) {
+                          setBgUrlError("Escribe una URL válida o usa Quitar.");
+                          return;
+                        }
                         try {
-                          new URL(val);
-                          setBgUrl(val);
+                          new URL(val); // validar que sea URL válida
+
+                          // 1) Pedir firma al backend
+                          const sign = await media.sign({
+                            chatId: activeChatId,
+                            senderId: currentUserId,
+                            messageId: crypto.randomUUID?.() || Date.now().toString(),
+                          });
+
+                          // 2) Subir a Cloudinary usando la URL externa como file
+                          const fd = new FormData();
+                          fd.append("file", val);
+                          fd.append("api_key", sign.apiKey);
+                          fd.append("timestamp", String(sign.timestamp));
+                          fd.append("signature", sign.signature);
+                          if (sign.transformation) fd.append("transformation", sign.transformation);
+                          if (sign.folder) fd.append("folder", sign.folder);
+                          if (sign.public_id) fd.append("public_id", sign.public_id);
+                          if (sign.tags) fd.append("tags", sign.tags);
+                          if (sign.context) fd.append("context", sign.context);
+                          if (sign.overwrite) fd.append("overwrite", "true");
+                          if (sign.invalidate) fd.append("invalidate", "true");
+
+                          const res = await fetch(
+                            `https://api.cloudinary.com/v1_1/${sign.cloudName}/image/upload`,
+                            { method: "POST", body: fd }
+                          );
+                          const json = await res.json();
+                          if (!res.ok || !json.secure_url) {
+                            throw new Error(json?.error?.message || "Upload fallido");
+                          }
+
+                          // 3) Actualizar en UI y persistir en backend
+                          setBgUrl(json.secure_url);
                           setBgOrigin("url");
-                          localStorage.setItem("chatBgUrl", val);
-                          localStorage.removeItem("chatBgDataUrl");
-                          localStorage.setItem("chatBgOrigin", "url");
+                          await setChatBackground(activeChatId, json.secure_url);
+
+                          // ⬇️ persistir localmente para que sobreviva al refresh
+                          persistBg(json.secure_url);
+
+                          setCustomBgs((prev) => [
+                            { name: val, url: json.secure_url, origin: "url" },
+                            ...prev.filter((b) => b.url !== json.secure_url),
+                          ].slice(0, 30));
+
                           setUrlModalOpen(false);
-                        } catch {
+
+                        } catch (err) {
+                          console.error("Error subiendo URL a Cloudinary:", err);
                           setBgUrlError("La URL no es válida.");
                         }
                       }}
@@ -495,6 +666,7 @@ export default function ChatPanelMobile({ onClose, panelHeight = 600, windowHeig
                     >
                       Aplicar
                     </button>
+
                   </div>
                 </div>
               </div>
@@ -569,8 +741,7 @@ function SearchBox({ query, onChangeQuery, loadingSearch, resul, showResults, se
   );
 }
 
-function HeaderBar({
-  partner, statusText, dotClass, theme, setTheme,
+function HeaderBar({ partner, statusText, dotClass,
   fileRef, showBgMenu, setShowBgMenu, bgMenuRef,
   onPickBgFile, pickBgFromUrl, clearBg,
   customBgs, applyCustom, removeCustom,
@@ -665,16 +836,6 @@ function HeaderBar({
         >
           {isBlocked ? <FaUnlockAlt /> : <FaBan />}
         </button>
-
-        <button
-          type="button"
-          className="p-2 rounded-full hover:bg-gray-100 transition"
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          title={theme === "dark" ? "Modo claro" : "Modo oscuro"}
-        >
-          {theme === "dark" ? <FaSun className="text-gray-700" /> : <FaMoon className="text-gray-700" />}
-        </button>
-
         <button
           type="button"
           className="p-2 rounded-full hover:bg-gray-100 transition"
@@ -790,20 +951,45 @@ export function ChatPanelMobilePortal() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    const openHandler = () => setOpen(true);
-    const closeHandler = () => setOpen(false);
+    const openHandler = () => {
+      if (!open) {
+        setOpen(true);
+        try { window.history.pushState({ chat: true }, ""); } catch { }
+      }
+    };
+
+    const closeHandler = () => {
+      if (open) {
+        setOpen(false);
+        try { if (window.history.state?.chat) window.history.back(); } catch { }
+      }
+    };
+
+    const onPopState = () => {
+      if (open) setOpen(false);
+    };
+
     window.addEventListener("open-chat", openHandler);
     window.addEventListener("close-chat", closeHandler);
+    window.addEventListener("popstate", onPopState);
+
     return () => {
       window.removeEventListener("open-chat", openHandler);
       window.removeEventListener("close-chat", closeHandler);
+      window.removeEventListener("popstate", onPopState);
     };
-  }, []);
+  }, [open]);
 
   if (!open) return null;
   const container = document.body;
   return ReactDOM.createPortal(
-    <ChatPanelMobile onClose={() => setOpen(false)} />,
+    <ChatPanelMobile
+      onClose={() => {
+        setOpen(false);
+        try { if (window.history.state?.chat) window.history.back(); } catch { }
+      }}
+    />,
     container
   );
 }
+

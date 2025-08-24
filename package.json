@@ -9,8 +9,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@emoji-mart/data": "^1.2.1",
-    "@emoji-mart/react": "^1.1.1",
     "@greatsumini/react-facebook-login": "^3.4.0",
     "@hello-pangea/dnd": "^18.0.1",
     "@heroicons/react": "^2.2.0",
@@ -33,7 +31,7 @@
     "socket.io-client": "^4.8.1",
     "sweetalert2": "^11.22.2",
     "swiper": "^11.2.10",
-    "twemoji": "14.0.2"
+    "twemoji": "^14.0.2"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.0",

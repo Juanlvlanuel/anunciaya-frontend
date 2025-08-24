@@ -1,6 +1,6 @@
 // src/components/Chat/Message/MessageDesktop.jsx
 import { useMemo, useState } from "react";
-import EmojiText from "../EmojiText";
+import { EmojiText } from "../emoji-core";
 
 export default function MessageDesktop({
   msg,

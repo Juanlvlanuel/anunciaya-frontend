@@ -4,26 +4,26 @@
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 
-        // ---- Client-side compressor (WebP) ----
-        async function shrinkImage(file, { maxW = 1600, maxH = 1600, quality = 0.82 } = {}) {
-          const bitmap = await createImageBitmap(file);
-          const scale = Math.min(1, maxW / bitmap.width, maxH / bitmap.height);
-          const w = Math.max(1, Math.round(bitmap.width * scale));
-          const h = Math.max(1, Math.round(bitmap.height * scale));
-          const canvas = document.createElement('canvas');
-          canvas.width = w;
-          canvas.height = h;
-          const ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
-          ctx.drawImage(bitmap, 0, 0, w, h);
-          const blob = await new Promise((res) => canvas.toBlob(res, 'image/webp', quality));
-          if (!blob) return file;
-          return new File([blob], (file.name || 'image').replace(/\.[^.]+$/, '') + '.webp', { type: 'image/webp' });
-        }
-        import { FaPaperclip, FaPaperPlane, FaSmile } from "react-icons/fa";
+// ---- Client-side compressor (WebP) ----
+async function shrinkImage(file, { maxW = 1600, maxH = 1600, quality = 0.82 } = {}) {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, maxW / bitmap.width, maxH / bitmap.height);
+  const w = Math.max(1, Math.round(bitmap.width * scale));
+  const h = Math.max(1, Math.round(bitmap.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  const blob = await new Promise((res) => canvas.toBlob(res, 'image/webp', quality));
+  if (!blob) return file;
+  return new File([blob], (file.name || 'image').replace(/\.[^.]+$/, '') + '.webp', { type: 'image/webp' });
+}
 import { useChat } from "../../../context/ChatContext";
-import EmojiPickerPro from "../EmojiPicker/EmojiPicker";
+import { EmojiPickerUnified } from "../emoji-core";
 import { API_BASE } from "../../../services/api";
-
+import EmojiText from "../EmojiText";
+import { FaPaperclip, FaPaperPlane, FaSmile, FaCamera } from "react-icons/fa";
 const MAX_SIZE_MB = 10;
 
 // ---- Utils
@@ -33,21 +33,6 @@ function absUrl(u) {
   if (/^https?:\/\//i.test(s) || s.startsWith("blob:")) return s;
   if (s.startsWith("/")) return `${API_BASE}${s}`.replace(/([^:]\/)\/+/g, "$1");
   return s;
-}
-
-// Preconnect a la CDN (twemoji/emoji datasource suele ir por jsdelivr)
-function preconnectOnce(href) {
-  try {
-    if (!href) return;
-    const id = `preconnect:${href}`;
-    if (document.getElementById(id)) return;
-    const link = document.createElement("link");
-    link.id = id;
-    link.rel = "preconnect";
-    link.href = href;
-    link.crossOrigin = "";
-    document.head.appendChild(link);
-  } catch {}
 }
 
 function sanitizeReply(r) {
@@ -76,9 +61,9 @@ export default function MessageInputMobile() {
   const focusComposer = useCallback(() => {
     const el = replyInputRef.current || document.getElementById("chat-mobile-input");
     if (!el) return;
-    try { el.focus(); } catch {}
-    requestAnimationFrame(() => { try { el.focus(); } catch {} });
-    setTimeout(() => { try { el.focus(); } catch {} }, 60);
+    try { el.focus(); } catch { }
+    requestAnimationFrame(() => { try { el.focus(); } catch { } });
+    setTimeout(() => { try { el.focus(); } catch { } }, 60);
   }, []);
 
   useEffect(() => {
@@ -93,20 +78,28 @@ export default function MessageInputMobile() {
   const [uploads, setUploads] = useState([]);
   const [showEmoji, setShowEmoji] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const [showCamera, setShowCamera] = useState(true);
+  const [isFocused, setIsFocused] = useState(false);
+
+  const showClipBtn = useMemo(
+    () => text.trim().length === 0 && !isFocused && uploads.length === 0,
+    [text, isFocused, uploads.length]
+  );
+
+  const showCameraBtn = useMemo(
+    () => text.trim().length === 0 && !isFocused && uploads.length === 0,
+    [text, isFocused, uploads.length]
+  );
+
   const [replyTo, setReplyTo] = useState(null);
 
-  // Precarga/optimización Emoji Picker
-  useEffect(() => {
-    preconnectOnce("https://cdn.jsdelivr.net");
-  }, []);
+
 
   // Memo: picker para que no se re-monte
   const onPickEmoji = useCallback((emoji) => {
     setText((prev) => (prev || "") + emoji);
   }, []);
   const memoPicker = useMemo(() => (
-    <EmojiPickerPro onPick={onPickEmoji} onClose={() => setShowEmoji(false)} />
+    <EmojiPickerUnified onPick={onPickEmoji} onClose={() => setShowEmoji(false)} />
   ), [onPickEmoji]);
 
   // Precarga oculta (montado desde que inicia para que esté caliente)
@@ -116,7 +109,7 @@ export default function MessageInputMobile() {
 
   useEffect(() => {
     const onReplyEvt = (e) => {
-      try { setReplyTo(sanitizeReply(e?.detail?.message)); } catch {}
+      try { setReplyTo(sanitizeReply(e?.detail?.message)); } catch { }
     };
     window.addEventListener("chat:reply", onReplyEvt);
     return () => window.removeEventListener("chat:reply", onReplyEvt);
@@ -151,6 +144,47 @@ export default function MessageInputMobile() {
   const typingTimer = useRef(null);
   const typingActive = useRef(false);
   const textareaRef = useRef(null);
+  const [taH, setTaH] = useState(42);
+  const composerRef = useRef(null);
+
+  useEffect(() => {
+    const el = composerRef.current;
+    if (!el) return;
+    const setVar = () => {
+      const h = el.offsetHeight || 110;
+      document.documentElement.style.setProperty('--chat-input-h', `${h}px`);
+    };
+    setVar();
+    const ro = new ResizeObserver(setVar);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const autosize = useCallback(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = "0px";
+    const sh = ta.scrollHeight;
+    const next = Math.min(Math.max(BASE_H, sh), MAX_H); // tope exacto a 5 líneas
+    ta.style.height = next + "px";
+    setTaH(next);
+  }, []);
+
+
+  useEffect(() => { autosize(); }, [text, autosize]);
+  const LINE_H = 22;
+  const BASE_H = 42; // alto de 1 línea (tu autosize ya usa 42)
+  const MAX_LINES = 5;
+  const MAX_H = BASE_H + (MAX_LINES - 1) * LINE_H; // 42 + 4*22 = 130
+
+  // Solo true cuando de verdad es una sola línea
+  const isSingleLine = useMemo(
+    () => taH === BASE_H && !/\n/.test(text),
+    [taH, text]
+  );
+
+  const SHIFT_Y = (BASE_H - LINE_H) / 2; // ≈10px
+
 
   // Debounce typing: activa una vez, desactiva tras 700ms sin tecleo
   const triggerTyping = useCallback(() => {
@@ -167,16 +201,60 @@ export default function MessageInputMobile() {
   }, [activeChatId, isBlocked, setTyping]);
 
   const onChange = useCallback((e) => {
-    setText(e.target.value);
+    const v = e.target.value;
+
+    // Si excede 5 líneas, recorta
+    const lines = v.split("\n");
+    if (lines.length > MAX_LINES) {
+      const trimmed = lines.slice(0, MAX_LINES).join("\n");
+      e.target.value = trimmed;
+      setText(trimmed);
+      requestAnimationFrame(autosize);
+      return;
+    }
+
+    // Si por envoltura visual se pasa del alto máximo, revierte el último input
+    // (evita que "salga" del recuadro cuando aún no hay \n explícito)
+    const ta = textareaRef.current;
+    if (ta) {
+      // Simula medición con el valor nuevo
+      const prev = ta.value;
+      ta.value = v;
+      ta.style.height = "0px";
+      const sh = ta.scrollHeight;
+      const tooTall = sh > MAX_H;
+      ta.value = prev;
+
+      if (tooTall) {
+        // Rechaza el último carácter introducido
+        e.target.value = text;
+        setText(text);
+        requestAnimationFrame(autosize);
+        return;
+      }
+    }
+
+    setText(v);
     triggerTyping();
-  }, [triggerTyping]);
+    requestAnimationFrame(autosize)
+  }, [text, triggerTyping, autosize]);
+
 
   const onKeyDown = useCallback((e) => {
+    // Bloquear Enter cuando ya hay 5 líneas
+    if (e.key === "Enter" && !e.shiftKey) {
+      const lines = (text || "").split("\n").length;
+      if (lines >= MAX_LINES) {
+        e.preventDefault();
+        return;
+      }
+    }
     if (!isBlocked && e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
-  }, [isBlocked]); // handleSend is defined with useCallback below; we intentionally skip to avoid circular
+  }, [isBlocked, text]); // handleSend definido más abajo
+
 
   useEffect(() => {
     const closeIfOutside = (e) => {
@@ -190,13 +268,13 @@ export default function MessageInputMobile() {
   }, []);
 
   // ---- Upload de imágenes
-  
-async function uploadImage(file) {
+
+  async function uploadImage(file) {
     if (!file.type.startsWith("image/")) throw new Error("Solo se permiten imágenes.");
     if (file.size > MAX_SIZE_MB * 1024 * 1024) throw new Error(`La imagen supera ${MAX_SIZE_MB} MB.`);
 
     // === 1) Pedir firma segura al backend ===
-    const mid = `${Date.now().toString(36)}${Math.random().toString(36).slice(2,8)}`;
+    const mid = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
     const env = (typeof window !== "undefined" && /localhost|127\.0\.0\.1/.test(window.location.host)) ? "dev" : "prod";
     const chatId = String(activeChatId || "general");
     const owner = String(currentUserId || "anon");
@@ -206,7 +284,6 @@ async function uploadImage(file) {
       headers: { "Content-Type": "application/json" },
       credentials: "include",
       body: JSON.stringify({
-        upload_preset: "chat_image",
         chatId,
         messageId: mid,
         senderId: owner,
@@ -228,6 +305,7 @@ async function uploadImage(file) {
     fd.append("folder", sign.folder);
     fd.append("signature", sign.signature);
 
+    if (sign.transformation) fd.append("transformation", sign.transformation);
     if (sign.public_id) fd.append("public_id", sign.public_id);
     if (sign.tags) fd.append("tags", sign.tags);
     if (sign.context) fd.append("context", sign.context);
@@ -250,7 +328,7 @@ async function uploadImage(file) {
       try {
         const u = new URL(url);
         // Insert transformation after /upload/
-        u.pathname = u.pathname.replace(/\/upload\/(v\d+\/)?/, (m, v) => `/upload/w_400,h_400,c_fill,q_auto,f_auto/${v||""}`);
+        u.pathname = u.pathname.replace(/\/upload\/(v\d+\/)?/, (m, v) => `/upload/w_400,h_400,c_fill,q_auto,f_auto/${v || ""}`);
         return u.toString();
       } catch {
         return url;
@@ -271,7 +349,7 @@ async function uploadImage(file) {
 
 
   const revokePreview = (url) => {
-    try { if (url && url.startsWith("blob:")) URL.revokeObjectURL(url); } catch {}
+    try { if (url && url.startsWith("blob:")) URL.revokeObjectURL(url); } catch { }
   };
 
   const onPickFiles = useCallback((e) => {
@@ -331,7 +409,7 @@ async function uploadImage(file) {
     return () => {
       try {
         uploads.forEach((u) => u?._preview && revokePreview(u._preview));
-      } catch {}
+      } catch { }
     };
   }, [uploads]);
 
@@ -360,21 +438,26 @@ async function uploadImage(file) {
         replyTo: sanitizeReply(replyTo),
       });
 
+      // limpiar composer
       setText("");
       setUploads([]);
       setShowEmoji(false);
       setReplyTo(null);
       clearReplyTarget?.();
-      textareaRef.current?.blur();
+
+      // 🔸 Mantener el foco en el input
+      try { textareaRef.current?.blur(); } catch { }
+      setIsFocused(false);
     } finally {
       setIsSending(false);
     }
   }, [activeChatId, clearReplyTarget, isBlocked, readyUploads, replyTo, sendMessage, text]);
 
+
   return (
-    <div className="px-2 pb-2 relative">
+    <div className="px-2 pb-2 relative" ref={composerRef}>
       {/* Precarga oculta del Picker para abrir instantáneo */}
-            {replyTo && (
+      {replyTo && (
         <div
           ref={replyBarRef}
           className="mx-1 mb-2 rounded-xl border border-blue-200 border-l-4 border-l-blue-500 bg-white/95 px-3 py-2 text-[12px] text-blue-900 flex items-center gap-2 shadow-sm"
@@ -395,71 +478,113 @@ async function uploadImage(file) {
         </div>
       )}
 
-      <div className="flex items-center gap-2 h-14 rounded-2xl border bg-white/95 shadow-[0_4px_16px_rgba(0,0,0,0.06)] px-2">
+      {/* === INPUT BAR PRO (gradientes PRO sin menta) === */}
+      <div className="flex items-center gap-2 min-h-[54px] rounded-2xl border border-gray-200 bg-white/90 backdrop-blur-md px-3 shadow-[0_4px_18px_rgba(0,0,0,0.05)] focus-within:ring-1 focus-within:ring-blue-500/40 transition-all">
+
+        {/* Emoji — Amber→Orange */}
         <div className="relative" ref={pickerWrapRef}>
           <button
             type="button"
             title="Emoji"
-            onClick={() => setShowEmoji((s) => !s)}
-            className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200"
+            onClick={() => setShowEmoji(s => !s)}
+            className="size-10 grid place-items-center rounded-full text-white shadow-[0_8px_24px_rgba(245,158,11,0.35)]
+                 bg-gradient-to-br from-amber-400 to-orange-500 hover:brightness-110 active:scale-95
+                 ring-1 ring-white/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
             aria-label="Abrir emojis"
           >
-            <FaSmile className="text-[18px]" />
+            <FaSmile className="w-[22px] h-[22px]" />
           </button>
-          <div className="absolute bottom-12 left-0 z-50" style={{display: showEmoji ? 'block' : 'none'}}>
-              {memoPicker}
-            </div>
+          <div className="absolute bottom-12 left-0 z-50" style={{ display: showEmoji ? 'block' : 'none' }}>
+            {memoPicker}
+          </div>
         </div>
 
-        <textarea
-          ref={textareaRef}
-          value={text}
-          onChange={onChange}
-          onKeyDown={onKeyDown}
-          id="chat-mobile-input"
-          onFocus={() => setShowCamera(false)}
-          onBlur={() => setShowCamera(true)}
-          placeholder="Escribe un mensaje…"
-          enterKeyHint="send"
-          rows={1}
-          className="flex-1 h-10 max-h-10 min-h-0 bg-transparent outline-none px-2 resize-none overflow-hidden text-[15px] text-gray-800 placeholder-gray-400"
-        />
+        {/* Campo de texto */}
+        <div className="relative flex-1" style={{ minHeight: 42, height: taH }}>
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={onChange}
+            onKeyDown={onKeyDown}
+            id="chat-mobile-input"
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+            placeholder="" // el placeholder se pinta en el overlay
+            enterKeyHint="send"
+            rows={1}
+            className="absolute inset-0 w-full h-full bg-transparent outline-none px-2 py-0
+               resize-none overflow-y-auto text-[17px] text-transparent caret-black leading-[22px]"
+            style={{ transform: isSingleLine ? `translateY(${SHIFT_Y}px)` : 'translateY(0)' }}
+          />
+          <div
+            className="absolute inset-0 px-2 pointer-events-none text-[17px]"
+            style={{ transform: isSingleLine ? `translateY(${SHIFT_Y}px)` : 'translateY(0)' }}
+          >
+            {text ? (
+              <div className="text-gray-900 leading-[22px] whitespace-pre-wrap break-words">
+                <EmojiText text={text} className="emoji-text" />
+              </div>
+            ) : (
+              <span className="text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis leading-[22px]">
+                Escribe un mensaje…
+              </span>
+            )}
+          </div>
+        </div>
 
+
+        {/* Separador */}
+        {(showCameraBtn || showClipBtn) && <span className="h-6 w-px bg-gray-200" />}
+
+        {/* Inputs ocultos */}
         <input ref={cameraRef} type="file" accept="image/*;capture=environment" capture="environment" className="hidden" onChange={onPickFiles} />
         <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={onPickFiles} />
 
-        {showCamera && (
+        {/* Cámara */}
+        {showCameraBtn && (
           <button
             type="button"
             onClick={() => cameraRef.current?.click()}
             title="Tomar foto"
-            className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200"
+            className="size-10 grid place-items-center rounded-full text-white shadow-[0_8px_24px_rgba(56,189,248,0.30)]
+               bg-gradient-to-br from-sky-500 to-indigo-600 hover:brightness-110 active:scale-95
+               ring-1 ring-white/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
             aria-label="Tomar foto"
           >
-            <span className="text-[18px]">📷</span>
+            <FaCamera className="w-[22px] h-[22px]" />
           </button>
         )}
 
-        <button
-          type="button"
-          onClick={() => galleryRef.current?.click()}
-          title="Adjuntar desde galería"
-          className="w-11 h-11 grid place-items-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200"
-          aria-label="Adjuntar imagen"
-        >
-          <FaPaperclip className="text-[18px]" />
-        </button>
+        {/* Clip */}
+        {showClipBtn && (
+          <button
+            type="button"
+            onClick={() => galleryRef.current?.click()}
+            title="Adjuntar archivo"
+            className="size-10 grid place-items-center rounded-full text-white shadow-[0_8px_24px_rgba(217,70,239,0.30)]
+               bg-gradient-to-br from-fuchsia-500 to-pink-600 hover:brightness-110 active:scale-95
+               ring-1 ring-white/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+            aria-label="Adjuntar archivo"
+          >
+            <FaPaperclip className="w-[22px] h-[22px]" />
+          </button>
+        )}
 
+
+        {/* Enviar — Blue→Indigo (más profundo) */}
         <button
           type="button"
           onClick={handleSend}
-          title="Enviar (Enter) • Nueva línea (Shift+Enter)"
-          className={`w-11 h-11 grid place-items-center rounded-xl text-white font-semibold ${isSending ? "opacity-60" : ""}`}
-          style={{ background: "#2563eb" }}
+          title="Enviar"
+          className={`size-10 grid place-items-center rounded-full text-white font-semibold
+               shadow-[0_10px_30px_rgba(37,99,235,0.35)] transition-all active:scale-95
+               bg-gradient-to-br from-blue-600 to-indigo-600 hover:brightness-110
+               ring-1 ring-white/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60
+               ${isSending ? 'opacity-60' : ''}`}
           disabled={isSending || (!text.trim() && readyUploads.length === 0)}
           aria-label="Enviar mensaje"
         >
-          <FaPaperPlane className="text-[18px]" />
+          <FaPaperPlane className="w-[22px] h-[22px]" />
         </button>
       </div>
 

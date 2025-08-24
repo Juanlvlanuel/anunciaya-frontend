@@ -3,72 +3,101 @@ import { useChat } from "../../../context/ChatContext";
 import MessageMobile from "../Message/MessageMobile";
 import { chatAPI } from "../../../services/api";
 import { getAuthSession } from "../../../utils/authStorage";
+import ReactDOM from "react-dom";
+
 
 /* ------------------------ Generic Confirm Modal ------------------------ */
-function ConfirmModal({ open, title, message, onConfirm, onCancel, confirmText = "Eliminar", cancelText = "Cancelar" }) {
+function ConfirmModal({
+  open,
+  title,
+  message,
+  onConfirm,
+  onCancel,
+  confirmText = "Eliminar",
+  cancelText = "Cancelar",
+}) {
   if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
-      <div className="relative w-[min(360px,85vw)] bg-white rounded-2xl shadow-2xl border border-zinc-200 p-5">
+  return ReactDOM.createPortal(
+    <div
+      className="fixed inset-0 z-[2000] flex items-center justify-center"
+      onMouseDownCapture={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+      onTouchStartCapture={(e) => e.stopPropagation()}
+    >
+      {/* Overlay: cierra modal pero sin burbujear al chat */}
+      <div
+        className="absolute inset-0 bg-black/40"
+        onClick={(e) => { e.stopPropagation(); onCancel(); }}
+        onMouseDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+      />
+      {/* Contenido */}
+      <div
+        className="relative w-[min(360px,85vw)] bg-white rounded-2xl shadow-2xl border border-zinc-200 p-5"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+      >
         <div className="text-base font-semibold mb-1">{title}</div>
         <div className="text-sm text-gray-600 mb-4">{message}</div>
         <div className="flex justify-end gap-2">
-          <button onClick={onCancel} className="px-3 py-2 rounded-md border border-zinc-200 hover:bg-gray-50">{cancelText}</button>
-          <button onClick={onConfirm} className="px-3 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">{confirmText}</button>
+          <button onClick={onCancel} className="px-3 py-2 rounded-md border border-zinc-200 hover:bg-gray-50">
+            {cancelText}
+          </button>
+          <button onClick={onConfirm} className="px-3 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">
+            {confirmText}
+          </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
-/* ----------------------- Edit Modal (text + image) ---------------------- */
+
+/* ----------------------- Edit Modal (texto SOLO) ---------------------- */
 function EditModal({
   open,
   initialText = "",
-  initialImageUrl = null,
   onCancel,
   onSave, // (newText, fileOrNull, removeImage:boolean) => void
 }) {
   const [text, setText] = useState(initialText || "");
-  const [previewUrl, setPreviewUrl] = useState(initialImageUrl || null);
-  const [file, setFile] = useState(null);
-  const [removeImage, setRemoveImage] = useState(false);
 
   useEffect(() => {
     if (open) {
       setText(initialText || "");
-      setPreviewUrl(initialImageUrl || null);
-      setFile(null);
-      setRemoveImage(false);
     }
-  }, [open, initialText, initialImageUrl]);
+  }, [open, initialText]);
 
   if (!open) return null;
 
-  const onPick = (e) => {
-    const f = e.target.files && e.target.files[0];
-    if (!f) return;
-    setFile(f);
-    const url = URL.createObjectURL(f);
-    setPreviewUrl(url);
-    setRemoveImage(false);
-  };
-
-  const onRemove = () => {
-    setFile(null);
-    setPreviewUrl(null);
-    setRemoveImage(true);
-  };
-
   const handleSave = () => {
-    onSave(text, file, removeImage);
+    // Mantener firma esperada por confirmEdit: texto, null, false
+    onSave(text, null, false);
   };
 
-  return (
-    <div className="fixed inset-0 z-[210] flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={onCancel} />
-      <div className="relative w-[min(520px,92vw)] bg-white rounded-2xl shadow-2xl border border-zinc-200 p-5">
+  return ReactDOM.createPortal(
+    <div
+      className="fixed inset-0 z-[2100] flex items-center justify-center"
+      onMouseDownCapture={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+      onTouchStartCapture={(e) => e.stopPropagation()}
+    >
+      {/* Overlay: cierra modal sin burbujear al chat */}
+      <div
+        className="absolute inset-0 bg-black/50"
+        onClick={(e) => { e.stopPropagation(); onCancel(); }}
+        onMouseDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+      />
+      {/* Contenido */}
+      <div
+        className="relative w-[min(520px,92vw)] bg-white rounded-2xl shadow-2xl border border-zinc-200 p-5"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between mb-3">
           <div className="text-lg font-semibold">Editar mensaje</div>
           <button
@@ -93,36 +122,6 @@ function EditModal({
               className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-
-          <div>
-            <div className="flex items-center justify-between">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Imagen (opcional)</label>
-              {previewUrl ? (
-                <button onClick={onRemove} className="text-xs text-red-600 hover:underline">Quitar imagen</button>
-              ) : null}
-            </div>
-
-            {previewUrl ? (
-              <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden border border-zinc-200">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={previewUrl} alt="Preview" className="w-full h-full object-contain bg-gray-50" />
-              </div>
-            ) : (
-              <div className="w-full rounded-xl border-dashed border-2 border-gray-300 p-4 text-center text-xs text-gray-500">
-                No hay imagen. Puedes adjuntar una nueva.
-              </div>
-            )}
-
-            <div className="mt-2">
-              <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-zinc-200 text-sm cursor-pointer hover:bg-gray-50">
-                <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
-                Reemplazar/Adjuntar
-                <input type="file" accept="image/*" onChange={onPick} className="hidden" />
-              </label>
-            </div>
-          </div>
         </div>
 
         <div className="mt-4 flex justify-end gap-2">
@@ -130,12 +129,18 @@ function EditModal({
           <button onClick={handleSave} className="px-3 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Guardar</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
+
 /**
- * ChatWindowMobile-1 (mejora de UX para Editar y tema claro fijo)
+ * ChatWindowMobile (corregido)
+ * - Aísla el contenedor para evitar que el fondo quede detrás del panel padre.
+ * - Capa absoluta del fondo con z-0 (no negativo).
+ * - Mensajes sobre el fondo con z-10.
+ * - Además fuerza el background inline cuando cambia bgUrl.
  */
 export default function ChatWindowMobile({ theme = "light", bgUrl = "", height = null }) {
   const getToken = () => {
@@ -180,7 +185,7 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
   }, []);
 
   const scrollBottomNow = useCallback((behavior = "auto") => {
-    try { tailRef.current?.scrollIntoView({ behavior, block: "end" }); } catch {}
+    try { tailRef.current?.scrollIntoView({ behavior, block: "end" }); } catch { }
   }, []);
 
   // Garantiza scroll al fondo (los llamadores deciden si forzar)
@@ -246,6 +251,10 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
   const [forwardPos, setForwardPos] = useState({ x: 0, y: 0 });
   const [forwardSet, setForwardSet] = useState(() => new Set());
   const openForwardPanel = (msg, ev) => {
+    // cerrar otros modales
+    setConfirmDel({ open: false, msg: null });
+    setEditState({ open: false, msg: null, initialText: "", initialImageUrl: null });
+
     setForwardOf(msg);
     const rect = ev?.currentTarget?.getBoundingClientRect?.();
     if (rect) {
@@ -259,6 +268,7 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
     setForwardQuery("");
     setForwardOpen(true);
   };
+
   useEffect(() => {
     if (!forwardOpen) return;
     const onDoc = (e) => {
@@ -279,7 +289,13 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
     } catch (e) { alert(e.message || "No se pudo cambiar el estado de fijado"); }
   };
   const [confirmDel, setConfirmDel] = useState({ open: false, msg: null });
-  const askDelete = (msg) => setConfirmDel({ open: true, msg });
+  const askDelete = (msg) => {
+    // cerrar otros modales
+    setForwardOpen(false);
+    setEditState({ open: false, msg: null, initialText: "", initialImageUrl: null });
+
+    setConfirmDel({ open: true, msg });
+  };
   const cancelDelete = () => setConfirmDel({ open: false, msg: null });
   const confirmDelete = async () => {
     const msg = confirmDel.msg; if (!msg) return;
@@ -298,8 +314,15 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
 
   const onEdit = async (msg) => {
     try {
-      const mine = String(msg?.emisor?._id || msg?.emisor || msg?.emisorId || "") === String(currentUserId) || msg?.mine === true;
+      // cerrar otros modales
+      setForwardOpen(false);
+      setConfirmDel({ open: false, msg: null });
+
+      const mine =
+        String(msg?.emisor?._id || msg?.emisor || msg?.emisorId || "") === String(currentUserId) ||
+        msg?.mine === true;
       if (!mine) { alert("Solo puedes editar tus propios mensajes."); return; }
+
       const initialText = typeof msg?.texto === "string" ? msg.texto : "";
       const initialImageUrl = msg?.imagenUrl || msg?.imageUrl || null;
       setEditState({ open: true, msg, initialText, initialImageUrl });
@@ -337,13 +360,18 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
 
   useEffect(() => {
     if (!activeChatId) return;
-    setIsReady(false); scrolledOnceRef.current = false;
+    setIsReady(false);
+    scrolledOnceRef.current = false;
+
     if (getToken()) {
-      loadMessages(activeChatId);
+      const hasLocalCache = Array.isArray(messages?.[activeChatId]) && messages[activeChatId].length > 0;
+      if (!hasLocalCache) {
+        loadMessages(activeChatId);           // solo si NO hay mensajes en memoria
+      }
       fetchPins();
     }
-    requestAnimationFrame(() => ensureBottom("auto", { force: true }));
-    setTimeout(() => ensureBottom("auto", { force: true }), 80);
+
+    requestAnimationFrame(() => ensureBottom("auto", { force: true })); // un solo empujón de scroll
     setIsPinnedAtBottom(true);
     prevLenRef.current = (messages[activeChatId] || []).length;
   }, [activeChatId, ensureBottom]);
@@ -361,15 +389,14 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
         rafId = requestAnimationFrame(() => scheduleScroll("auto"));
       }
     });
-    try { ro.observe(el); } catch {}
-    return () => { try { ro.disconnect(); } catch {}; if (rafId) cancelAnimationFrame(rafId); };
+    try { ro.observe(el); } catch { }
+    return () => { try { ro.disconnect(); } catch { }; if (rafId) cancelAnimationFrame(rafId); };
   }, [activeChatId, scheduleScroll]);
 
   // Mount-only: al abrir el chat (mismo activeChatId), baja al final forzado
   useEffect(() => {
     if (!getToken()) return;
-    requestAnimationFrame(() => ensureBottom("auto", { force: true }));
-    setTimeout(() => ensureBottom("auto", { force: true }), 80);
+    requestAnimationFrame(() => ensureBottom("auto", { force: true })); // elimina setTimeout duplicado
   }, []);
 
   const list = useMemo(() => {
@@ -439,11 +466,37 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
     return <div className={(height ? "" : "flex-1 ") + "grid place-items-center text-sm text-gray-500"} style={height ? { height } : undefined}>Selecciona un chat</div>;
   }
 
-  const baseStyle = bgUrl ? { backgroundImage: `url(${bgUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : {};
+  // === Estilos del fondo (robustos) ===
+  const bgLayerStyle = useMemo(() => {
+    if (!bgUrl) return null;
+    return {
+      backgroundImage: `url(${bgUrl})`,
+      backgroundSize: "cover",
+      backgroundPosition: "center",
+      backgroundRepeat: "no-repeat",
+    };
+  }, [bgUrl]);
+
+  const baseStyle = bgUrl ? { ...bgLayerStyle } : {};
   const fixedStyle = height ? { ...baseStyle, height } : baseStyle;
-  const containerClass = (height ? "" : "flex-1 min-h-0 ") + `overflow-y-auto bg-gray-50 transition-colors`;
+  // 👇 aislamos y dejamos el contenedor transparente cuando hay bg
+  const containerClass = (height ? "" : "flex-1 min-h-0 ") + `relative isolate overflow-y-auto ${bgUrl ? "bg-transparent" : "bg-gray-50"}`;
 
   const bottomGapClass = "pb-[max(8px,env(safe-area-inset-bottom))]";
+
+  // 🔧 Fuerza el estilo inline del fondo cuando cambia bgUrl (garantiza render)
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    if (bgUrl) {
+      el.style.backgroundImage = `url(${bgUrl})`;
+      el.style.backgroundSize = "cover";
+      el.style.backgroundPosition = "center";
+      el.style.backgroundRepeat = "no-repeat";
+    } else {
+      el.style.backgroundImage = "none";
+    }
+  }, [bgUrl]);
 
   return (
     <div
@@ -451,14 +504,50 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
       data-chat-scroll="true"
       onScroll={onScroll}
       className={containerClass}
+      key={bgUrl || "no-bg"}
+      data-chat-bg-url={bgUrl || ""}
       style={{
         ...fixedStyle,
-        scrollPaddingBottom: "calc(64px + env(safe-area-inset-bottom))",
+        ...(bgUrl ? {
+          backgroundImage: `url(${bgUrl})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+        } : {}),
+        scrollPaddingBottom: "calc(var(--chat-input-h,110px) + env(safe-area-inset-bottom))",
         overflowAnchor: "none"
       }}
+
     >
+      {/* Aviso: chat bloqueado (si aplica) */}
+      {isBlocked && (
+        <div className="sticky top-0 z-50 px-3 pt-2 pb-2">
+          <div className="w-full flex items-start gap-3 rounded-xl bg-yellow-50/90 backdrop-blur-sm border border-yellow-300 border-l-4 border-l-yellow-500 text-yellow-900 px-3 py-2 shadow-sm">
+            <svg viewBox="0 0 24 24" className="w-5 h-5 mt-[2px]" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 9v4m0 4h.01" />
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            </svg>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold leading-5">Chat bloqueado</div>
+              <div className="text-xs leading-5 opacity-90 truncate">
+                Ya no podrás recibir mensajes de este usuario hasta que lo desbloquees.
+              </div>
+            </div>
+
+            {<button
+              type="button"
+              onClick={() => { try { unblockChat?.(activeChat?._id); } catch (e) { } }}
+              className="shrink-0 px-3 py-1.5 rounded-md text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-900 border border-yellow-200"
+              title="Desbloquear chat"
+            >
+              Desbloquear
+            </button>}
+          </div>
+        </div>
+      )}
+
       {pinned.length > 0 && (
-        <div className="sticky top-0 z-10 px-3 pt-2 pb-2 backdrop-blur bg-white/70 border-b border-zinc-200">
+        <div className="sticky top-0 z-20 px-3 pt-2 pb-2 backdrop-blur bg-white/70 border-b border-zinc-200">
           <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">MENSAJES FIJADOS</div>
           <div className="flex flex-wrap gap-2">
             {pinned.map((m) => (
@@ -471,33 +560,12 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
         </div>
       )}
 
-      {isBlocked && (
-        <div className="sticky top-0 z-10 px-3 pt-2 pb-2 backdrop-blur">
-          <div className="w-full flex items-start gap-3 rounded-xl bg-yellow-50 border border-yellow-200 border-l-4 border-l-yellow-400 text-yellow-800 px-3 py-2 shadow-sm">
-            <svg viewBox="0 0 24 24" className="w-5 h-5 mt-[2px]" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 9v4m0 4h.01" />
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-            </svg>
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold leading-5">Chat bloqueado</div>
-              <div className="text-xs leading-5 opacity-90 truncate">
-                Ya no podrás recibir mensajes...
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => { try { unblockChat?.(activeChat?._id); } catch(e){} }}
-              className="shrink-0 px-3 py-1.5 rounded-md text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-900 border border-yellow-200"
-              title="Desbloquear chat"
-            >
-              Desbloquear
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Lista de mensajes */}
-      <div className="px-3 pt-2 space-y-2 pb-bottom-safe">
+      <div
+        className="relative z-10 px-3 pt-2 space-y-2"
+        style={{ paddingBottom: "calc(var(--chat-input-h,110px) + env(safe-area-inset-bottom))" }}
+      >
         {list.map((m, idx) => {
           const id = String(m?._id || `${activeChatId}-${idx}`);
           return (
@@ -510,7 +578,15 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
                 msg={{ ...m, currentUserId }}
                 pinned={pinnedIds.has(String(m?._id))}
                 onTogglePin={onTogglePin}
-                onReply={() => { setReplyTarget(m); try { window.dispatchEvent(new CustomEvent("chat:reply", { detail: { message: m } })); } catch(e){}; setTimeout(() => { try { window.dispatchEvent(new Event("chat:focusInput")); } catch(e){} }, 0); }}
+                onReply={() => {
+                  setReplyTarget(m);
+                  try {
+                    window.dispatchEvent(new CustomEvent("chat:reply", { detail: { message: m } }));
+                  } catch (e) { }
+                  setTimeout(() => {
+                    try { window.dispatchEvent(new Event("chat:focusInput")); } catch (e) { }
+                  }, 0);
+                }}
                 onForward={(e) => openForwardPanel(m, e)}
                 onDelete={() => askDelete(m)}
                 onEdit={() => onEdit(m)}
@@ -529,8 +605,9 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
         <div ref={tailRef} />
       </div>
 
+
       {!isPinnedAtBottom && (
-        <button onClick={scrollToBottom} className="fixed bottom-[calc(var(--bottom-nav-h)+env(safe-area-inset-bottom)+80px)] right-4 z-20 rounded-full shadow-md border bg-white/95 border-zinc-300 backdrop-blur p-2" aria-label="Ir al último mensaje" title="Ir al último mensaje">
+        <button onClick={scrollToBottom} className="fixed bottom-[calc(var(--bottom-nav-h)+env(safe-area-inset-bottom)+80px)] right-4 z-30 rounded-full shadow-md border bg-white/95 border-zinc-300 backdrop-blur p-2" aria-label="Ir al último mensaje" title="Ir al último mensaje">
           <svg viewBox="0 0 24 24" className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
         </button>
       )}

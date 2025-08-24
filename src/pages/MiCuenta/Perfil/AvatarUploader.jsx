@@ -233,7 +233,7 @@ export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload
               exit={{ opacity: 0 }}
             >
               <motion.div
-                className="absolute inset-0 bg-gradient-to-br from-white/55 via-white/35 to-gray-200/25 backdrop-blur-xl"
+                className="absolute inset-0 bg-gradient-to-br from-white/55 via-white/35 to-gray-200/25 backdrop-blur"
                 onClick={() => setShowModal(false)}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}

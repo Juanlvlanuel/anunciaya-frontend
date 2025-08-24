@@ -196,6 +196,14 @@ export const chatAPI = {
     add ? postJSON(`/api/chat/messages/${messageId}/pin`, {}, {}) : del(`/api/chat/messages/${messageId}/pin`, {}),
   editMessage: (messageId, body) => patch(`/api/chat/messages/${messageId}`, {}, body),
   deleteMessage: (messageId) => del(`/api/chat/messages/${messageId}`, {}),
+  setBackground: (chatId, url) => patch(`/api/chat/${chatId}/background`, {}, { backgroundUrl: url || "" }),
+};
+
+
+/* =================== Media =================== */
+export const media = {
+  sign: (payload) => postJSON(`/api/media/sign`, payload || {}),
+  destroy: (payload) => postJSON(`/api/media/destroy`, payload || {}),
 };
 
 /* =================== Usuarios =================== */

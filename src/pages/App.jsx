@@ -5,7 +5,6 @@ import { AuthContext } from "../context/AuthContext";
 import SplashScreen from "../components/SplashScreen";
 import { FLAGS, getFlag, removeFlag, getSuppressLoginOnce, clearSuppressLoginOnce } from "../utils/authStorage";
 
-import "../styles/chat-twemoji.css";
 import { Tools } from "../components/Tools";
 import LoginModal from "../modals/LoginModal";
 import AppRoutes from "../routes";
@@ -23,7 +22,7 @@ function App() {
   const handledKeyRef = useRef(null);
 
   const openLogin = () => {
-    try { clearSuppressLoginOnce(); } catch {}
+    try { clearSuppressLoginOnce(); } catch { }
     setEsLogin(true);
     setModalAbierto(true);
   };
@@ -52,7 +51,7 @@ function App() {
           navigate(location.pathname, { replace: true, state: {} });
         }
       }
-    } catch {}
+    } catch { }
   }, []);
 
   useEffect(() => {
@@ -66,14 +65,14 @@ function App() {
   // 🚀 Prefetch del chunk de /mi-cuenta cuando el usuario se autentica
   useEffect(() => {
     if (autenticado) {
-      try { import("../pages/MiCuenta/MiCuenta.jsx"); } catch {}
+      try { import("../pages/MiCuenta/MiCuenta.jsx"); } catch { }
       try {
         const ret = getFlag(FLAGS.retAfterLogin);
         if (ret) {
           removeFlag(FLAGS.retAfterLogin);
           navigate(ret, { replace: true });
         }
-      } catch {}
+      } catch { }
       setModalAbierto(false);
     }
   }, [autenticado, navigate]);
@@ -85,10 +84,11 @@ function App() {
     if (autenticado) {
       root.style.setProperty("--bottom-nav-h", "70px");
     } else {
-      try { root.style.removeProperty("--bottom-nav-h"); } catch {}
+      try { root.style.removeProperty("--bottom-nav-h"); } catch { }
     }
   }, [autenticado]);
 
+  
   if (cargando) return <SplashScreen />;
 
   return (
