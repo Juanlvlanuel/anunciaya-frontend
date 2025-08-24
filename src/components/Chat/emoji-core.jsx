@@ -176,6 +176,7 @@ export function EmojiPickerUnified({ onPick, onClose }) {
     >
       <div className="twemoji-skin">
         <EmojiPicker
+          categoryLabelStyle="none"   // 👈 Oculta los encabezados "Usados con frecuencia", etc.
           onEmojiClick={(e) => onPick?.(e.emoji)}
           emojiStyle={EmojiStyle.NATIVE}   // sin CDN
           theme={Theme.LIGHT}
@@ -185,22 +186,100 @@ export function EmojiPickerUnified({ onPick, onClose }) {
           previewConfig={{ showPreview: false }}
           /* 🔹 Alto más corto: se ve completa la sección de Frecuentes; el resto aparece con scroll */
           width={isMobile ? 400 : 460}
-          height={isMobile ? 220 : 360}
+          height={isMobile ? 220 : 400}
           /* 🔹 (Opcional) desactivar selector de tonos si quieres aún más compacto */
           skinTonesDisabled={true}
           /* 🔹 Orden: primero “Usados con frecuencia”; el resto queda debajo (scroll) */
           categories={[
-            { category: Categories.SUGGESTED, name: "Usados con frecuencia" },
-            { category: Categories.SMILEYS_PEOPLE, name: "Emoticonos y personas" },
-            { category: Categories.ANIMALS_NATURE, name: "Animales y naturaleza" },
-            { category: Categories.FOOD_DRINK, name: "Comida y bebida" },
-            { category: Categories.TRAVEL_PLACES, name: "Viajes y lugares" },
-            { category: Categories.ACTIVITIES, name: "Actividades" },
-            { category: Categories.OBJECTS, name: "Objetos" },
-            { category: Categories.SYMBOLS, name: "Símbolos" },
-            { category: Categories.FLAGS, name: "Banderas" },
+            { category: Categories.SUGGESTED, name: "🕒 Usados" },
+            { category: Categories.SMILEYS_PEOPLE, name: "😊 Personas" },
+            { category: Categories.ANIMALS_NATURE, name: "🐻 Animales" },
+            { category: Categories.FOOD_DRINK, name: "🍔 Comida" },
+            { category: Categories.TRAVEL_PLACES, name: "✈️ Viajes" },
+            { category: Categories.ACTIVITIES, name: "⚽ Actividades" },
+            { category: Categories.OBJECTS, name: "📦 Objetos" },
+            { category: Categories.SYMBOLS, name: "🔣 Símbolos" },
+            { category: Categories.FLAGS, name: "🏳️ Banderas" },
           ]}
         />
+        <style>{`
+  /* 8 emojis por fila */
+  .epr-emoji-category-content {
+    display: grid !important;
+    grid-template-columns: repeat(8, 1fr) !important;
+    justify-items: center !important;
+  }
+
+/* ===== Título "Reciente" simple, alineado a la izquierda ===== */
+.epr-body .epr-emoji-category:first-of-type .epr-emoji-category-content::before {
+  content: "Recientes";
+  display: block;
+  grid-column: 1 / -1;
+  font-size: 14px;
+  font-weight: 600;
+  color: #444;
+  padding: 2px 4px;
+  margin-bottom: 4px;
+  background: transparent;
+  border: none;
+  position: relative;
+  text-align: left;     /* 👈 fuerza alineado a la izquierda */
+  justify-self: start;  /* 👈 asegura que quede pegado a la izquierda */
+}
+
+/* ===== Título "Emoticonos" arriba de la segunda categoría ===== */
+.epr-body .epr-emoji-category:nth-of-type(2) .epr-emoji-category-content::before {
+  content: "Emoticonos";
+  display: block;
+  grid-column: 1 / -1;
+  font-size: 14px;
+  font-weight: 600;
+  color: #444;
+  padding: 2px 4px;
+  margin-bottom: 4px;
+  background: transparent;
+  border: none;
+  position: relative;
+  text-align: left;
+  justify-self: start;
+}
+
+
+
+  /* Tamaño de cada emoji/celda */
+  .epr-emoji { width: 40px !important; height: 40px !important; }
+  .epr-emoji-native { font-size: 28px !important; line-height: 40px !important; }
+
+  /* Ocultar label flotante nativo */
+  .epr-emoji-category-label { display: none !important; }
+  .epr-body, .epr-emoji-category-content { padding-top: 0 !important; }
+  
+  /* Scroll táctil fluido dentro del picker */
+.epr-body {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;  /* iOS */
+  overscroll-behavior: contain;       /* evita que salte al contenedor padre */
+  touch-action: pan-y;                /* deja pasar el gesto vertical */
+}
+
+/* El grid de emojis acepta bien el arrastre vertical */
+.epr-emoji-category-content {
+  touch-action: pan-y;
+}
+
+/* Los botones de cada emoji no bloquean el swipe */
+.epr-emoji {
+  touch-action: manipulation;
+}
+
+/* La barra de categorías (iconitos) no “atrapa” el gesto vertical */
+.epr-category-nav,
+.epr-header {
+  touch-action: pan-x;   /* permite horizontal para cambiar de categoría, no roba el pan-y */
+}
+
+
+`}</style>
 
       </div>
     </div>
