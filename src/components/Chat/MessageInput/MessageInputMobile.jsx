@@ -510,33 +510,35 @@ export default function MessageInputMobile() {
 
         >
           {/* Botón emoji/teclado — estilo WhatsApp */}
-          <div className="relative">
-            <button
-              type="button"
-              title={isFocused ? "Emojis" : "Teclado"}
-              onClick={() => {
-                if (isFocused) {
-                  // Teclado abierto → mostrar panel (cerrar teclado)
-                  try { textareaRef.current?.blur(); } catch { }
-                  setShowEmoji(true); // el panel queda abierto debajo
-                } else {
-                  // Teclado cerrado (panel visible) → abrir teclado y mantener panel abierto
-                  setShowEmoji(true);
-                  requestAnimationFrame(() => { try { textareaRef.current?.focus(); } catch { } });
-                }
-              }}
-              className="size-9 flex-none shrink-0 grid place-items-center rounded-full text-white
-               shadow-[0_8px_24px_rgba(245,158,11,0.35)]
-               bg-gradient-to-br from-amber-400 to-orange-500 hover:brightness-110 active:scale-95
-               ring-1 ring-white/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-              aria-label={isFocused ? "Abrir emojis" : "Abrir teclado"}
-            >
-              {isFocused
-                ? <FaSmile className="w-[22px] h-[22px]" />   // con teclado abierto, muestra carita
-                : <FaKeyboard className="w-[22px] h-[22px]" /> // con teclado cerrado, muestra teclado
+          <button
+            type="button"
+            title={isFocused ? "Emojis" : "Teclado"}
+            onClick={() => {
+              if (isFocused) {
+                // 👈 Si ya está enfocado (teclado abierto) → mostrar solo el panel de emojis
+                try { textareaRef.current?.blur(); } catch { }
+                setShowEmoji(true);
+              } else {
+                // 👈 Si estaba cerrado → abrir teclado y mantener también el panel visible
+                setShowEmoji(true);
+                setTimeout(() => {
+                  try {
+                    textareaRef.current?.focus();
+                  } catch { }
+                }, 30);
               }
-            </button>
-          </div>
+            }}
+            className="size-9 flex-none shrink-0 grid place-items-center rounded-full text-white
+   shadow-[0_8px_24px_rgba(245,158,11,0.35)]
+   bg-gradient-to-br from-amber-400 to-orange-500 hover:brightness-110 active:scale-95
+   ring-1 ring-white/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+            aria-label={isFocused ? "Abrir emojis" : "Abrir teclado"}
+          >
+            {isFocused
+              ? <FaSmile className="w-[22px] h-[22px]" />   // con teclado abierto, muestra carita
+              : <FaKeyboard className="w-[22px] h-[22px]" /> // con teclado cerrado, muestra teclado
+            }
+          </button>
 
 
 
@@ -553,7 +555,7 @@ export default function MessageInputMobile() {
               setShowEmoji(true); // al tocar el input: abre teclado y deja el panel abierto debajo
             }}
             onBlur={() => { setIsFocused(false); setShowEmoji(false); }}
-            inputMode={showEmoji ? "none" : "text"}
+            inputMode={isFocused ? "text" : (showEmoji ? "none" : "text")}
             onSelect={() => { const ta = textareaRef.current; if (ta) { try { ta.focus(); } catch { } } }}
             placeholder="Escribe un mensaje…"
             enterKeyHint="send"
