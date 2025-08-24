@@ -9,7 +9,7 @@ import ChatWindow from "../ChatWindow/ChatWindowMobile";
 import MessageInput from "../MessageInput/MessageInputMobile";
 import ReactDOM from "react-dom";
 
-export default function ChatPanelMobile({ onClose, panelHeight = 760, windowHeight = null }) {
+export default function ChatPanelMobile({ onClose, panelHeight = 720, windowHeight = null }) {
   const { chats, activeChatId, currentUserId, setActiveChatId, loadChats, loadMessages, statusMap, blockChat, unblockChat, setChatBackground } = useChat();
   const boxRef = useRef(null);
 
