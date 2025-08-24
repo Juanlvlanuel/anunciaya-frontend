@@ -552,9 +552,10 @@ export default function MessageInputMobile() {
             id="chat-mobile-input"
             onFocus={() => {
               setIsFocused(true);
-              setShowEmoji(true); // al tocar el input: abre teclado y deja el panel abierto debajo
             }}
-            onBlur={() => { setIsFocused(false); setShowEmoji(false); }}
+            onBlur={() => {
+              setIsFocused(false);
+            }}
             inputMode={isFocused ? "text" : (showEmoji ? "none" : "text")}
             onSelect={() => { const ta = textareaRef.current; if (ta) { try { ta.focus(); } catch { } } }}
             placeholder="Escribe un mensaje…"
