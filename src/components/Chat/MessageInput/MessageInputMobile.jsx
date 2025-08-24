@@ -95,6 +95,26 @@ export default function MessageInputMobile() {
   const textareaRef = useRef(null);
   const composerRef = useRef(null);
 
+  // === Keyboard inset (para anclar picker arriba del teclado) ===
+  const [kbInset, setKbInset] = useState(0);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => {
+      const inset = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
+      setKbInset(inset);
+      document.documentElement.style.setProperty('--kb-inset', inset + 'px');
+    };
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+    };
+  }, []);
+
+
   // Inserta emoji sin abrir teclado cuando el picker está abierto
   const onPickEmoji = useCallback((emoji) => {
     const ta = textareaRef.current;
@@ -142,6 +162,7 @@ export default function MessageInputMobile() {
     return () => vv.removeEventListener("resize", onResize);
   }, []);
 
+
   useEffect(() => {
     const onReplyEvt = (e) => {
       try { setReplyTo(sanitizeReply(e?.detail?.message)); } catch { }
@@ -179,6 +200,26 @@ export default function MessageInputMobile() {
 
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
+  }, [showEmoji]);
+
+  // Bloquear scroll del fondo cuando el picker esté abierto
+  useEffect(() => {
+    if (showEmoji) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = prev; };
+    }
+  }, [showEmoji]);
+
+  useEffect(() => {
+    if (!showEmoji) return;
+    const onDown = (e) => {
+      const inPicker = pickerWrapRef.current?.contains(e.target);
+      const inInput = textareaRef.current?.contains?.(e.target);
+      if (!inPicker && !inInput) setShowEmoji(false);
+    };
+    document.addEventListener('pointerdown', onDown);
+    return () => document.removeEventListener('pointerdown', onDown);
   }, [showEmoji]);
 
   const isBlocked = useMemo(() => {
@@ -514,15 +555,11 @@ export default function MessageInputMobile() {
             type="button"
             title="Emojis"
             onClick={() => {
-              if (isFocused) {
-                // Si el teclado está abierto, solo mostrar el panel de emojis
-                try { textareaRef.current?.blur(); } catch { }
-                setShowEmoji(true);
-              } else {
-                // Si el teclado está cerrado, abre el panel (y luego puedes enfocar si quieres)
-                setShowEmoji(true);
-              }
+              // Alterna el panel sin tocar el foco: el teclado permanece abierto
+              setShowEmoji(prev => !prev);
+              try { textareaRef.current?.focus(); } catch { }
             }}
+
             className="size-9 flex-none shrink-0 grid place-items-center rounded-full text-white
  shadow-[0_8px_24px_rgba(245,158,11,0.35)]
  bg-gradient-to-br from-amber-400 to-orange-500 hover:brightness-110 active:scale-95
@@ -610,10 +647,15 @@ export default function MessageInputMobile() {
 
       {/* === PICKER DEBAJO === */}
       {showEmoji && (
-        <div ref={pickerWrapRef} className="mt-2">
+        <div
+          ref={pickerWrapRef}
+          className="fixed left-0 right-0 z-[2000]"
+          style={{ bottom: 'var(--kb-inset, 0px)' }} // justo arriba del teclado
+        >
           <EmojiPickerUnified onPick={onPickEmoji} onClose={() => setShowEmoji(false)} />
         </div>
       )}
+
 
       {/* === PREVIEWS === */}
       {uploads.length > 0 && (
