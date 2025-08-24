@@ -433,8 +433,9 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
   useEffect(() => {
     const prev = prevLenRef.current;
     const curr = list.length;
+
     if (!scrolledOnceRef.current) {
-      // Primer pintado de la lista: baja sin animación y habilita vista
+      // Primer pintado: baja sin animación
       ensureBottom("auto");
       scrolledOnceRef.current = true;
       setTimeout(() => setIsReady(true), 30);
@@ -444,12 +445,18 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
         last &&
         (String(last?.emisor?._id || last?.emisor || last?.emisorId || "") === String(currentUserId) ||
           last?.mine === true);
-      if (lastIsMine || isPinnedAtBottom || nearBottom(160)) {
-        ensureBottom(prev > 0 ? "smooth" : "auto");
-      }
+
+      // 👇 Clave: si el último es mío, usa "auto" (sin animación) para no pelearse con la animación del teclado
+      const behavior = lastIsMine
+        ? "auto"
+        : (isPinnedAtBottom || nearBottom(160) ? "smooth" : "auto");
+
+      ensureBottom(behavior);
     }
+
     prevLenRef.current = curr;
   }, [list, isPinnedAtBottom, nearBottom, currentUserId, ensureBottom]);
+
 
   useEffect(() => {
     if (isPinnedAtBottom) {
