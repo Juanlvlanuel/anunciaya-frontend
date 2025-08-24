@@ -393,6 +393,13 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
     return () => { try { ro.disconnect(); } catch { }; if (rafId) cancelAnimationFrame(rafId); };
   }, [activeChatId, scheduleScroll]);
 
+  // Bajar al fondo cuando cambia la altura del input (picker/teclado)
+  useEffect(() => {
+    const onH = () => ensureBottom("auto", { force: true });
+    window.addEventListener("chat:input-h", onH);
+    return () => window.removeEventListener("chat:input-h", onH);
+  }, [ensureBottom]);
+
   // Mount-only: al abrir el chat (mismo activeChatId), baja al final forzado
   useEffect(() => {
     if (!getToken()) return;
@@ -514,7 +521,7 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
           backgroundPosition: "center",
           backgroundRepeat: "no-repeat",
         } : {}),
-        scrollPaddingBottom: "calc(var(--chat-input-h,110px) + env(safe-area-inset-bottom))",
+        scrollPaddingBottom: "calc(var(--chat-input-h,110px) + env(safe-area-inset-bottom) + 14px)",
         overflowAnchor: "none"
       }}
 
@@ -562,10 +569,7 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
 
 
       {/* Lista de mensajes */}
-      <div
-        className="relative z-10 px-3 pt-2 space-y-2"
-        style={{ paddingBottom: "calc(var(--chat-input-h,110px) + env(safe-area-inset-bottom))" }}
-      >
+      <div className="relative z-10 px-3 pt-2 space-y-2">
         {list.map((m, idx) => {
           const id = String(m?._id || `${activeChatId}-${idx}`);
           return (
@@ -601,10 +605,9 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
             Escribiendo…
           </div>
         )}
-
+        <div aria-hidden="true" style={{ height: "56px" }} />
         <div ref={tailRef} />
       </div>
-
 
       {!isPinnedAtBottom && (
         <button onClick={scrollToBottom} className="fixed bottom-[calc(var(--bottom-nav-h)+env(safe-area-inset-bottom)+80px)] right-4 z-30 rounded-full shadow-md border bg-white/95 border-zinc-300 backdrop-blur p-2" aria-label="Ir al último mensaje" title="Ir al último mensaje">

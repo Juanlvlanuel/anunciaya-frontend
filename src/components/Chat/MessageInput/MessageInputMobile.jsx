@@ -139,6 +139,25 @@ export default function MessageInputMobile() {
     return () => document.removeEventListener("mousedown", onDoc);
   }, [replyTo]);
 
+  // Cerrar el panel de emojis con el botón "Atrás" del sistema (Android),
+  // pero sin quitar el foco (el cursor puede seguir parpadeando).
+  useEffect(() => {
+    if (!showEmoji) return;
+
+    const stateMarker = { _emojiPanel: true };
+    try { history.pushState(stateMarker, ""); } catch { }
+
+    const onPop = () => {
+      // Cierra el panel; no tocamos el focus (cursor puede seguir parpadeando)
+      setShowEmoji(false);
+      // Reinyecta un estado base para que no te saque de la vista
+      setTimeout(() => { try { history.pushState({}, ""); } catch { } }, 0);
+    };
+
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [showEmoji]);
+
   const isBlocked = useMemo(() => {
     try {
       const chat = (chats || []).find(c => String(c?._id) === String(activeChatId));
@@ -155,19 +174,25 @@ export default function MessageInputMobile() {
   const typingActive = useRef(false);
   const [taH, setTaH] = useState(42);
 
-  // Mantener --chat-input-h sincronizada (el picker está dentro del mismo contenedor)
+  // Mantener --chat-input-h sincronizada (y avisar al chat para que baje)
   useEffect(() => {
     const el = composerRef.current;
     if (!el) return;
+
     const setVar = () => {
       const h = el.offsetHeight || 110;
-      document.documentElement.style.setProperty('--chat-input-h', `${h}px`);
+      document.documentElement.style.setProperty("--chat-input-h", `${h}px`);
+      // 🔔 Notifica a la ventana del chat que la altura cambió
+      try { window.dispatchEvent(new CustomEvent("chat:input-h", { detail: h })); } catch { }
     };
+
     setVar();
     const ro = new ResizeObserver(setVar);
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+
 
   const LINE_H = 22;
   const BASE_H = 42;
@@ -461,37 +486,35 @@ export default function MessageInputMobile() {
           className="w-full flex items-center gap-1 min-h-[54px] rounded-2xl border border-gray-200 bg-white/90 backdrop-blur-md px-3 shadow-[0_4px_18px_rgba(0,0,0,0.05)] focus-within:ring-1 focus-within:ring-blue-500/40 transition-all"
 
         >
-          {/* Botón emoji/teclado */}
+          {/* Botón emoji/teclado — estilo WhatsApp */}
           <div className="relative">
             <button
               type="button"
-              title={showEmoji ? "Teclado" : "Emoji"}
+              title={isFocused ? "Emojis" : "Teclado"}
               onClick={() => {
-                if (showEmoji) {
-                  // Cambiar a teclado: cerrar picker y enfocar textarea para abrir el teclado del celular
-                  setShowEmoji(false);
-                  requestAnimationFrame(() => {
-                    try { textareaRef.current?.focus(); } catch { }
-                  });
+                if (isFocused) {
+                  // Teclado abierto → mostrar panel (cerrar teclado)
+                  try { textareaRef.current?.blur(); } catch { }
+                  setShowEmoji(true); // el panel queda abierto debajo
                 } else {
-                  // Abrir emojis: opcionalmente quitar foco del textarea
+                  // Teclado cerrado (panel visible) → abrir teclado y mantener panel abierto
                   setShowEmoji(true);
-                  requestAnimationFrame(() => {
-                    try { textareaRef.current?.blur(); } catch { }
-                  });
+                  requestAnimationFrame(() => { try { textareaRef.current?.focus(); } catch { } });
                 }
               }}
               className="size-9 flex-none shrink-0 grid place-items-center rounded-full text-white
                shadow-[0_8px_24px_rgba(245,158,11,0.35)]
                bg-gradient-to-br from-amber-400 to-orange-500 hover:brightness-110 active:scale-95
                ring-1 ring-white/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-              aria-label={showEmoji ? "Abrir teclado" : "Abrir emojis"}
+              aria-label={isFocused ? "Abrir emojis" : "Abrir teclado"}
             >
-              {showEmoji
-                ? <FaKeyboard className="w-[22px] h-[22px]" />
-                : <FaSmile className="w-[22px] h-[22px]" />}
+              {isFocused
+                ? <FaSmile className="w-[22px] h-[22px]" />   // con teclado abierto, muestra carita
+                : <FaKeyboard className="w-[22px] h-[22px]" /> // con teclado cerrado, muestra teclado
+              }
             </button>
           </div>
+
 
 
           {/* Textarea */}
@@ -502,8 +525,14 @@ export default function MessageInputMobile() {
             onKeyDown={onKeyDown}
             onInput={autosize}
             id="chat-mobile-input"
-            onFocus={() => { setIsFocused(true); if (showEmoji) setShowEmoji(false); }}
-            onBlur={() => setIsFocused(false)}
+            onFocus={() => {
+              setIsFocused(true);
+              setShowEmoji(true); // al tocar el input: abre teclado y deja el panel abierto debajo
+            }}
+            onBlur={() => {
+              setIsFocused(false);
+              // NO cierres el panel aquí: WhatsApp lo deja vivo y el teclado puede taparlo
+            }}
             onSelect={() => { const ta = textareaRef.current; if (ta) { try { ta.focus(); } catch { } } }}
             placeholder="Escribe un mensaje…"
             enterKeyHint="send"
