@@ -509,35 +509,27 @@ export default function MessageInputMobile() {
           className="w-full flex items-center gap-1 min-h-[54px] rounded-2xl border border-gray-200 bg-white/90 backdrop-blur-md px-3 shadow-[0_4px_18px_rgba(0,0,0,0.05)] focus-within:ring-1 focus-within:ring-blue-500/40 transition-all"
 
         >
-          {/* Botón emoji/teclado — estilo WhatsApp */}
+          {/* Botón emoji — siempre mostrar carita por defecto */}
           <button
             type="button"
-            title={isFocused ? "Emojis" : "Teclado"}
+            title="Emojis"
             onClick={() => {
               if (isFocused) {
-                // 👈 Si ya está enfocado (teclado abierto) → mostrar solo el panel de emojis
+                // Si el teclado está abierto, solo mostrar el panel de emojis
                 try { textareaRef.current?.blur(); } catch { }
                 setShowEmoji(true);
               } else {
-                // 👈 Si estaba cerrado → abrir teclado y mantener también el panel visible
+                // Si el teclado está cerrado, abre el panel (y luego puedes enfocar si quieres)
                 setShowEmoji(true);
-                setTimeout(() => {
-                  try {
-                    textareaRef.current?.focus();
-                  } catch { }
-                }, 30);
               }
             }}
             className="size-9 flex-none shrink-0 grid place-items-center rounded-full text-white
-   shadow-[0_8px_24px_rgba(245,158,11,0.35)]
-   bg-gradient-to-br from-amber-400 to-orange-500 hover:brightness-110 active:scale-95
-   ring-1 ring-white/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-            aria-label={isFocused ? "Abrir emojis" : "Abrir teclado"}
+ shadow-[0_8px_24px_rgba(245,158,11,0.35)]
+ bg-gradient-to-br from-amber-400 to-orange-500 hover:brightness-110 active:scale-95
+ ring-1 ring-white/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+            aria-label="Abrir emojis"
           >
-            {isFocused
-              ? <FaSmile className="w-[22px] h-[22px]" />   // con teclado abierto, muestra carita
-              : <FaKeyboard className="w-[22px] h-[22px]" /> // con teclado cerrado, muestra teclado
-            }
+            <FaSmile className="w-[22px] h-[22px]" />
           </button>
 
 
