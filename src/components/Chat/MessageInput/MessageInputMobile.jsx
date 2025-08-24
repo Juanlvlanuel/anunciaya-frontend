@@ -95,7 +95,7 @@ export default function MessageInputMobile() {
   const textareaRef = useRef(null);
   const composerRef = useRef(null);
 
-  // Inserta emoji pegado al siguiente carácter (con Word-Joiner)
+  // Inserta emoji sin abrir teclado cuando el picker está abierto
   const onPickEmoji = useCallback((emoji) => {
     const ta = textareaRef.current;
     const WJ = "\u2060"; // Word-Joiner
@@ -110,14 +110,37 @@ export default function MessageInputMobile() {
       const base = prev || "";
       const insert = emoji + WJ;
       const next = base.slice(0, start) + insert + base.slice(end);
-      try {
-        ta.focus();
-        const caret = start + insert.length;
-        ta.setSelectionRange(caret, caret);
-      } catch { }
+
+      // ⛔️ Clave: NO enfocar si el picker está visible
+      if (!showEmoji) {
+        try {
+          ta.focus();
+          const caret = start + insert.length;
+          ta.setSelectionRange(caret, caret);
+        } catch { }
+      }
       return next;
     });
-  }, [text]);
+  }, [text, showEmoji]);
+
+  // Cerrar picker cuando el teclado se oculta (flecha ↓)
+  useEffect(() => {
+    if (!window.visualViewport) return;
+    const vv = window.visualViewport;
+    let prevH = vv.height;
+
+    const onResize = () => {
+      const dh = vv.height - prevH;
+      prevH = vv.height;
+      if (dh > 60) {           // aumentó el alto => teclado se escondió
+        setShowEmoji(false);   // cierra picker
+        setIsFocused(false);   // opcional
+      }
+    };
+
+    vv.addEventListener("resize", onResize);
+    return () => vv.removeEventListener("resize", onResize);
+  }, []);
 
   useEffect(() => {
     const onReplyEvt = (e) => {
@@ -529,10 +552,8 @@ export default function MessageInputMobile() {
               setIsFocused(true);
               setShowEmoji(true); // al tocar el input: abre teclado y deja el panel abierto debajo
             }}
-            onBlur={() => {
-              setIsFocused(false);
-              // NO cierres el panel aquí: WhatsApp lo deja vivo y el teclado puede taparlo
-            }}
+            onBlur={() => { setIsFocused(false); setShowEmoji(false); }}
+            inputMode={showEmoji ? "none" : "text"}
             onSelect={() => { const ta = textareaRef.current; if (ta) { try { ta.focus(); } catch { } } }}
             placeholder="Escribe un mensaje…"
             enterKeyHint="send"
@@ -575,7 +596,9 @@ export default function MessageInputMobile() {
           {/* Enviar */}
           <button
             type="button"
-            onClick={handleSend}
+            onMouseDown={(e) => e.preventDefault()}
+            onTouchStart={(e) => e.preventDefault()}
+            onClick={(e) => { e.preventDefault(); handleSend(); }}
             title="Enviar"
             className={`size-9 flex-none shrink-0 grid place-items-center rounded-full text-white font-semibold
                   shadow-[0_10px_30px_rgba(37,99,235,0.35)] transition-all active:scale-95
