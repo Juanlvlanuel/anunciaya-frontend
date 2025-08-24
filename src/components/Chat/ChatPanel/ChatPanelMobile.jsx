@@ -9,7 +9,7 @@ import ChatWindow from "../ChatWindow/ChatWindowMobile";
 import MessageInput from "../MessageInput/MessageInputMobile";
 import ReactDOM from "react-dom";
 
-export default function ChatPanelMobile({ onClose, panelHeight = "100vh", windowHeight = null }) {
+export default function ChatPanelMobile({ onClose, panelHeight = 780, windowHeight = null }) {
   const { chats, activeChatId, currentUserId, setActiveChatId, loadChats, loadMessages, statusMap, blockChat, unblockChat, setChatBackground } = useChat();
   const boxRef = useRef(null);
 
@@ -465,7 +465,7 @@ export default function ChatPanelMobile({ onClose, panelHeight = "100vh", window
         ref={boxRef}
         onClick={(e) => e.stopPropagation()}
         className="relative flex w-[100vw] bg-white border border-zinc-200 rounded-t-2xl overflow-hidden shadow-2xl"
-        style={{ height: `min(${normalize(panelHeight)}, 100vh)` }}
+        style={{ height: `min(${normalize(panelHeight)}, 96vh)` }}
         initial="initial" animate="animate" exit="exit" variants={panelVariants}
         transition={{ type: 'spring', stiffness: 220, damping: 22 }}
       >
