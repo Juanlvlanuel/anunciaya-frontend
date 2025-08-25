@@ -176,9 +176,22 @@ export default function MessageMobile({
   useEffect(() => {
     if (!menuOpen) return;
 
-    const MENU_W = 128;
-    const MENU_H = 220;
-    const PAD = 8;
+    // ===== Ajustes finos por caso =====
+    // mueve SOLO cuando abre hacia ABAJO
+    const DOWN_OFFSET_Y = -50;
+    // mueve SOLO cuando abre hacia ARRIBA
+    const UP_OFFSET_Y = 70;
+    // mueve SOLO cuando entra en modo "clamped"
+    const CLAMP_OFFSET_Y = 0;
+
+    // offsets horizontales por tipo de burbuja
+    const MY_OFFSET_X = 10;  // mensajes míos (menú a la izq)
+    const OTHER_OFFSET_X = -10;  // mensajes del otro (menú a la der)
+
+    // ===== Geometría del menú =====
+    const MENU_W = 128;  // ancho estimado del menú
+    const MENU_H = 220;  // alto estimado del menú (ajústalo a tus items)
+    const GAP = 8;    // separación respecto a la burbuja
 
     const getScrollContainer = () =>
       bubbleRef.current?.closest("[data-chat-scroll]") ||
@@ -193,46 +206,63 @@ export default function MessageMobile({
       const bubbleR = bubble.getBoundingClientRect();
       const contR = (scrollEl || document.body).getBoundingClientRect();
 
-      let x = mine ? bubbleR.left - MENU_W - 15 : bubbleR.right + 13;
-      let y = mine ? bubbleR.top - MENU_H + 90 : bubbleR.top - MENU_H + 160;
+      // X base (igual que antes), con offsets por tipo de burbuja
+      let x = mine
+        ? bubbleR.left - MENU_W - 15 + MY_OFFSET_X
+        : bubbleR.right + 13 + OTHER_OFFSET_X;
 
-      x = Math.max(contR.left + PAD, Math.min(x, contR.right - PAD - MENU_W));
+      // clamp horizontal dentro del contenedor
+      x = Math.max(contR.left + GAP, Math.min(x, contR.right - GAP - MENU_W));
 
-      const ensureInView = () => {
-        if (!scrollEl) return;
-        let tries = 0;
-        while (tries < 6) {
-          const contNow = scrollEl.getBoundingClientRect();
-          const menuTop = y;
-          const menuBottom = y + MENU_H;
-          let moved = false;
-          if (menuTop < contNow.top + PAD) {
-            const delta = Math.ceil(contNow.top + PAD - menuTop);
-            scrollEl.scrollTop -= delta; y += delta; moved = true;
-          }
-          if (menuBottom > contNow.bottom - PAD) {
-            const delta = Math.ceil(menuBottom - (contNow.bottom - PAD));
-            scrollEl.scrollTop += delta; y -= delta; moved = true;
-          }
-          tries++; if (!moved) break;
+      // espacios disponibles verticales
+      const spaceBelow = contR.bottom - bubbleR.bottom;
+      const spaceAbove = bubbleR.top - contR.top;
+
+      let y, placement, reason;
+
+      // ── CASO 1: Cabe ABAJO ──────────────────────────────────────
+      if (spaceBelow >= MENU_H + GAP) {
+        placement = "down";
+        y = bubbleR.bottom + GAP + DOWN_OFFSET_Y;  // 👈 mueve solo este caso
+        reason = "fits-below";
+      }
+      // ── CASO 2: No cabe abajo, pero SÍ arriba ───────────────────
+      else if (spaceAbove >= MENU_H + GAP) {
+        placement = "up";
+        if (!mine) {
+          // 👈 solo los mensajes recibidos que se abren hacia arriba
+          y = bubbleR.top - MENU_H - GAP + UP_OFFSET_Y +90; // 12px extra de ejemplo
+        } else {
+          // tus mensajes siguen usando el offset normal
+          y = bubbleR.top - MENU_H - GAP + UP_OFFSET_Y;
         }
-      };
-      ensureInView();
+        reason = "fits-above";
+      }
+      // ── CASO 3: No cabe completo ni arriba ni abajo (clamped) ───
+      else {
+        placement = "down";
+        y = Math.max(
+          contR.top + GAP,
+          Math.min(bubbleR.bottom + GAP, contR.bottom - GAP - MENU_H)
+        ) + CLAMP_OFFSET_Y; // 👈 mueve solo este caso
+        reason = "clamped";
+      }
 
-      const contNow = (scrollEl || document.body).getBoundingClientRect();
-      y = Math.max(contNow.top + PAD, Math.min(y, contNow.bottom - PAD - MENU_H));
-      setMenuPos({ x, y });
+      setMenuPos({ x, y, placement, reason });
     };
 
     placeMenu();
-    const onAnyScroll = () => placeMenu();
-    window.addEventListener("resize", placeMenu);
-    document.addEventListener("scroll", onAnyScroll, true);
+    const onRecalc = () => placeMenu();
+    window.addEventListener("resize", onRecalc);
+    document.addEventListener("scroll", onRecalc, true);
     return () => {
-      window.removeEventListener("resize", placeMenu);
-      document.removeEventListener("scroll", onAnyScroll, true);
+      window.removeEventListener("resize", onRecalc);
+      document.removeEventListener("scroll", onRecalc, true);
     };
   }, [menuOpen, mine]);
+
+
+
 
   const archivos = useMemo(() => {
     if (Array.isArray(msg?.archivos)) return msg.archivos;

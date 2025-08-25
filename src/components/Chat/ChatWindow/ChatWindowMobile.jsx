@@ -208,7 +208,6 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
           img.addEventListener("error", onDone, { once: true });
         }
       });
-      setTimeout(() => scheduleScroll("auto"), 600);
     }
   }, [scheduleScroll]);
 
@@ -576,7 +575,13 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
 
 
       {/* Lista de mensajes */}
-      <div className="relative z-10 px-3 pt-2 space-y-2">
+      <div
+        className="relative z-10 px-3 pt-2 space-y-2"
+        style={{
+          paddingBottom: 'var(--chat-input-h, 56px)',
+          overflowAnchor: 'none',          // 👈 evita reanclajes “saltando”
+        }}
+      >
         {list.map((m, idx) => {
           const id = String(m?._id || `${activeChatId}-${idx}`);
           return (
@@ -593,9 +598,9 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
                   setReplyTarget(m);
                   try {
                     window.dispatchEvent(new CustomEvent("chat:reply", { detail: { message: m } }));
-                  } catch (e) { }
+                  } catch { }
                   setTimeout(() => {
-                    try { window.dispatchEvent(new Event("chat:focusInput")); } catch (e) { }
+                    try { window.dispatchEvent(new Event("chat:focusInput")); } catch { }
                   }, 0);
                 }}
                 onForward={(e) => openForwardPanel(m, e)}
@@ -608,18 +613,29 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
         })}
 
         {otherTyping && (
-          <div className="text-xs text-gray-500 mt-1 px-1">
-            Escribiendo…
-          </div>
+          <div className="text-xs text-gray-500 mt-1 px-1">Escribiendo…</div>
         )}
-        <div aria-hidden="true" style={{ height: "56px" }} />
-        <div ref={tailRef} />
+
+        {/* Gap fijo entre mensajes e input */}
+        <div aria-hidden="true" style={{ height: "8px" }} />
+        <div ref={tailRef} style={{ overflowAnchor: 'auto' }} />  {/* 👈 ancla estable */}
       </div>
 
       {!isPinnedAtBottom && (
-        <button onClick={scrollToBottom} className="fixed bottom-[calc(var(--bottom-nav-h)+env(safe-area-inset-bottom)+80px)] right-4 z-30 rounded-full shadow-md border bg-white/95 border-zinc-300 backdrop-blur p-2" aria-label="Ir al último mensaje" title="Ir al último mensaje">
-          <svg viewBox="0 0 24 24" className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+        <button
+          onClick={scrollToBottom}
+          className="fixed right-4 z-30 rounded-full shadow-md border bg-white/95 border-zinc-300 backdrop-blur p-2"
+          style={{
+            bottom: "calc(var(--bottom-nav-h, 0px) + var(--chat-input-h, 56px) + env(safe-area-inset-bottom) + 30px)"
+          }}
+          aria-label="Ir al último mensaje"
+          title="Ir al último mensaje"
+        >
+          <svg viewBox="0 0 24 24" className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M6 9l6 6 6-6" />
+          </svg>
         </button>
+
       )}
 
       <ConfirmModal

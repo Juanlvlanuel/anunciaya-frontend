@@ -173,7 +173,11 @@ export function EmojiPickerUnified({ onPick, onClose }) {
     <div
       ref={ref}
       className="bg-white rounded-2xl shadow-2xl border overflow-hidden backdrop-blur-sm"
+      onMouseDownCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onTouchStartCapture={(e) => e.stopPropagation()}
     >
+
+
       <div className="twemoji-skin">
         <EmojiPicker
           categoryLabelStyle="none"   // 👈 Oculta los encabezados "Usados con frecuencia", etc.

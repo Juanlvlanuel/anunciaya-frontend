@@ -101,6 +101,12 @@ export default function ChatListMobile({ onSelectChat }) {
     return false;
   };
 
+  // --- Borradores guardados por chat (localStorage) ---
+  const loadDraftFor = (chatId) => {
+    try { return chatId ? (localStorage.getItem(`chat:draft:${chatId}`) || "") : ""; }
+    catch { return ""; }
+  };
+
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
     const base = (Array.isArray(chats) ? chats : []).filter(hasAnyMessage);
@@ -163,7 +169,7 @@ export default function ChatListMobile({ onSelectChat }) {
       try {
         const s = (typeof getAuthSession === "function") ? getAuthSession() : null;
         token = s?.accessToken || "";
-      } catch {}
+      } catch { }
     }
     const wasFav = getFav(chat);
     if (hasSetChats) {
@@ -183,7 +189,7 @@ export default function ChatListMobile({ onSelectChat }) {
       if (isBlockedForMe(chat)) await unblockChat(chat._id);
       else await blockChat(chat._id);
       await loadChats?.();
-    } catch {}
+    } catch { }
   };
 
   const askDelete = (chat) => setConfirm({ open: true, chatId: chat._id, name: getDisplayName(chat) });
@@ -211,6 +217,12 @@ export default function ChatListMobile({ onSelectChat }) {
     const p = getPartner(chat);
     const name = getDisplayName(chat);
     const last = chat?.ultimoMensaje?.texto || chat?.ultimoMensaje || "";
+
+    // Borrador (limpia WJ \u2060 y recorta)
+    const draftRaw = loadDraftFor(chat._id);
+    const draft = (draftRaw || "").replace(/\u2060/g, "").trim();
+    const draftSnippet = draft ? (draft.length > 60 ? draft.slice(0, 58) + "…" : draft) : "";
+
     const fav = getFav(chat);
     const blocked = isBlockedForMe(chat);
     const avatarSrc = p?.fotoPerfil ? (p.fotoPerfil.startsWith("http") ? p.fotoPerfil : `${API_BASE}${p.fotoPerfil}`) : null;
@@ -238,7 +250,7 @@ export default function ChatListMobile({ onSelectChat }) {
     useEffect(() => {
       if (!openMenu) return;
 
-      try { rowRef.current?.scrollIntoView({ block: "center", behavior: "smooth" }); } catch {}
+      try { rowRef.current?.scrollIntoView({ block: "center", behavior: "smooth" }); } catch { }
 
       const btn = kebabBtnRef.current;
       const r = btn ? btn.getBoundingClientRect() : null;
@@ -288,7 +300,7 @@ export default function ChatListMobile({ onSelectChat }) {
                 <img src={avatarSrc} alt={name} className={`w-10 h-10 rounded-full object-cover border ${blocked ? "grayscale" : ""}`} />
               ) : (
                 <div className={`w-10 h-10 rounded-full grid place-items-center bg-blue-600 text-white text-xs font-semibold ${blocked ? "grayscale" : ""}`}>
-                  {(name || "?").slice(0,2).toUpperCase()}
+                  {(name || "?").slice(0, 2).toUpperCase()}
                 </div>
               )}
               <span className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full ring-2 ring-white ${online ? "bg-green-500" : "bg-gray-400"}`} />
@@ -307,7 +319,16 @@ export default function ChatListMobile({ onSelectChat }) {
                 {name}
                 {blocked && (<span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 border border-red-200">Bloqueado</span>)}
               </div>
-              <div className="text-xs text-gray-500 truncate">{last}</div>
+              {draft ? (
+                <div className="text-xs flex gap-1 truncate max-w-[200px]">
+                  <span className="text-blue-600 font-semibold flex-shrink-0">Borrador:</span>
+                  <span className="text-gray-700 truncate">{draft}</span>
+                </div>
+              ) : (
+                <div className="text-xs text-gray-500 truncate">{last}</div>
+              )}
+
+
             </div>
           </button>
 
@@ -315,11 +336,11 @@ export default function ChatListMobile({ onSelectChat }) {
           <button
             ref={kebabBtnRef}
             type="button"
-            onClick={(e) => { 
-              e.stopPropagation(); 
+            onClick={(e) => {
+              e.stopPropagation();
               // Reinicia coordenadas para forzar recálculo limpio
               setMenuPos(null);
-              setOpenMenu(s => !s); 
+              setOpenMenu(s => !s);
             }}
             className="w-8 h-8 grid place-items-center rounded-md hover:bg-gray-50"
             aria-label="Más opciones"
