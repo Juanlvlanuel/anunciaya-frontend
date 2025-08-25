@@ -510,23 +510,26 @@ export default function ChatPanelMobile({ onClose, panelHeight = 730, windowHeig
           </div>
         ) : (
           <div className="flex flex-col flex-1 min-w-0">
-            <HeaderBar
-              partner={partner}
-              statusText={statusText} dotClass={dotClass}
-              fileRef={fileRef}
-              showBgMenu={showBgMenu}
-              setShowBgMenu={setShowBgMenu}
-              bgMenuRef={bgMenuRef}
-              onPickBgFile={onPickBgFile}
-              pickBgFromUrl={pickBgFromUrl}
-              clearBg={clearBg}
-              customBgs={customBgs}
-              applyCustom={applyCustom}
-              removeCustom={removeCustom}
-              isBlocked={isBlocked}
-              onToggleBlock={onToggleBlock}
-              onBack={() => { setActiveChatId(null); setShowListMobile(true); }}
-            />
+            <div className="fixed left-0 right-0 z-50 top-[env(safe-area-inset-top,0px)]">
+              <HeaderBar
+                partner={partner}
+                statusText={statusText} dotClass={dotClass}
+                fileRef={fileRef}
+                showBgMenu={showBgMenu}
+                setShowBgMenu={setShowBgMenu}
+                bgMenuRef={bgMenuRef}
+                onPickBgFile={onPickBgFile}
+                pickBgFromUrl={pickBgFromUrl}
+                clearBg={clearBg}
+                customBgs={customBgs}
+                applyCustom={applyCustom}
+                removeCustom={removeCustom}
+                isBlocked={isBlocked}
+                onToggleBlock={onToggleBlock}
+                onBack={() => { setActiveChatId(null); setShowListMobile(true); }}
+              />
+            </div>
+
 
             <ChatWindow bgUrl={bgUrl} height={windowHeight} />
             <div className="sticky bottom-[var(--bottom-nav-h)] bg-white border-t border-zinc-200 pb-[max(8px,env(safe-area-inset-bottom))]">

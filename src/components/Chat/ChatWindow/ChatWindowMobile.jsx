@@ -576,12 +576,13 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
 
       {/* Lista de mensajes */}
       <div
-        className="relative z-10 px-3 pt-2 space-y-2"
-        style={{
-          paddingBottom: 'var(--chat-input-h, 56px)',
-          overflowAnchor: 'none',          // 👈 evita reanclajes “saltando”
-        }}
-      >
+  className="relative z-10 px-3 pt-[calc(56px+env(safe-area-inset-top,0px))] space-y-2"
+  style={{
+    paddingBottom: 'var(--chat-input-h, 56px)',
+    overflowAnchor: 'none',
+  }}
+>
+
         {list.map((m, idx) => {
           const id = String(m?._id || `${activeChatId}-${idx}`);
           return (
