@@ -1,0 +1,6 @@
+{
+  "appId": "online.anunciaya.app",
+  "appName": "AnunciaYA",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}

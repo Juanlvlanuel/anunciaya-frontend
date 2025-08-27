@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">AnunciaYA</string>
+    <string name="title_activity_main">AnunciaYA</string>
+    <string name="package_name">online.anunciaya.app</string>
+    <string name="custom_url_scheme">online.anunciaya.app</string>
+</resources>

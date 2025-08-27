@@ -1,13 +1,12 @@
-// ✅ src/modals/RegistroModal-1.jsx (FastUX)
-// - GoogleLoginButton en lazy + Suspense (solo se carga cuando el modal está abierto)
-// - Precarga en idle del módulo para primera apertura más rápida
+// RegistroModal-1.jsx
+// Usa GoogleLoginButtonMobile (híbrido nativo/web) para evitar fallas del plugin en Android.
 import React, { useState, useEffect, useContext, lazy, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FaTimes, FaEye, FaEyeSlash } from "react-icons/fa";
 import Swal from "sweetalert2";
 import axios from "axios";
 import { API_BASE } from "../services/api";
-const GoogleLoginButton = lazy(() => import("../components/GoogleLoginButton_Custom"));
+const GoogleLoginButton = lazy(() => import("../components/GoogleLoginButton_Custom/GoogleLoginButtonMobile"));
 import FacebookLoginButton from "../components/FacebookLoginButton";
 import { AuthContext } from "../context/AuthContext";
 import { getFlag, removeFlag } from "../utils/authStorage";
@@ -69,7 +68,7 @@ const obtenerTipoYPerfil = (propTipo, propPerfil) => {
   if (typeof p === "number") p = { perfil: p };
   if (p && typeof p === "object" && "perfil" in p) {
     const v = p.perfil;
-    if (typeof v === "string" && /^\d+$/.test(v)) p.perfil = Number(v);
+    if (typeof v === "string" && /^\\d+$/.test(v)) p.perfil = Number(v);
   }
 
   return { tipo: t, perfil: p };
@@ -93,7 +92,7 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
   // Precarga en idle del módulo del botón (mejora la primera apertura)
   useEffect(() => {
     if (!isOpen) return;
-    const id = ric(() => { try { import("../components/GoogleLoginButton_Custom"); } catch {} });
+    const id = ric(() => { try { import("../components/GoogleLoginButton_Custom/GoogleLoginButtonMobile"); } catch {} });
     return () => { if (typeof id === "number") try { clearTimeout(id); } catch {} };
   }, [isOpen]);
 

@@ -5,35 +5,45 @@ function normalizeBase(s = "") {
   return s ? s.trim().replace(/\/+$/, "") : "";
 }
 
-const fromEnv =
-  (import.meta.env?.VITE_API_BASE ||
-    import.meta.env?.VITE_API_URL ||
-    "").trim();
-
+const baseProd = normalizeBase(import.meta.env?.VITE_API_BASE || "");
+const baseLan = normalizeBase(import.meta.env?.VITE_LAN_API_URL || "");
 const preferLocal =
   String(import.meta.env?.VITE_USE_LOCAL_API ?? "").toLowerCase() === "true" ||
   !!import.meta.env?.DEV;
 
-const isLanHost = (h) =>
-  /^(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)$/i.test(
-    h || ""
-  );
+let API_BASE = baseProd; // default Railway
+let _lanChecked = false;
+let _lanOk = false;
 
-let resolved = normalizeBase(fromEnv);
+async function checkLan() {
+  if (_lanChecked) return _lanOk;
+  _lanChecked = true;
+  if (!baseLan) return false;
 
-if (!resolved) {
-  const hostname =
-    typeof window !== "undefined" ? window.location.hostname : "";
-
-  if (preferLocal && (isLanHost(hostname) || import.meta.env?.DEV)) {
-    const port = import.meta.env?.VITE_LOCAL_API_PORT || "5000";
-    resolved = `http://localhost:${port}`;
-  } else {
-    resolved = "https://anunciaya-backend-production.up.railway.app";
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 1200); // timeout corto
+    const res = await fetch(`${baseLan}/healthz`, {
+      method: "GET",
+      signal: ctrl.signal,
+    }).catch(() => null);
+    clearTimeout(t);
+    if (res && res.ok) {
+      _lanOk = true;
+      API_BASE = baseLan;
+    }
+  } catch {
+    _lanOk = false;
   }
+  return _lanOk;
 }
 
-export const API_BASE = normalizeBase(resolved);
+// inicialización rápida
+if (preferLocal && baseLan) {
+  checkLan();
+}
+
+export { API_BASE, checkLan };
 
 /* =============== Auto-refresh (single-flight) =============== */
 const REFRESH_ENDPOINT_PATH = "/api/usuarios/auth/refresh";
@@ -58,18 +68,26 @@ async function refreshAccessToken() {
     });
     if (!res.ok) {
       let msg = "";
-      try { const j = await res.json(); msg = j?.mensaje || j?.error || ""; } catch {}
+      try {
+        const j = await res.json();
+        msg = j?.mensaje || j?.error || "";
+      } catch {}
       _refreshingPromise = null;
       throw new Error(msg || `refresh_failed ${res.status}`);
     }
     const data = await res.json().catch(() => ({}));
     const newToken = data && typeof data.token === "string" ? data.token : null;
     if (newToken) {
-      try { localStorage.setItem("token", newToken); } catch {}
       try {
-        const sess = (typeof getAuthSession === "function") ? getAuthSession() : null;
-        const user = (sess && typeof sess === "object") ? sess.user : null;
-        if (typeof setAuthSession === "function") setAuthSession({ accessToken: newToken, user });
+        localStorage.setItem("token", newToken);
+      } catch {}
+      try {
+        const sess =
+          typeof getAuthSession === "function" ? getAuthSession() : null;
+        const user =
+          sess && typeof sess === "object" ? sess.user : null;
+        if (typeof setAuthSession === "function")
+          setAuthSession({ accessToken: newToken, user });
       } catch {}
     }
     _refreshingPromise = null;
@@ -80,11 +98,18 @@ async function refreshAccessToken() {
 
 function withAuthHeader(headers = {}) {
   const h = { ...headers };
-  const hasAuth = Object.keys(h).some((k) => k.toLowerCase() === "authorization");
+  const hasAuth = Object.keys(h).some(
+    (k) => k.toLowerCase() === "authorization"
+  );
   if (!hasAuth) {
     try {
-      const sess = (typeof getAuthSession === "function") ? getAuthSession() : null;
-      const token = sess?.accessToken || (typeof localStorage !== "undefined" ? localStorage.getItem("token") : null);
+      const sess =
+        typeof getAuthSession === "function" ? getAuthSession() : null;
+      const token =
+        sess?.accessToken ||
+        (typeof localStorage !== "undefined"
+          ? localStorage.getItem("token")
+          : null);
       if (token) h["Authorization"] = `Bearer ${token}`;
     } catch {}
   }
@@ -92,8 +117,12 @@ function withAuthHeader(headers = {}) {
 }
 
 async function _json(path, opts = {}) {
+  // intenta fallback LAN la primera vez antes de llamar
+  await checkLan();
+
   const method = (opts.method || "GET").toUpperCase();
-  const isForm = typeof FormData !== "undefined" && (opts.body instanceof FormData);
+  const isForm =
+    typeof FormData !== "undefined" && opts.body instanceof FormData;
   const baseHeaders =
     method === "GET" || method === "HEAD" || isForm
       ? {}
@@ -114,12 +143,14 @@ async function _json(path, opts = {}) {
 
   if (isSessionCall) {
     let hasToken = false;
-    try { hasToken = !!localStorage.getItem("token"); } catch {}
+    try {
+      hasToken = !!localStorage.getItem("token");
+    } catch {}
     if (!hasToken) {
       return {};
     }
     const now = Date.now();
-    if (_sessionCache.data && (now - _sessionCache.ts) < SESSION_TTL_MS) {
+    if (_sessionCache.data && now - _sessionCache.ts < SESSION_TTL_MS) {
       return _sessionCache.data;
     }
   }
@@ -156,7 +187,11 @@ async function _json(path, opts = {}) {
         JSON.stringify(maybeJson) ||
         "";
     } catch {
-      try { errText = await res.text(); } catch { errText = ""; }
+      try {
+        errText = await res.text();
+      } catch {
+        errText = "";
+      }
     }
     throw new Error(errText || `${res.status} ${res.statusText}`);
   }
@@ -178,27 +213,41 @@ async function _json(path, opts = {}) {
 export const getJSON = (p, o = {}) => _json(p, o);
 export const postJSON = (p, b, h = {}) =>
   _json(p, { method: "POST", body: JSON.stringify(b || {}), headers: h });
-export const del = (p, h = {}) => _json(p, { method: "DELETE", headers: h });
+export const del = (p, h = {}) =>
+  _json(p, { method: "DELETE", headers: h });
 export const patch = (p, h = {}, b = undefined) => {
-  const isForm = typeof FormData !== "undefined" && (b instanceof FormData);
-  return _json(p, { method: "PATCH", headers: h, body: isForm ? b : (b ? JSON.stringify(b) : undefined) });
+  const isForm =
+    typeof FormData !== "undefined" && b instanceof FormData;
+  return _json(p, {
+    method: "PATCH",
+    headers: h,
+    body: isForm ? b : b ? JSON.stringify(b) : undefined,
+  });
 };
 
 /* =================== Chat API =================== */
 export const chatAPI = {
-  sendMessage: (chatId, body) => postJSON(`/api/chat/${chatId}/mensajes`, body),
+  sendMessage: (chatId, body) =>
+    postJSON(`/api/chat/${chatId}/mensajes`, body),
   deleteForMe: (chatId) => del(`/api/chat/${chatId}/me`, {}),
   toggleFavorite: (chatId, add) =>
-    add ? postJSON(`/api/chat/${chatId}/favorite`, {}, {}) : del(`/api/chat/${chatId}/favorite`, {}),
-  toggleFavoritePatch: (chatId) => patch(`/api/chat/${chatId}/favorite`, {}),
+    add
+      ? postJSON(`/api/chat/${chatId}/favorite`, {}, {})
+      : del(`/api/chat/${chatId}/favorite`, {}),
+  toggleFavoritePatch: (chatId) =>
+    patch(`/api/chat/${chatId}/favorite`, {}),
   getPins: (chatId) => getJSON(`/api/chat/${chatId}/pins`, { headers: {} }),
   togglePin: (messageId, add) =>
-    add ? postJSON(`/api/chat/messages/${messageId}/pin`, {}, {}) : del(`/api/chat/messages/${messageId}/pin`, {}),
-  editMessage: (messageId, body) => patch(`/api/chat/messages/${messageId}`, {}, body),
-  deleteMessage: (messageId) => del(`/api/chat/messages/${messageId}`, {}),
-  setBackground: (chatId, url) => patch(`/api/chat/${chatId}/background`, {}, { backgroundUrl: url || "" }),
+    add
+      ? postJSON(`/api/chat/messages/${messageId}/pin`, {}, {})
+      : del(`/api/chat/messages/${messageId}/pin`, {}),
+  editMessage: (messageId, body) =>
+    patch(`/api/chat/messages/${messageId}`, {}, body),
+  deleteMessage: (messageId) =>
+    del(`/api/chat/messages/${messageId}`, {}),
+  setBackground: (chatId, url) =>
+    patch(`/api/chat/${chatId}/background`, {}, { backgroundUrl: url || "" }),
 };
-
 
 /* =================== Media =================== */
 export const media = {
@@ -221,19 +270,26 @@ export function searchUsers(query, { limit = 10, exclude } = {}) {
 }
 
 export function ensurePrivado(usuarioAId, usuarioBId, anuncioId) {
-  return postJSON(`/api/chat/ensure-privado`, { usuarioAId, usuarioBId, anuncioId });
+  return postJSON(`/api/chat/ensure-privado`, {
+    usuarioAId,
+    usuarioBId,
+    anuncioId,
+  });
 }
-
 
 /* =================== Geo =================== */
 export const geo = {
   autocomplete: (q, country = "mx") => {
     const qs = new URLSearchParams({ q: String(q || ""), country });
-    return getJSON(`/api/geo/autocomplete?${qs.toString()}`, { headers: {} });
+    return getJSON(`/api/geo/autocomplete?${qs.toString()}`, {
+      headers: {},
+    });
   },
   verify: (q, country = "mx") => {
     const qs = new URLSearchParams({ q: String(q || ""), country });
-    return getJSON(`/api/geo/verify-city?${qs.toString()}`, { headers: {} });
+    return getJSON(`/api/geo/verify-city?${qs.toString()}`, {
+      headers: {},
+    });
   },
   reverse: (lat, lon) => {
     const qs = new URLSearchParams({ lat: String(lat), lon: String(lon) });

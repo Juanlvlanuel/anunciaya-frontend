@@ -1,0 +1,11 @@
+{
+  "appId": "online.anunciaya.app",
+  "appName": "AnunciaYA",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "url": "http://192.168.1.171:5173",
+    "cleartext": true,
+    "androidScheme": "http"
+  }
+}

@@ -6,9 +6,19 @@
   "scripts": {
     "dev": "vite",
     "build": "cross-env ROLLUP_SKIP_NODEJS_NATIVE=1 vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "cap:use:dev": "node -e \"require('fs').copyFileSync('capacitor.config.dev.json','capacitor.config.json')\" && npx cap sync",
+    "cap:use:prod": "node -e \"require('fs').copyFileSync('capacitor.config.prod.json','capacitor.config.json')\" && npx cap sync",
+    "cap:run:dev": "npm run cap:use:dev && npm run dev",
+    "cap:android:dev": "npm run cap:use:dev && npx cap run android -l --external",
+    "cap:build:prod": "npm run cap:use:prod && npm run build && npx cap copy",
+    "cap:apk:prod": "npm run cap:build:prod && echo Ahora genera el APK en Android Studio: Build > Build APK(s)"
   },
   "dependencies": {
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/cli": "^7.4.3",
+    "@capacitor/core": "^7.4.3",
+    "@capgo/capacitor-social-login": "^7.11.0",
     "@greatsumini/react-facebook-login": "^3.4.0",
     "@hello-pangea/dnd": "^18.0.1",
     "@heroicons/react": "^2.2.0",

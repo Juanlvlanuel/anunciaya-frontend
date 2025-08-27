@@ -1,10 +1,9 @@
-
-// ✅ src/components/LoginModal-1.jsx (optimizado con FastUX Toolkit)
-// - GoogleLoginButton se carga en lazy + Suspense solo cuando el modal está abierto
+// LoginModal-1.jsx
+// Usa GoogleLoginButtonMobile (híbrido nativo/web) para evitar fallas del plugin en Android.
 import React, { useState, useContext, useEffect, lazy, Suspense } from "react";
 import { FaTimes, FaEye, FaEyeSlash } from "react-icons/fa";
 import Swal from "sweetalert2";
-const GoogleLoginButton = lazy(() => import("../components/GoogleLoginButton_Custom"));
+const GoogleLoginButton = lazy(() => import("../components/GoogleLoginButton_Custom/GoogleLoginButtonMobile"));
 import { AuthContext } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import facebookIcon from "../assets/facebook-icon.png";

@@ -1,0 +1,16 @@
+// capacitor.settings.gradle
+// ✅ Archivo requerido por `android/settings.gradle`
+// Ubicación: <raíz del proyecto> (junto a package.json)
+// Esto conecta módulos nativos de Capacitor y plugins al proyecto Android.
+
+// Capacitor core (Android)
+include ':capacitor-android'
+project(':capacitor-android').projectDir = new File('../node_modules/@capacitor/android/capacitor')
+
+// Soporte Cordova-Android Plugins (si no existe, se ignora al compilar)
+include ':capacitor-cordova-android-plugins'
+project(':capacitor-cordova-android-plugins').projectDir = new File('./capacitor-cordova-android-plugins')
+
+// Plugin GoogleAuth
+include ':codetrix-studio-capacitor-google-auth'
+project(':codetrix-studio-capacitor-google-auth').projectDir = new File('../node_modules/@codetrix-studio/capacitor-google-auth/android')
