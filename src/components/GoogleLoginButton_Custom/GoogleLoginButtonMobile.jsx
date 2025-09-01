@@ -125,8 +125,8 @@ const GoogleLoginButtonMobile = ({
         if (perfilEfectivo?.perfil != null) body.perfil = perfilEfectivo.perfil;
       }
 
-      // ✅ Ruta + cookies
-      const res = await axios.post(`/api/usuarios/auth/google`, body, {
+      // ✅ Ruta ABSOLUTA a backend en producción (evita 405 en Vercel)
+      const res = await axios.post(`${__API_BASE__}/api/usuarios/auth/google`, body, {
         withCredentials: true,
         headers: { "Content-Type": "application/json" },
       });
@@ -204,7 +204,8 @@ const GoogleLoginButtonMobile = ({
         if (perfilEfectivo?.perfil != null) body.perfil = perfilEfectivo.perfil;
       }
 
-      const r = await axios.post(`/api/usuarios/auth/google`, body, {
+      // ✅ Ruta ABSOLUTA a backend en producción (evita 405 en Vercel)
+      const r = await axios.post(`${__API_BASE__}/api/usuarios/auth/google`, body, {
         withCredentials: true,
         headers: { "Content-Type": "application/json" },
       });

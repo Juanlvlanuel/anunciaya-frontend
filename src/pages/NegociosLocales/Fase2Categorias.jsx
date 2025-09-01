@@ -165,7 +165,7 @@ export default function Fase2Categorias() {
                   onClick={() => setShowAll(true)}
                   className="-mt-6 px-5 h-10 rounded-full bg-white border border-[#e6e9f0] shadow-sm text-[#0C1424] font-semibold active:scale-95"
                 >
-                  Ver todas las Categorías
+                  + Categorías
                 </button>
               </div>
             )}
