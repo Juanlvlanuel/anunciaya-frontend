@@ -1,6 +1,5 @@
 import React, { useState, useContext } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import logo from "../../assets/logo-anunciaya.png";
 import { AuthContext } from "../../context/AuthContext";
 import LoginModal from "../../modals/LoginModal";
 
@@ -14,58 +13,52 @@ const HeaderNoLogeadoMobile = () => {
 
   // Estado para la animación del logo
   const [logoPressed, setLogoPressed] = useState(false);
+  const handleLogoTouch = () => setLogoPressed(true);
 
-  const handleLogoTouch = () => {
-    setLogoPressed(true);
-    setTimeout(() => setLogoPressed(false), 170);
-  };
   // Pide ubicación de alta precisión al montar si no la tenemos aún
   React.useEffect(() => {
     const hasCity = !!(ubicacion && ubicacion.ciudad);
     if (!hasCity && typeof solicitarUbicacionAltaPrecision === "function") {
-      solicitarUbicacionAltaPrecision().catch(() => {});
+      solicitarUbicacionAltaPrecision().catch(() => { });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-
   return (
     <>
       <div
-        className={`
-          flex md:hidden items-center justify-center px-4 pt-7 pb-3 
-          bg-white/70 sticky top-0 z-30
-          shadow-[0_4px_16px_0_rgba(47,62,90,0.08)]
-          transition-all duration-300
-        `}
+        className="fixed top-0 left-0 right-0 z-50 shadow-md"
         style={{
-          backdropFilter: "blur(9px)",
-          WebkitBackdropFilter: "blur(9px)",
-          borderBottom: "1.3px solid #e9eaf3"
+          paddingTop: "env(safe-area-inset-top, 0px)",
+          background: "rgba(255, 255, 255, 0.6)",
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)", // Safari
+          borderBottom: "1px solid rgba(255, 255, 255, 0.3)",
         }}
       >
-        <Link to="/" className="w-full flex justify-center">
-          <img
-            src={logo}
-            alt="AnunciaYA"
-            className={`
-              w-56 h-auto mx-auto transition-transform duration-200
-              ${logoPressed ? "scale-95" : "scale-100"}
-              drop-shadow-[0_2px_12px_rgba(80,130,250,0.13)]
-              active:scale-95
-            `}
-            draggable="false"
-            onTouchStart={handleLogoTouch}
-            onMouseDown={handleLogoTouch}
-            onMouseUp={() => setLogoPressed(false)}
-            onMouseLeave={() => setLogoPressed(false)}
-            style={{
-              userSelect: "none",
-              touchAction: "manipulation"
-            }}
-          />
-        </Link>
+        <div className="pt-12 pb-2 w-full flex justify-center items-center">
+          <Link to="/" className="w-full flex justify-center">
+            <img
+              src="/logo-anunciaya.webp"
+              alt="AnunciaYA"
+              width={160}
+              height={44}
+              loading="eager"
+              decoding="async"
+              fetchpriority="high"
+              className={`w-[260px] max-w-[64vw] mx-auto drop-shadow-lg transition-transform duration-200 ${logoPressed ? "scale-95" : "scale-100"}`}
+              draggable="false"
+              onTouchStart={handleLogoTouch}
+              onMouseDown={handleLogoTouch}
+              onMouseUp={() => setLogoPressed(false)}
+              onMouseLeave={() => setLogoPressed(false)}
+              style={{ userSelect: "none", touchAction: "manipulation" }}
+            />
+
+          </Link>
+        </div>
       </div>
+
       {/* Modal de login/registro con tipoCuenta */}
       {mostrarLoginModal && (
         <LoginModal

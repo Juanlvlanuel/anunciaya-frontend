@@ -1,13 +1,11 @@
-// ✅ src/context/AuthContext-1.jsx — flujo híbrido ubicación (manual Google + auto GPS) y API estable
-// Cambios clave:
-// - Respeta siempre ciudad manual (source:"manual"); no se sobreescribe con GPS.
-// - Persiste { ciudad, lat, lon, source, ts } en localStorage "AY_ubicacion".
-// - Nuevos helpers: clearCiudadManual(), refreshUbicacionActual(), ciudadPreferida.
-// - Mantiene todas tus funciones previas (login, registrar, actualizarPerfil, actualizarNickname, etc.).
+// src/context/AuthContext-1.jsx — corrige logout al refrescar estando logueado
+// - Elimina limpieza agresiva por "logoutAt" al montar.
+// - Limpia el flag "logoutAt" apenas se inicia sesión correctamente.
+// - Mantiene todo el resto intacto.
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { API_BASE, getJSON, patch } from "../services/api";
+import { API_BASE, getJSON, patch, clearSessionCache } from "../services/api";
 import {
   setAuthSession,
   getAuthSession,
@@ -16,10 +14,18 @@ import {
   setSuppressLoginOnce,
   setFlag,
   getFlag,
+  // 👇 nuevo
+  removeFlag,
 } from "../utils/authStorage";
 
 import { FEATURES_BY_PLAN } from "../config/features";
 import { ROLE_ABILITIES } from "../config/abilities";
+
+import { UbiContext } from "./UbiContext";
+
+
+
+
 
 axios.defaults.withCredentials = true;
 
@@ -31,7 +37,7 @@ const limpiarEstadoTemporal = () => {
     localStorage.removeItem("perfilCuentaIntentada");
     localStorage.removeItem("tipoCuentaRegistro");
     localStorage.removeItem("perfilCuentaRegistro");
-  } catch {}
+  } catch { }
 };
 
 function enriquecerUsuario(base) {
@@ -52,7 +58,7 @@ const readUbicacion = () => {
     return raw ? JSON.parse(raw) : null;
   } catch { return null; }
 };
-const writeUbicacion = (obj) => { try { localStorage.setItem(UBIC_KEY, JSON.stringify(obj)); } catch {} };
+const writeUbicacion = (obj) => { try { localStorage.setItem(UBIC_KEY, JSON.stringify(obj)); } catch { } };
 
 const AuthProvider = ({ children }) => {
   const [autenticado, setAutenticado] = useState(false);
@@ -63,86 +69,82 @@ const AuthProvider = ({ children }) => {
   // === Ubicación global (alta precisión + manual) ===
   const [ubicacion, setUbicacion] = useState(() => readUbicacion());
 
+  // UbiContext (plugin nativo)
+  const ubiCtx = useContext(UbiContext) || null;
+
   // Hidratación inicial (no bloquea la app)
   useEffect(() => {
     try {
-      const stored = typeof getAuthSession === "function" ? getAuthSession() : null;
-      if (stored && (stored.accessToken || stored.user)) {
-        if (stored.user) setUsuario(enriquecerUsuario(stored.user));
-        if (stored.accessToken) setAutenticado(true);
-      }
-    } catch {}
+      const token = localStorage.getItem("token");
 
-    const token = localStorage.getItem("token");
-    const usuarioGuardado = localStorage.getItem("usuario");
-    if (token && usuarioGuardado) {
-      try {
-        const parse = JSON.parse(usuarioGuardado);
-        setUsuario(enriquecerUsuario(parse));
-        setAutenticado(true);
-      } catch {
-        setUsuario(null);
+      // ⛔ Si no hay token, no llames /session ni nada de auth
+      if (!token) {
         setAutenticado(false);
+        setUsuario(null);
+        setMounted(true);
+        return; // <- importante
       }
-    } else {
-      setAutenticado(false);
-      setUsuario(null);
-    }
+
+      // ✅ A partir de aquí, solo con token:
+      const usuarioGuardado = localStorage.getItem("usuario");
+      if (usuarioGuardado) {
+        try {
+          const parse = JSON.parse(usuarioGuardado);
+          setUsuario(enriquecerUsuario(parse));
+          setAutenticado(true);
+        } catch {
+          setUsuario(null);
+          setAutenticado(false);
+        }
+      }
+
+      // Si usas getAuthSession() o fetch /session, hazlo DESPUÉS del guard:
+      const stored =
+        typeof getAuthSession === "function" ? getAuthSession() : null;
+      if (stored?.user) setUsuario(enriquecerUsuario(stored.user));
+      if (stored?.accessToken) setAutenticado(true);
+    } catch { }
     setMounted(true);
   }, []);
 
+
   // Solicita ubicación con alta precisión y resuelve ciudad vía backend (/api/geo/reverse).
   // ⚠️ No sobreescribe si ya existe ciudad manual (source:"manual").
+  // === Delegado: usa UbiContext (plugin nativo) si está disponible; fallback a null si no ===
   const solicitarUbicacionAltaPrecision = async (opts = {}) => {
-    if (typeof navigator === "undefined" || !("geolocation" in navigator)) return null;
+    const fn =
+      ubiCtx && typeof ubiCtx.solicitarUbicacionAltaPrecision === "function"
+        ? ubiCtx.solicitarUbicacionAltaPrecision
+        : null;
 
-    // Respetar manual (a menos que se fuerce)
-    const curr = readUbicacion();
-    if (!opts.force && curr?.source === "manual" && curr?.ciudad) return curr;
-
-    const askPosition = (opts) =>
-      new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, opts));
-
-    const resolveCoords = async (latitude, longitude) => {
-      const res = await fetch(`${API_BASE}/api/geo/reverse?lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}`, {
-        credentials: "include",
-        headers: { "Accept": "application/json" },
-      });
-      const data = await res.json().catch(() => ({}));
-      const ciudad = data?.city || data?.ciudad || null;
-      const next = { lat: latitude, lon: longitude, ciudad, source: "auto", ts: Date.now() };
-
-      // Setear siempre si se fuerza; de lo contrario respeta manual
-      const now = readUbicacion();
-      if (opts.force || !(now?.source === "manual" && now?.ciudad)) {
-        setUbicacion(next);
-        writeUbicacion(next);
+    if (fn) {
+      try {
+        const res = await fn(opts);
+        if (res && typeof res === "object") {
+          const next = {
+            lat: typeof res.lat === "number" ? res.lat : null,
+            lon: typeof res.lon === "number" ? res.lon : null,
+            ciudad: typeof res.ciudad === "string" ? res.ciudad.trim() : null,
+            source: "auto",
+            ts: Date.now(),
+          };
+          setUbicacion(next);
+          writeUbicacion(next);
+          return res;
+        } else {
+          try { console.warn("[ubicacion] respuesta inesperada de UbiContext.solicitarUbicacionAltaPrecision()", res); } catch {}
+          return null;
+        }
+      } catch (e) {
+        try { console.warn("[ubicacion] error solicitando ubicación (UbiContext)", e); } catch {}
+        return null;
       }
-      return next;
-    };
-
-    // 1) Intento con alta precisión
-    try {
-      const pos = await askPosition({ enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
-      const { latitude, longitude } = pos?.coords || {};
-      if (isFinite(latitude) && isFinite(longitude)) {
-        return await resolveCoords(latitude, longitude);
-      }
-    } catch {}
-
-    // 2) Fallback menos preciso
-    try {
-      const pos = await new Promise((resolve) => {
-        navigator.geolocation.getCurrentPosition(resolve, resolve, { enableHighAccuracy: false, timeout: 8000, maximumAge: 600000 });
-      });
-      const { latitude, longitude } = pos?.coords || {};
-      if (isFinite(latitude) && isFinite(longitude)) {
-        return await resolveCoords(latitude, longitude);
-      }
-    } catch {}
-
+    }
+    try { console.warn("[ubicacion] UbiContext no disponible; no se puede solicitar ubicación"); } catch {}
     return null;
   };
+ 
+
 
   // Refresca ubicación al montar SOLO si no hay ciudad manual
   useEffect(() => {
@@ -151,11 +153,10 @@ const AuthProvider = ({ children }) => {
       try {
         const current = readUbicacion();
         if (current?.ciudad && current?.source === "manual") return; // respeta manual
-        // También respeta datos previos sin source (no los pisa)
         if (current?.ciudad && !current?.source) return;
         const result = await solicitarUbicacionAltaPrecision();
         if (!cancelled && result) setUbicacion((prev) => prev ?? result);
-      } catch {}
+      } catch { }
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -168,7 +169,7 @@ const AuthProvider = ({ children }) => {
         try {
           const parsed = e.newValue ? JSON.parse(e.newValue) : null;
           setUbicacion(parsed);
-        } catch {}
+        } catch { }
       }
     };
     window.addEventListener("storage", onStorage);
@@ -176,45 +177,48 @@ const AuthProvider = ({ children }) => {
   }, []);
 
   // Consulta de sesión real (una sola vez, usando la caché de api.js)
-useEffect(() => {
-  let cancelled = false;
-  let fetched = false;
+  useEffect(() => {
+    let cancelled = false;
+    let fetched = false;
 
-  async function checkSession() {
-    if (fetched) return;
-    fetched = true;
-    try {
-      setCargando(true);
-
-      const data = await getJSON(`/api/usuarios/session`, {
-        headers: {},
-        credentials: "include",
-      });
-
-      if (!cancelled && data?.usuario) {
-        const enriquecido = enriquecerUsuario(data.usuario);
-        setUsuario(enriquecido);
-        setAutenticado(true);
-        try { localStorage.setItem("usuario", JSON.stringify(enriquecido)); } catch {}
+    async function checkSession() {
+      if (fetched) return;
+      fetched = true;
+      try {
+        setCargando(true);
+        const data = await getJSON(`/api/usuarios/session`, {
+          headers: {},
+          credentials: "include",
+        });
+        if (!cancelled && data?.usuario) {
+          const enriquecido = enriquecerUsuario(data.usuario);
+          setUsuario(enriquecerUsuario(data.usuario));
+          setAutenticado(true);
+          try { localStorage.setItem("usuario", JSON.stringify(enriquecido)); } catch { }
+        } else if (!cancelled) {
+          setAutenticado(false);
+          setUsuario(null);
+          try { localStorage.removeItem("usuario"); } catch { }
+          try { localStorage.removeItem("token"); } catch { }
+          try { clearAuthSession(); } catch { }
+        }
+      } catch (e) {
+        try { localStorage.removeItem("token"); } catch { }
+        try { localStorage.removeItem("usuario"); } catch { }
+        try { localStorage.removeItem("wasLoggedIn"); } catch { }
+        if (!cancelled) {
+          setAutenticado(false);
+          setUsuario(null);
+        }
+      } finally {
+        if (!cancelled) setCargando(false);
       }
-    } catch (e) {
-      try { localStorage.removeItem("token"); } catch {}
-      try { localStorage.removeItem("usuario"); } catch {}
-      try { localStorage.removeItem("wasLoggedIn"); } catch {}
-      if (!cancelled) {
-        setAutenticado(false);
-        setUsuario(null);
-      }
-    } finally {
-      if (!cancelled) setCargando(false);
     }
-  }
 
-  checkSession();
-  return () => { cancelled = true; };
-// eslint-disable-next-line react-hooks/exhaustive-deps
-}, []);
-
+    checkSession();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const hidratarEnSegundoPlano = (token) => {
     (async () => {
@@ -223,10 +227,10 @@ useEffect(() => {
         if (data && data.usuario) {
           const full = enriquecerUsuario(data.usuario);
           setUsuario(full);
-          try { localStorage.setItem("usuario", JSON.stringify(full)); } catch {}
-          try { setAuthSession({ accessToken: token || localStorage.getItem("token") || null, user: full }); } catch {}
+          try { localStorage.setItem("usuario", JSON.stringify(full)); } catch { }
+          try { setAuthSession({ accessToken: token || localStorage.getItem("token") || null, user: full }); } catch { }
         }
-      } catch {}
+      } catch { }
     })();
   };
 
@@ -235,26 +239,46 @@ useEffect(() => {
     try {
       localStorage.setItem("token", token);
       localStorage.setItem("wasLoggedIn", "1");
-    } catch {}
-    try { setAuthSession({ accessToken: token, user: usuarioRecibido || null }); } catch {}
+    } catch { }
+    try { setAuthSession({ accessToken: token, user: usuarioRecibido || null }); } catch { }
 
     if (usuarioRecibido) {
       const prelim = enriquecerUsuario(usuarioRecibido);
-      try { localStorage.setItem("usuario", JSON.stringify(prelim)); } catch {}
+      try { localStorage.setItem("usuario", JSON.stringify(prelim)); } catch { }
       setUsuario(prelim);
       setAutenticado(true);
-      try { setAuthSession({ accessToken: token, user: prelim }); } catch {}
+      try { setAuthSession({ accessToken: token, user: prelim }); } catch { }
       limpiarEstadoTemporal();
+
+      // ✅ limpiar flag de logout reciente para que refrescar no te expulse
+      try { removeFlag && removeFlag("logoutAt"); } catch { }
 
       hidratarEnSegundoPlano(token);
       return;
     }
+
+    // ✅ limpiar flag de logout reciente también aquí
+    try { removeFlag && removeFlag("logoutAt"); } catch { }
 
     hidratarEnSegundoPlano(token);
     limpiarEstadoTemporal();
   };
 
   const cerrarSesion = async () => {
+    try { clearSessionCache(); } catch { }
+    try { localStorage.removeItem("token"); } catch { }
+    try { localStorage.removeItem("usuario"); } catch { }
+    try { localStorage.removeItem("wasLoggedIn"); } catch { }
+    limpiarEstadoTemporal();
+    try {
+      clearAuthSession();
+      clearKnownFlags();
+      setFlag("logoutAt", String(Date.now()));
+      setSuppressLoginOnce(true);
+    } catch { }
+    setUsuario(null);
+    setAutenticado(false);
+
     try {
       const rawDraft = typeof localStorage !== "undefined" && localStorage.getItem("perfilDraft");
       const draft = rawDraft ? JSON.parse(rawDraft) : null;
@@ -265,9 +289,9 @@ useEffect(() => {
           body: JSON.stringify(draft),
           credentials: "include",
         });
-        try { localStorage.removeItem("perfilDraft"); } catch {}
+        try { localStorage.removeItem("perfilDraft"); } catch { }
       }
-    } catch {}
+    } catch { }
 
     try {
       await getJSON(`/api/usuarios/logout`, {
@@ -276,19 +300,7 @@ useEffect(() => {
         body: "{}",
         credentials: "include",
       });
-    } catch {}
-    try { localStorage.removeItem("token"); } catch {}
-    try { localStorage.removeItem("usuario"); } catch {}
-    try { localStorage.removeItem("wasLoggedIn"); } catch {}
-    limpiarEstadoTemporal();
-    try {
-      clearAuthSession();
-      clearKnownFlags();
-      setFlag("logoutAt", String(Date.now()));
-      setSuppressLoginOnce(true);
-    } catch {}
-    setUsuario(null);
-    setAutenticado(false);
+    } catch { }
   };
 
   const login = async ({ correo, contraseña }) => {
@@ -307,9 +319,9 @@ useEffect(() => {
         : (err && err.message)
           ? err.message
           : "Error al iniciar sesión";
-      try { localStorage.removeItem("token"); } catch {}
-      try { localStorage.removeItem("wasLoggedIn"); } catch {}
-      try { setAuthSession && setAuthSession({ accessToken: null, user: null }); } catch {}
+      try { localStorage.removeItem("token"); } catch { }
+      try { localStorage.removeItem("wasLoggedIn"); } catch { }
+      try { setAuthSession && setAuthSession({ accessToken: null, user: null }); } catch { }
       setAutenticado(false);
       throw new Error(mensaje);
     }
@@ -323,7 +335,7 @@ useEffect(() => {
       let p = getFlag("perfilCuentaRegistro") || getFlag("perfilCuentaIntentada") || null;
       if (p && typeof p === "object" && "perfil" in p) perfilValor = p.perfil;
       else perfilValor = p;
-    } catch {}
+    } catch { }
 
     if (!tipo || perfilValor == null) {
       try {
@@ -337,7 +349,7 @@ useEffect(() => {
             perfilValor = perfilCrudo;
           }
         }
-      } catch {}
+      } catch { }
     }
 
     let perfil = perfilValor;
@@ -360,29 +372,27 @@ useEffect(() => {
     const actualizado = enriquecerUsuario(data?.usuario || data);
 
     setUsuario(actualizado);
-    try { localStorage.setItem("usuario", JSON.stringify(actualizado)); } catch {}
+    try { localStorage.setItem("usuario", JSON.stringify(actualizado)); } catch { }
     try {
       const tk = (typeof localStorage !== "undefined" && localStorage.getItem("token")) || null;
       setAuthSession && setAuthSession({ accessToken: tk, user: actualizado });
-    } catch {}
+    } catch { }
 
     return actualizado;
   };
 
-  // === Nuevo: actualizarNickname (usa endpoint dedicado y sincroniza el contexto) ===
   const actualizarNickname = async (nickname) => {
     const data = await patch(`/api/usuarios/me/nickname`, {}, { nickname });
     const actualizado = enriquecerUsuario(data?.usuario || data);
     setUsuario(actualizado);
-    try { localStorage.setItem("usuario", JSON.stringify(actualizado)); } catch {}
+    try { localStorage.setItem("usuario", JSON.stringify(actualizado)); } catch { }
     try {
       const tk = (typeof localStorage !== "undefined" && localStorage.getItem("token")) || null;
       setAuthSession && setAuthSession({ accessToken: tk, user: actualizado });
-    } catch {}
+    } catch { }
     return actualizado;
   };
 
-  // === Ciudad manual (desde Google Places o UI) — persistente y prioritaria ===
   const setCiudadManual = async (ciudad, lat = null, lon = null) => {
     const next = {
       ciudad: String(ciudad || "").trim(),
@@ -396,7 +406,6 @@ useEffect(() => {
     return next;
   };
 
-  // === Limpiar manual y permitir que GPS vuelva a sugerir en el siguiente ciclo
   const clearCiudadManual = () => {
     const curr = readUbicacion();
     if (curr) {
@@ -405,30 +414,26 @@ useEffect(() => {
       writeUbicacion(next);
     } else {
       setUbicacion(null);
-      try { localStorage.removeItem(UBIC_KEY); } catch {}
+      try { localStorage.removeItem(UBIC_KEY); } catch { }
     }
   };
 
-  // Forzar lectura de GPS sin pisar manual
   const refreshUbicacionActual = async (opts = {}) => {
     return await solicitarUbicacionAltaPrecision(opts);
   };
   const forceUbicacionActual = async () => await solicitarUbicacionAltaPrecision({ force: true });
 
-
-  // Alias práctico para filtrar
   const ciudadPreferida = useMemo(() => ubicacion?.ciudad || null, [ubicacion]);
 
   const value = useMemo(
     () => ({
-      // Ubicación
       ubicacion,
       ciudadPreferida,
       setCiudadManual,
       clearCiudadManual,
       solicitarUbicacionAltaPrecision,
+      forceUbicacionActual,
       refreshUbicacionActual,
-      // Auth
       autenticado,
       usuario,
       cargando,

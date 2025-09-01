@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import HeaderNoLogeado from "../HeaderNoLogeado";
 import RegistroModal from "../../modals/RegistroModal";
 import PerfilModal from "../../modals/PerfilModal";
-import CarrouselCategorias from "../CarrouselCategorias";
+import CarrouselSecciones from "../CarrouselSecciones";
 import { motion, AnimatePresence } from "framer-motion";
 import { UbiContext } from "../../context/UbiContext"; // Ajusta la ruta si es diferente
 import { AuthContext } from "../../context/AuthContext";
@@ -146,7 +146,9 @@ const HomeNoLogeadoMobile = () => {
   const ubiCtx = useContext(UbiContext) || {};
   const authCtx = useContext(AuthContext) || {};
   const ubicacion = (authCtx && authCtx.ubicacion) || (ubiCtx && ubiCtx.ubicacion) || null;
-  const solicitarUbicacionAltaPrecision = authCtx && authCtx.solicitarUbicacionAltaPrecision;
+  const solicitarUbicacionAltaPrecision =
+    (authCtx && authCtx.solicitarUbicacionAltaPrecision) ||
+    (ubiCtx && ubiCtx.solicitarUbicacionAltaPrecision);
   const ciudad = ubicacion?.ciudad;
 
   /* pedir ubicacion al montar */
@@ -161,22 +163,34 @@ const HomeNoLogeadoMobile = () => {
   return (
     <div
       className="
-        min-h-[100dvh] flex flex-col pb-[calc(env(safe-area-inset-bottom,0px))] pb-bottom-safe
-        bg-[url('/src/assets/fondo-inicio-mobile.jpg')]
-        bg-cover
-        bg-[position:70%_top]
-      "
+    relative
+    min-h-[100svh]
+    flex flex-col
+    overflow-x-hidden
+    overflow-y-auto
+    overscroll-none
+    pt-[calc(env(safe-area-inset-top,0px)+56px)]
+    bg-[url('/src/assets/fondo-inicio-mobile.jpg')]
+    bg-cover
+    bg-[position:70%_top]
+  "
     >
-      <HeaderNoLogeado
-        onOpenModal={handleAbrirModalLogin}
-        onHoverBienvenida={handleHoverBienvenida}
-        onLeaveBienvenida={handleLeaveBienvenida}
-        onClickBienvenida={handleClickBienvenida}
-      />
+      {/* Overlays (franjas negras) */}
+      <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-b from-black/30 to-transparent z-10 pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-full h-28 bg-gradient-to-t from-black/30 to-transparent z-10 pointer-events-none" />
+
+      <div className="relative z-20">
+        <HeaderNoLogeado
+          onOpenModal={handleAbrirModalLogin}
+          onHoverBienvenida={handleHoverBienvenida}
+          onLeaveBienvenida={handleLeaveBienvenida}
+          onClickBienvenida={handleClickBienvenida}
+        />
+      </div>
 
       {/* 1. Caja ÚNETE a la plataforma */}
       <motion.div
-        className="w-full flex justify-center mt-10 mb-4"
+        className="w-full flex justify-center mt-20 mb-3 relative z-10"
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 1.2 }}
@@ -208,7 +222,7 @@ const HomeNoLogeadoMobile = () => {
         items-center
         justify-start
         w-full
-        mt-15
+        relative z-10
       "><samp></samp>
         <div className="
           w-full 
@@ -388,16 +402,17 @@ const HomeNoLogeadoMobile = () => {
       {/* Carrousel fijo */}
       <motion.div
         className={`
-          w-full fixed bottom-4 left-0 z-40 flex justify-center pointer-events-none
+          w-full fixed bottom-[44px] left-0 z-40 flex justify-center pointer-events-none
           transition-transform duration-500
           ${showFooter ? "translate-y-0 opacity-100" : "translate-y-28 opacity-0"}
         `}
         style={{ willChange: "transform, opacity" }}
       >
-        <div className="pointer-events-auto">
-          <CarrouselCategorias />
+        <div className="pointer-events-auto ">
+          <CarrouselSecciones />
         </div>
       </motion.div>
+      <div className="absolute bottom-0 left-0 w-full h-[40px] bg-black z-40" />
     </div>
   );
 };

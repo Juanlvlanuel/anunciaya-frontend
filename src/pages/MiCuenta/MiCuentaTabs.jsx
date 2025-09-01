@@ -21,7 +21,7 @@ export default function MiCuentaTabs({
 
   const pad =
     size === "sm"
-      ? "px-4 text-sm h-[40px] leading-normal"
+      ? "px-4 text-sm h-[56x] leading-normal"
       : "px-4 text-sm h-[44px] leading-normal";
 
   const updateIndicator = () => {
@@ -55,7 +55,7 @@ export default function MiCuentaTabs({
   }, []);
 
   const baseBtn =
-    "relative z-10 flex items-center justify-center gap-2 rounded-xl transition-colors duration-250 ease-out transform-gpu " +
+    "relative z-10 flex items-center justify-center gap-2  transition-colors duration-250 ease-out transform-gpu " +
     "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 whitespace-nowrap select-none";
 
   const activeEmphasis = emphasis
@@ -65,20 +65,20 @@ export default function MiCuentaTabs({
   const variants = {
     pro: {
       wrapper:
-        "relative mt-2 p-[1.5px] rounded-xl bg-[linear-gradient(90deg,rgba(59,130,246,.35),rgba(99,102,241,.35),rgba(168,85,247,.25))]",
+        "fixed top-[30px] left-0 w-full z-50 bg-[linear-gradient(90deg,rgba(59,130,246,.35),rgba(99,102,241,.35),rgba(168,85,247,.25))]",
       track:
-        "relative flex gap-1 overflow-x-auto no-scrollbar p-2 rounded-xl bg-white/70 backdrop-blur supports-[backdrop-filter]:backdrop-blur-md border border-white/40 shadow-sm scroll-smooth",
+        "relative w-full flex gap-0 overflow-x-auto no-scrollbar py-2 px-0 bg-violet-50 scroll-smooth",
       btn: (isActive) =>
         `${baseBtn} ${pad} ${isActive
           ? `text-white ${activeEmphasis}`
           : "text-black font-medium hover:text-black"
         }`,
       indicator:
-        "absolute top-[6px] bottom-[6px] rounded-xl will-change-transform transition-[transform,width] duration-350 ease-[cubic-bezier(.2,.8,.16,1)] " +
-        "bg-[linear-gradient(90deg,#3b82f6_0%,#6366f1_60%,#a855f7_100%)] shadow-[0_10px_34px_rgba(99,102,241,0.35)] overflow-hidden",
+        "absolute top-[6px] bottom-[6px]  will-change-transform transition-[transform,width] duration-350 ease-[cubic-bezier(.2,.8,.16,1)] " +
+        "bg-[linear-gradient(90deg,#3b82f6_0%,#6366f1_60%,#a855f7_100%)]  overflow-hidden",
     },
     underline: {
-      wrapper: "mt-2",
+      wrapper: "w-[100vw] -ml-[50vw] -mr-[50vw] left-1/2 right-1/2",
       track:
         "relative flex gap-2 overflow-x-auto no-scrollbar py-3 scroll-smooth",
       btn: (isActive) =>
@@ -90,12 +90,12 @@ export default function MiCuentaTabs({
         "absolute bottom-0 h-[3px] rounded-full bg-blue-600 will-change-transform transition-[transform,width] duration-300 ease-out",
     },
     pill: {
-      wrapper: "mt-2",
+      wrapper: "w-[100vw] -ml-[50vw] -mr-[50vw] left-1/2 right-1/2",
       track:
-        "relative flex gap-2 overflow-x-auto no-scrollbar p-2 border border-gray-200 rounded-xl bg-white/80 scroll-smooth",
+        "relative flex gap-2 overflow-x-auto no-scrollbar p-2   bg-white/80 scroll-smooth",
       btn: (isActive) =>
         `${baseBtn} ${pad} ${isActive
-          ? `text-white ${activeEmphasis} bg-white shadow-sm border border-gray-200`
+          ? `text-white ${activeEmphasis} bg-white  `
           : "text-black font-medium hover:text-black"
         }`,
       indicator: "hidden",

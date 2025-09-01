@@ -90,17 +90,21 @@ export default function PerfilDatosForm({ initial = {}, onSubmit }) {
           : solicitarUbicacionAltaPrecision({ force: true }))
         : null;
 
-      const label =
-        res?.ciudad || res?.city || res?.label || res?.nombre || res?.name || "";
+      const label = (res && typeof res.ciudad === "string" && res.ciudad.trim())
+        ? res.ciudad.trim()
+        : (typeof ciudadPreferida === "string" ? ciudadPreferida.trim() : "");
 
       if (label) {
         setForm((f) => ({ ...f, ciudad: label }));
         setCiudadManual && setCiudadManual(label);
         setStatus("ok");
       } else {
+        // Log ligero para depurar si alguna vez falla
+        try { console.debug("[ubicacion] sin ciudad detectada en payload/respuesta", res); } catch {}
         setStatus("fail");
       }
-    } catch {
+    } catch (e) {
+      try { console.warn("[ubicacion] error al detectar ubicación actual", e); } catch {}
       setStatus("fail");
     } finally {
       setGpsLoading(false);

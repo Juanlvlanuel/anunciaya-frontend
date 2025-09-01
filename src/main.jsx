@@ -1,43 +1,81 @@
-// src/main.jsx
+// main-1.jsx
 import React, { useEffect } from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 
 import App from "./pages/App";
+import { ToastProvider } from "./components/ToastProvider";
 import "./index.css";
 
 import { AuthProvider } from "./context/AuthContext";
 import { UbiProvider } from "./context/UbiContext";
 import ChatProvider from "./context/ChatContext";
 
-import { ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
-
 import { GoogleOAuthProvider } from "@react-oauth/google";
+import { StatusBar, Style } from "@capacitor/status-bar";
 
 // Env
 const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-console.log("GOOGLE_CLIENT_ID en PROD =>", clientId);
-
 const USER_ID = import.meta.env.VITE_TEST_USER_ID;
 
-// 🚫 Filtro de warnings de Google Maps en consola
-const originalWarn = console.warn;
-console.warn = (...args) => {
-  if (
-    typeof args[0] === "string" &&
-    (
-      args[0].includes("Google Maps JavaScript API") ||
-      args[0].includes("Autocomplete") ||
-      args[0].includes("PlacesService")
-    )
-  ) {
-    return; // ignorar esos warnings
+// --- Filtros de consola (full: warn/error/info/log/debug) ---
+function toText(args) {
+  try {
+    return args
+      .map((a) =>
+        typeof a === "string"
+          ? a
+          : a?.message
+            ? String(a.message)
+            : (() => {
+              try {
+                return JSON.stringify(a);
+              } catch {
+                return String(a);
+              }
+            })()
+      )
+      .join(" ");
+  } catch {
+    return "";
   }
-  originalWarn(...args);
-};
+}
+
+const IGNORE_SUBSTR = [
+  "[GSI_LOGGER]",
+  "credential_button_library",
+  "The given origin is not allowed",
+  "Cross-Origin-Opener-Policy policy would",
+  "[chat-socket] connected",
+  "[chat-socket] disconnected",
+];
+
+function wrapConsole(method) {
+  const orig = console[method];
+  console[method] = (...args) => {
+    const txt = toText(args);
+    if (IGNORE_SUBSTR.some((s) => txt.includes(s))) return;
+    orig(...args);
+  };
+}
+
+["warn", "error", "info", "log", "debug"].forEach(wrapConsole);
 
 const Root = () => {
+  // Configurar StatusBar al iniciar
+  useEffect(() => {
+    const setStatus = async () => {
+      try {
+        await StatusBar.setOverlaysWebView({ overlay: true });
+        await StatusBar.setBackgroundColor({ color: "#00000000" }); // transparente
+        await StatusBar.setStyle({ style: Style.Light }); // íconos oscuros (ajusta a Style.Dark si quieres blancos)
+      } catch (e) {
+        console.log("StatusBar plugin no disponible", e);
+      }
+    };
+    setStatus();
+  }, []);
+
   // Carga SDK de Facebook una sola vez
   useEffect(() => {
     if (!window.FB) {
@@ -59,25 +97,19 @@ const Root = () => {
 
   return (
     <GoogleOAuthProvider clientId={clientId}>
-      <AuthProvider>
-        <UbiProvider>
+      <UbiProvider>
+        <AuthProvider>
           <ChatProvider currentUserId={USER_ID}>
-            <BrowserRouter>
-              <App />
-              <ToastContainer
-                position="top-center"
-                autoClose={3000}
-                hideProgressBar
-                newestOnTop
-                closeOnClick
-                pauseOnHover
-                theme="colored"
-              />
-            </BrowserRouter>
+            <ToastProvider>
+              <BrowserRouter>
+                <App />
+              </BrowserRouter>
+            </ToastProvider>
           </ChatProvider>
-        </UbiProvider>
-      </AuthProvider>
+        </AuthProvider>
+      </UbiProvider>
     </GoogleOAuthProvider>
+
   );
 };
 

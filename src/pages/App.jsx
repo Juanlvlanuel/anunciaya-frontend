@@ -1,4 +1,4 @@
-// ✅ src/pages/App-1.jsx — padding inferior solo cuando autenticado
+// src/pages/App-1.jsx — franja gris bajo status bar (overlay transparente)
 import { useState, useEffect, useContext, useRef, useLayoutEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
@@ -10,6 +10,8 @@ import LoginModal from "../modals/LoginModal";
 import AppRoutes from "../routes";
 import MobileBottomNav from "../components/NavsLogeado/MobileBottomNav";
 import { ChatPanelPortal } from "../components/Chat/ChatPanelPortal";
+import { StatusBar, Style } from "@capacitor/status-bar";
+import { Capacitor } from "@capacitor/core";
 
 function App() {
   const { cargando, autenticado } = useContext(AuthContext);
@@ -43,6 +45,19 @@ function App() {
     return () => document.removeEventListener("click", handler);
   }, []);
 
+  // === StatusBar: transparente + overlay para dibujar nuestra franja gris bajo los iconos
+  useEffect(() => {
+    if (Capacitor.getPlatform() !== "web") {
+      (async () => {
+        try {
+          await StatusBar.setOverlaysWebView({ overlay: true });          // WebView debajo
+          await StatusBar.setBackgroundColor({ color: "transparent" });   // fondo transparente
+          await StatusBar.setStyle({ style: Style.Dark });                 // iconos/letras negras
+        } catch { }
+      })();
+    }
+  }, []);
+
   useEffect(() => {
     try {
       if (getSuppressLoginOnce()) {
@@ -62,7 +77,7 @@ function App() {
     }
   }, [location.key, navigate]);
 
-  // 🚀 Prefetch del chunk de /mi-cuenta cuando el usuario se autentica
+  // Prefetch del chunk de /mi-cuenta cuando el usuario se autentica
   useEffect(() => {
     if (autenticado) {
       try { import("../pages/MiCuenta/MiCuenta.jsx"); } catch { }
@@ -77,7 +92,7 @@ function App() {
     }
   }, [autenticado, navigate]);
 
-  // 🔹 Preparar variable CSS de altura de barra inferior si autenticado (sin clases globales en body)
+  // Variable CSS de altura de barra inferior si autenticado
   useLayoutEffect(() => {
     if (typeof document === "undefined") return;
     const root = document.documentElement;
@@ -88,25 +103,27 @@ function App() {
     }
   }, [autenticado]);
 
-  
   if (cargando) return <SplashScreen />;
 
   return (
     <>
-      <div className={autenticado ? "pb-bottom-safe" : ""}>
-        <AppRoutes
-          abrirModalLogin={openLogin}
-          abrirModalRegistro={(tipo) => {
-            setEsLogin(false);
-            setModalAbierto(true);
-            console.log("Registrarse como:", tipo);
-          }}
-        />
+      {/* Franja gris semitransparente bajo los iconos del sistema */}
+      <div className="statusbar-overlay" />
+
+      <div className={`pt-top-safe ${autenticado ? "pb-bottom-safe-plus-sys" : ""}`}>
+        <div className="pt-top-safe">
+          <AppRoutes
+            abrirModalLogin={openLogin}
+            abrirModalRegistro={(tipo) => {
+              setEsLogin(false);
+              setModalAbierto(true);
+              console.log("Registrarse como:", tipo);
+            }}
+          />
+        </div>
 
         <Tools />
-
         <ChatPanelPortal />
-
         {typeof window !== "undefined" && (
           <LoginModal
             isOpen={modalAbierto}

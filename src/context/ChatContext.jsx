@@ -55,44 +55,23 @@ export default function ChatProvider({ children }) {
     return headers;
   }, []);
 
-  // Usa el refresh oficial de api.js (evita duplicados/401)
-  const tryRefresh = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_BASE}/api/usuarios/auth/refresh`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
-      });
-
-      if (!res.ok) {
-        // Si el backend responde 401, no hay cookie rid → limpia y no reintentes
-        try { localStorage.removeItem("token"); } catch { }
-        try { setAuthSession && setAuthSession({ accessToken: null, user: null }); } catch { }
-        return false;
-      }
-
-      let j = {};
-      try { j = await res.json(); } catch { j = {}; }
-
-      const _acc = j?.token || j?.accessToken || j?.jwt;
-      if (!_acc) return false;
-
-      try { localStorage.setItem("token", _acc); } catch { }
-
-      try {
-        const s = (getAuthSession && getAuthSession()) || null;
-        const user = s?.user || JSON.parse(localStorage.getItem("usuario") || "null");
-        if (setAuthSession) setAuthSession({ accessToken: _acc, user });
-      } catch { }
-
-      try { clearSessionCache(); } catch { }
-
-      return true;
-    } catch {
-      return false;
-    }
-  }, []);
+   // No llamar /auth/refresh directo.
+   // Pide /session y deja que api.js haga refresh y retry si recibe 401.
+   const tryRefresh = useCallback(async () => {
+     try {
+       const data = await getJSON("/api/usuarios/session", {
+         headers: {},
+         credentials: "include",
+       });
+       // si hay usuario, quedó rehidratado (api.js ya hizo refresh si era necesario)
+       return !!data?.usuario;
+     } catch {
+       try { localStorage.removeItem("token"); } catch {}
+       try { setAuthSession && setAuthSession({ accessToken: null, user: null }); } catch {}
+       try { clearSessionCache(); } catch {}
+       return false;
+     }
+   }, []);
 
 
 
@@ -116,8 +95,10 @@ export default function ChatProvider({ children }) {
   }, [usuario]);
 
   const wsURL = useMemo(() => {
+    if (!API_BASE) return undefined; // same-origin (Vite proxy /socket.io)
     return API_BASE.replace(/^http/i, (m) => (m.toLowerCase() === "https" ? "wss" : "ws"));
-  }, []);
+  }, [API_BASE]);
+
 
   const socketRef = useRef(null);
   const notifiersRef = useRef(makeNotifiers());
@@ -141,7 +122,11 @@ export default function ChatProvider({ children }) {
       });
       s.on("connect", () => {
         console.info("[chat-socket] connected", { id: s.id, wsURL, sinceMs: Date.now() - startedAt });
-        s.emit("join", { usuarioId: me }); s.emit("user:join", String(me)); s.emit("user:status:request");
+        try { s.emit("join", { usuarioId: me }); } catch { }
+        try { s.emit("chat:join", { usuarioId: me }); } catch { }
+        try { s.emit("user:join", String(me)); } catch { }
+        try { s.emit("user:status:request"); } catch { }
+
       });
       s.on("disconnect", (reason) => { console.warn("[chat-socket] disconnected:", reason); });
       s.on("reconnect_attempt", (n) => { if (n % 10 === 0) console.info("[chat-socket] reconnecting… attempt", n); });
@@ -386,6 +371,18 @@ export default function ChatProvider({ children }) {
       return false;
     }
   }, [getAuthHeaders, tryRefresh, loadChats]);
+
+
+  // Auto-join rooms por cada chat (compatibilidad rooms por chat)
+  useEffect(() => {
+    const s = socketRef.current;
+    if (!s || !Array.isArray(chats) || chats.length === 0) return;
+    const ids = chats.map((c) => String(c?._id)).filter(Boolean);
+    ids.forEach((id) => {
+      try { s.emit("chat:room:join", id); } catch { }
+      try { s.emit("chat:joinRoom", id); } catch { }
+    });
+  }, [chats]);
 
   const value = useMemo(() => ({
     currentUserId: me,

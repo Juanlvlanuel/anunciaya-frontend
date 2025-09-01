@@ -101,7 +101,7 @@ const GoogleLoginButtonMobile = ({
   const [busy, setBusy] = useState(false);
   const [forceWeb, setForceWeb] = useState(false);
   const nonce = useMemo(() => genNonce(), []);
-
+  const gLocale = (navigator.language || "es").split("-")[0]; // "es", "en", etc.
   // Precarga en idle del módulo del botón + preconnect DNS/TLS
   useEffect(() => {
     ensurePreconnect();
@@ -126,7 +126,7 @@ const GoogleLoginButtonMobile = ({
       }
 
       // ✅ Ruta + cookies
-      const res = await axios.post(`${__API_BASE__}/api/usuarios/auth/google`, body, {
+      const res = await axios.post(`/api/usuarios/auth/google`, body, {
         withCredentials: true,
         headers: { "Content-Type": "application/json" },
       });
@@ -180,56 +180,56 @@ const GoogleLoginButtonMobile = ({
   };
 
   const handleNativeGoogle = async () => {
-  setBusy(true);
-  try {
-    const mod = await import("@capgo/capacitor-social-login");
-    const { SocialLogin } = mod || {};
-    if (!SocialLogin) throw new Error("SocialLogin plugin no cargó");
+    setBusy(true);
+    try {
+      const mod = await import("@capgo/capacitor-social-login");
+      const { SocialLogin } = mod || {};
+      if (!SocialLogin) throw new Error("SocialLogin plugin no cargó");
 
-    // Sign-In nativo con Google (Credential Manager)
-    const res = await SocialLogin.signIn({
-      provider: "google",
-      scopes: ["profile", "email"]
-    });
+      // Sign-In nativo con Google (Credential Manager)
+      const res = await SocialLogin.signIn({
+        provider: "google",
+        scopes: ["profile", "email"]
+      });
 
-    const idToken =
-      res?.idToken || res?.id_token || res?.token || res?.accessToken;
+      const idToken =
+        res?.idToken || res?.id_token || res?.token || res?.accessToken;
 
-    if (!idToken) throw new Error("No se recibió idToken de Google.");
+      if (!idToken) throw new Error("No se recibió idToken de Google.");
 
-    const { tipo: tipoEfectivo, perfil: perfilEfectivo } = obtenerTipoYPerfil(tipo, perfil);
-    const body = { credential: idToken, nonce };
-    if (modo === "registro") {
-      if (tipoEfectivo) body.tipo = tipoEfectivo;
-      if (perfilEfectivo?.perfil != null) body.perfil = perfilEfectivo.perfil;
+      const { tipo: tipoEfectivo, perfil: perfilEfectivo } = obtenerTipoYPerfil(tipo, perfil);
+      const body = { credential: idToken, nonce };
+      if (modo === "registro") {
+        if (tipoEfectivo) body.tipo = tipoEfectivo;
+        if (perfilEfectivo?.perfil != null) body.perfil = perfilEfectivo.perfil;
+      }
+
+      const r = await axios.post(`/api/usuarios/auth/google`, body, {
+        withCredentials: true,
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (r.status === 200 && r.data?.token) {
+        await iniciarSesion(r.data.token, r.data.usuario);
+        try { setAuthSession({ accessToken: r.data.token, user: r.data.usuario || null }); } catch { }
+        limpiarEstadoTemporal();
+        onClose && onClose();
+        onRegistroExitoso && onRegistroExitoso();
+        return;
+      }
+      Swal.fire({ icon: "warning", title: "Google", text: r?.data?.mensaje || "No se pudo autenticar con Google." });
+    } catch (e) {
+      // Si no está implementado o falla, caemos a Web.
+      setForceWeb(true);
+      Swal.fire({
+        icon: "info",
+        title: "Google Login",
+        text: "No se detectó el módulo nativo o falló el inicio; usando método web…",
+      });
+    } finally {
+      setBusy(false);
     }
-
-    const r = await axios.post(`${__API_BASE__}/api/usuarios/auth/google`, body, {
-      withCredentials: true,
-      headers: { "Content-Type": "application/json" },
-    });
-
-    if (r.status === 200 && r.data?.token) {
-      await iniciarSesion(r.data.token, r.data.usuario);
-      try { setAuthSession({ accessToken: r.data.token, user: r.data.usuario || null }); } catch {}
-      limpiarEstadoTemporal();
-      onClose && onClose();
-      onRegistroExitoso && onRegistroExitoso();
-      return;
-    }
-    Swal.fire({ icon: "warning", title: "Google", text: r?.data?.mensaje || "No se pudo autenticar con Google." });
-  } catch (e) {
-    // Si no está implementado o falla, caemos a Web.
-    setForceWeb(true);
-    Swal.fire({
-      icon: "info",
-      title: "Google Login",
-      text: "No se detectó el módulo nativo o falló el inicio; usando método web…",
-    });
-  } finally {
-    setBusy(false);
-  }
-};
+  };
 
 
 
@@ -312,7 +312,21 @@ const GoogleLoginButtonMobile = ({
             </button>
           }
         >
-          <GoogleLoginCmp onSuccess={handleSuccess} onError={() => handleError()} ux_mode="popup" nonce={nonce} />
+          <GoogleLoginCmp
+            onSuccess={handleSuccess}
+            onError={() => handleError()}
+            ux_mode="popup"
+            nonce={nonce}
+            theme="outline"
+            size="large"
+            type="standard"
+            text="signin_with"
+            shape="rectangular"
+            logo_alignment="left"
+            width={280}
+            locale={gLocale || "es"}
+          />
+
         </Suspense>
       )}
     </div>

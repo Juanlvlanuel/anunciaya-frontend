@@ -1,6 +1,5 @@
 import React from "react";
-import logo from "../../assets/logo-anunciaya.png";
-import CarrouselCategoriasDesktop from "../CarrouselCategorias/CarrouselCategoriasDesktop";
+import CarrouselSeccionesDesktop from "../CarrouselSecciones/CarrouselSeccionesDesktop";
 import { motion, AnimatePresence } from "framer-motion";
 
 const HeaderNoLogeadoDesktop = ({
@@ -23,7 +22,7 @@ const HeaderNoLogeadoDesktop = ({
         {/* Logo y eslogan a la izquierda */}
         <div className="flex items-center gap-10 flex-shrink-0 -ml-[200px]">
           <img
-            src={logo}
+            src="/logo-anunciaya.webp"
             alt="AnunciaYA Logo"
             className="w-[290px] object-contain transition-transform duration-300 ease-in-out hover:scale-110"
             draggable={false}
@@ -50,7 +49,7 @@ const HeaderNoLogeadoDesktop = ({
               exit={{ opacity: 0 }}
               transition={{ duration: 0.8, ease: "easeOut" }}
             >
-              <CarrouselCategoriasDesktop
+              <CarrouselSeccionesDesktop
                 onHoverAnyIcon={onHoverAnyIcon}
                 onLeaveAnyIcon={onLeaveAnyIcon}
                 onClickAnyIcon={onClickAnyIcon}

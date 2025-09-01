@@ -1,26 +1,91 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#000000" />
+
+  <!-- 🔇 Silenciador global: console + errores no capturados (desde el arranque) -->
+  <script>
+    (function () {
+      try {
+        var IGNORE_SUBSTR = [
+          // Google Identity + origen
+          "[GSI_LOGGER]",
+          "credential_button_library",
+          "The given origin is not allowed",
+          // COOP/COEP + postMessage
+          "Cross-Origin-Opener-Policy",
+          "policy would block the window.postMessage",
+          // React devtools banner
+          "react-devtools",
+          "Download the React DevTools"
+        ];
+
+        function includesAny(txt) {
+          if (!txt) return false;
+          for (var i = 0; i < IGNORE_SUBSTR.length; i++) {
+            if (txt.indexOf(IGNORE_SUBSTR[i]) !== -1) return true;
+          }
+          return false;
+        }
+        function toText(args) {
+          try {
+            return Array.prototype.map.call(args, function (a) {
+              if (typeof a === "string") return a;
+              if (a && a.message) return String(a.message);
+              try { return JSON.stringify(a); } catch (e) { return String(a); }
+            }).join(" ");
+          } catch (e) { return ""; }
+        }
+
+        // 1) Consola
+        ["warn", "error", "info", "log", "debug"].forEach(function (method) {
+          var orig = console[method];
+          console[method] = function () {
+            var txt = toText(arguments);
+            if (includesAny(txt)) return;
+            return orig.apply(console, arguments);
+          };
+        });
+
+        // 2) Errores no capturados (exceptions)
+        window.addEventListener("error", function (ev) {
+          var msg = (ev && ev.message) || ((ev && ev.error) ? (ev.error.message || String(ev.error)) : "");
+          if (includesAny(msg)) {
+            ev.preventDefault && ev.preventDefault();
+            ev.stopImmediatePropagation && ev.stopImmediatePropagation();
+            return false;
+          }
+        }, true);
+
+        // 3) Promesas no manejadas
+        window.addEventListener("unhandledrejection", function (ev) {
+          var rsn = ev && ev.reason;
+          var msg = rsn ? (rsn.message || String(rsn)) : "";
+          if (includesAny(msg)) {
+            ev.preventDefault && ev.preventDefault();
+            ev.stopImmediatePropagation && ev.stopImmediatePropagation();
+            return false;
+          }
+        }, true);
+      } catch (e) { /* no-op */ }
+    })();
+  </script>
+
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
   <title>AnunciaYA</title>
 
-  <!-- 🚀 FastUX: Preconnect / DNS-prefetch para acelerar handshake con Google OAuth -->
   <link rel="preconnect" href="https://accounts.google.com" crossorigin />
   <link rel="dns-prefetch" href="https://accounts.google.com" />
   <link rel="preconnect" href="https://ssl.gstatic.com" crossorigin />
   <link rel="dns-prefetch" href="https://ssl.gstatic.com" />
   <link rel="preconnect" href="https://apis.google.com" crossorigin />
   <link rel="dns-prefetch" href="https://apis.google.com" />
-  <!-- Preload del LCP (logo/hero) -->
-  <link rel="preload" as="image" href="/src/assets/logo-anunciaya.png" />
-  
-  <!-- ✅ SDK de Facebook (se mantiene) -->
+  <link rel="preload" as="image" href="/logo-anunciaya.webp" type="image/webp" fetchpriority="high">
+
   <script async defer crossorigin="anonymous" src="https://connect.facebook.net/es_LA/sdk.js"></script>
 
-  <!-- Early reserve for BottomNav on first paint if user was logged in before -->
   <script>
     (function () {
       try {
@@ -35,12 +100,9 @@
       } catch (e) { }
     })();
   </script>
-
 </head>
-
 <body>
   <div id="root"></div>
   <script type="module" src="/src/main.jsx"></script>
 </body>
-
 </html>

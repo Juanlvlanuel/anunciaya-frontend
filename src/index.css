@@ -3,6 +3,141 @@
 @tailwind utilities;
 
 
+/* === Inter Local (toda la familia) === */
+@font-face {
+  font-family: "Inter Local";
+  src: url("/font/inter/Inter-Thin.ttf") format("truetype");
+  font-weight: 100;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Inter Local";
+  src: url("/font/inter/Inter-ThinItalic.ttf") format("truetype");
+  font-weight: 100;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: "Inter Local";
+  src: url("/font/inter/Inter-ExtraLight.ttf") format("truetype");
+  font-weight: 200;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Inter Local";
+  src: url("/font/inter/Inter-ExtraLightItalic.ttf") format("truetype");
+  font-weight: 200;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: "Inter Local";
+  src: url("/font/inter/Inter-Light.ttf") format("truetype");
+  font-weight: 300;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Inter Local";
+  src: url("/font/inter/Inter-LightItalic.ttf") format("truetype");
+  font-weight: 300;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: "Inter Local";
+  src: url("/font/inter/Inter-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Inter Local";
+  src: url("/font/inter/Inter-Italic.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: "Inter Local";
+  src: url("/font/inter/Inter-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Inter Local";
+  src: url("/font/inter/Inter-MediumItalic.ttf") format("truetype");
+  font-weight: 500;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: "Inter Local";
+  src: url("/font/inter/Inter-SemiBold.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Inter Local";
+  src: url("/font/inter/Inter-SemiBoldItalic.ttf") format("truetype");
+  font-weight: 600;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: "Inter Local";
+  src: url("/font/inter/Inter-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Inter Local";
+  src: url("/font/inter/Inter-BoldItalic.ttf") format("truetype");
+  font-weight: 700;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: "Inter Local";
+  src: url("/font/inter/Inter-ExtraBold.ttf") format("truetype");
+  font-weight: 800;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Inter Local";
+  src: url("/font/inter/Inter-ExtraBoldItalic.ttf") format("truetype");
+  font-weight: 800;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: "Inter Local";
+  src: url("/font/inter/Inter-Black.ttf") format("truetype");
+  font-weight: 900;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Inter Local";
+  src: url("/font/inter/Inter-BlackItalic.ttf") format("truetype");
+  font-weight: 900;
+  font-style: italic;
+}
+
+/* Variable global */
+:root {
+  --app-font: "Inter Local", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans",
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+}
+
+html, body, #root {
+  font-family: var(--app-font) !important;
+}
+
+
+/* Fallback online SOLO si no existen los archivos locales (no interfiere si están presentes) */
+@supports (font-variation-settings: normal) {
+  @import url("https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap");
+}
+
+
 /* === Twemoji autohospedado === */
 @font-face {
   font-family: "Twemoji Local";
@@ -163,6 +298,8 @@ body {
   /* altura barra inferior en móvil */
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
   --safe-bottom-offset: calc(var(--bottom-nav-h) + var(--safe-area-bottom));
+  --sysbar-h: 40px;
+  /* altura de la franja negra fija */
 }
 
 @media (min-width: 768px) {
@@ -171,8 +308,18 @@ body {
   }
 }
 
-/* Utilidades para elementos fijados al fondo (sheets, toasts, popups) */
 @layer utilities {
+
+  /* Respeta la barra de estado / notch en TODAS las pantallas */
+  .pt-top-safe {
+     padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  /* Offset seguro para headers sticky/fixed */
+  .top-safe {
+    top: env(safe-area-inset-top, 0px);
+  }
+
   .bottom-safe {
     bottom: var(--safe-bottom-offset);
   }
@@ -184,7 +331,28 @@ body {
   .mb-bottom-safe {
     margin-bottom: var(--safe-bottom-offset);
   }
+
+  /* padding interno extra para la barra inferior (separa de la “pill”) */
+  .bottom-nav-safe {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+  }
+
+  .bottom-safe-only {
+    /* usa tu var ya definida y añade 8px de colchón */
+    bottom: calc(var(--safe-area-bottom) + 40px);
+  }
+
+  /* ✅ Añade al final de @layer utilities */
+  .bottom-offset-sysbar {
+    bottom: var(--sysbar-h);
+  }
+
+  /* Padding del contenido considerando bottom nav + franja negra */
+  .pb-bottom-safe-plus-sys {
+    padding-bottom: calc(var(--safe-bottom-offset) + var(--sysbar-h));
+  }
 }
+
 
 /* ====== FORZAR TEMA CLARO EN TODOS LOS DISPOSITIVOS ====== */
 :root {
@@ -196,6 +364,7 @@ html,
 body {
   background: #ffffff !important;
   color: #111111;
+  margin: 0;
 }
 
 /* Por si el SO intenta dark-mode */
@@ -207,6 +376,12 @@ body {
     color: #111111 !important;
   }
 }
+
+html,
+body {
+  overscroll-behavior: none;
+}
+
 
 /* Contenedores comunes (por si algún wrapper aplica herencias)
    Importante: NO incluimos [data-chat-scroll] aquí para permitir fondos dinámicos */
@@ -302,9 +477,11 @@ body.dark {
 
 /* Emojis dentro de texto (tokenizados en EmojiText.jsx) */
 .emoji-token {
-  font-size: 1.45em;     /* tamaño del emoji */
+  font-size: 1.45em;
+  /* tamaño del emoji */
   line-height: 1em;
-  vertical-align: -0.1em; /* súbelo un poco respecto al texto */
+  vertical-align: -0.1em;
+  /* súbelo un poco respecto al texto */
 }
 
 .emoji-token img {
@@ -313,4 +490,30 @@ body.dark {
   vertical-align: middle;
 }
 
+/* === Bloquea el overscroll/elástico en todos los contenedores que scrollean === */
+#root,
+.app-root,
+main,
+.chat-panel,
+.chat-window,
+[data-chat-scroll] {
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+}
 
+:root {
+  --statusbar-h: 35px;
+  /* altura base, ajustable por modelo */
+}
+
+/* === Toast (global) tweaks === */
+.toast-shadow { box-shadow: 0 8px 28px rgba(0,0,0,.12), 0 2px 8px rgba(0,0,0,.08); }
+
+@layer utilities {
+  .layout-safe {
+    height: calc(100svh - var(--bottom-nav-h) - 5px - var(--statusbar-h));
+    overflow: hidden;
+    background-color: #f6f7fb;
+    padding-top: max(env(safe-area-inset-top, 40px), var(--statusbar-h));
+  }
+}

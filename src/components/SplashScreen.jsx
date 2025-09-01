@@ -1,6 +1,5 @@
 import React from "react";
 import { motion } from "framer-motion";
-import logo from "../assets/logo-anunciaya.png"; // Cambia la ruta si tu logo está en otro lado
 
 const splashVariants = {
   hidden: { opacity: 0, scale: 0.92 },
@@ -26,7 +25,7 @@ export default function SplashScreen() {
       style={{ minHeight: "100vh", minWidth: "100vw" }}
     >
       <motion.img
-        src={logo}
+        src="/logo-anunciaya.webp" 
         alt="AnunciaYA Logo"
         className="w-24 h-24 mb-6 rounded-xl shadow-xl border-2 border-blue-200 bg-white"
         variants={pulseVariants}

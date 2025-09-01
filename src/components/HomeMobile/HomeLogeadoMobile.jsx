@@ -1,11 +1,12 @@
+// src/components/Home/HomeLogeadoMobile-1.jsx
 import React, { useContext } from "react";
+import { Link } from "react-router-dom";
 import HeaderLogeadoMobile from "../HeaderLogeado/HeaderLogeadoMobile";
-import SidebarCategoriasLogeado from "../SidebarCategoriasLogeado";
 import MobileBottomNav from "../NavsLogeado/MobileBottomNav";
 import { AuthContext } from "../../context/AuthContext";
 import { motion } from "framer-motion";
 
-// NUEVO
+// (Se mantienen, aunque abajo añadimos un acceso rápido explícito)
 import SeccionNegociosLocales from "../SeccionNegociosLocales";
 import SeccionServicios from "../SeccionServicios";
 
@@ -58,10 +59,6 @@ const HomeLogeadoMobile = () => {
       <div className="relative z-20">
         <HeaderLogeadoMobile />
       </div>
-
-      {/* Sidebar vertical retráctil */}
-      <SidebarCategoriasLogeado />
-
       {/* Main */}
       <main className="flex-1 flex flex-col items-center justify-start relative z-10 pt-3 pb-32 px-6">
         {/* Tarjeta de saludo */}
@@ -104,7 +101,43 @@ const HomeLogeadoMobile = () => {
           </motion.span>
         </motion.div>
 
-        {/* === NUEVAS SECCIONES (debajo del saludo) === */}
+        {/* Acceso rápido — Negocios Locales */}
+        <div className="w-full max-w-3xl">
+          <Link
+            to="/negocios-locales"
+            className="
+              block w-full rounded-2xl border border-[#e8eaee] bg-white/95
+              shadow-md hover:shadow-lg transition-all
+              px-5 py-4 mb-6
+            "
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center shadow">
+                  {/* Ícono simple (flecha/tienda) */}
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2364ef" strokeWidth="2">
+                    <path d="M3 7l1-3h16l1 3" />
+                    <path d="M3 7h18v4a5 5 0 01-5 5H8a5 5 0 01-5-5V7z" />
+                    <path d="M8 21h8" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="text-[#0C1424] font-extrabold text-lg leading-tight tracking-tight">
+                    Negocios Locales
+                  </div>
+                  <div className="text-slate-600 text-sm">
+                    Encuentra comercios y servicios cerca de ti
+                  </div>
+                </div>
+              </div>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2364ef" strokeWidth="2">
+                <path d="M9 6l6 6-6 6" />
+              </svg>
+            </div>
+          </Link>
+        </div>
+
+        {/* Secciones existentes (se conservan) */}
         <div className="w-full max-w-3xl space-y-8">
           <SeccionNegociosLocales titulo="Negocios Locales" color="#2364ef" />
           <SeccionServicios titulo="Servicios" color="#2364ef" />

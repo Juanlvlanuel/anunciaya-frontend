@@ -1,7 +1,11 @@
-// tailwind.config.js
+// tailwind.config-1.js — limpia el warning de line-clamp (v3.3 ya lo incluye por defecto)
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}'],
+  safelist: [
+    // Mantengo la safelist por si usas line-clamp dinámico en runtime
+    { pattern: /line-clamp-(1|2|3|4|5|6)/ },
+  ],
   theme: {
     extend: {
       animation: {
@@ -15,5 +19,6 @@ export default {
       },
     },
   },
+  // Tailwind 3.3+ ya trae line-clamp por defecto, así que dejamos plugins vacío.
   plugins: [],
 };

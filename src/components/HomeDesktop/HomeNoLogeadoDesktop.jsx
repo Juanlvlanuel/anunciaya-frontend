@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import HeaderNoLogeado from "../HeaderNoLogeado";
 import RegistroModal from "../../modals/RegistroModal";
 import PerfilModal from "../../modals/PerfilModal";
-import CarrouselCategorias from "../CarrouselCategorias";
+import CarrouselSecciones from "../CarrouselSecciones";
 import { motion, AnimatePresence } from "framer-motion";
 import { UbiContext } from "../../context/UbiContext"; // Ajusta la ruta si es diferente
 import { AuthContext } from "../../context/AuthContext";
@@ -396,7 +396,7 @@ const HomeNoLogeadoMobile = () => {
         style={{ willChange: "transform, opacity" }}
       >
         <div className="pointer-events-auto">
-          <CarrouselCategorias />
+          <CarrouselSecciones />
         </div>
       </motion.div>
     </div>
