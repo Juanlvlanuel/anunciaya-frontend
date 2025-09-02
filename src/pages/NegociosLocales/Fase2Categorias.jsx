@@ -1,3 +1,4 @@
+
 // src/pages/NegociosLocales/Fase2Categorias-1.jsx
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -6,6 +7,8 @@ import BuscadorNegociosAuto from "../../components/Negocios/BuscadorNegociosAuto
 import MobileBottomNav from "../../components/NavsLogeado/MobileBottomNav";
 import { CATEGORIAS, getIconPath, DEFAULT_ICON } from "../../config/categorias.config";
 import PillsSubCategorias from "../../components/Negocios/PillsSubCategorias";
+import GridCategorias2x2 from "../../components/Negocios/GridCategorias2x2";
+import ListaNegociosHorizontal from "../../components/Negocios/ListaNegociosHorizontal";
 
 const CONTENT_W = "w-full max-w-[400px]";
 const H_PADDING = "px-3";
@@ -18,10 +21,14 @@ const normalize = (s = "") =>
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 const slugify = (s = "") => normalize(s).replace(/\s+/g, "-");
+const deslugifyMatch = (slug, arr) => {
+  const found = (arr || []).find((n) => slugify(typeof n === "string" ? n : n?.name) === slug);
+  return typeof found === "string" ? found : found?.name || slug;
+};
 
-// THEME (ajustado a VERDE para "Alimentos y Consumo")
+// THEME
 const THEME = {
-  "Alimentos y Consumo": { base: "#16a34a", soft: "#eaf8ef" }, // VERDE
+  "Alimentos y Consumo": { base: "#16a34a", soft: "#eaf8ef" },
   "Salud y Cuidado Personal": { base: "#16a34a", soft: "#eaf8ef" },
   "Servicios Profesionales y Generales": { base: "#0ea5e9", soft: "#e6f6ff" },
   "Boutiques y Tiendas": { base: "#db2777", soft: "#ffe9f3" },
@@ -48,7 +55,7 @@ export default function Fase2Categorias() {
   const location = useLocation();
   const navigate = useNavigate();
   const paramsUrl = new URLSearchParams(location.search);
-  const { grupo: grupoFromPath } = useParams();
+  const { grupo: grupoFromPath, subcat: subcatFromPath } = useParams();
 
   const grupoSlug = grupoFromPath || paramsUrl.get("grupo") || "";
 
@@ -59,17 +66,22 @@ export default function Fase2Categorias() {
   }, []);
 
   const grupoObj = indexBySlug.get(grupoSlug) || null;
+  const groupName = grupoObj?.name || "Servicios Profesionales y Generales";
 
-  const theme =
-    THEME[grupoObj?.name || "Servicios Profesionales y Generales"] ||
-    THEME["Servicios Profesionales y Generales"];
-  const heroUrl =
-    HERO_BY_GROUP[grupoObj?.name] ||
-    "/icons/CategoriasNegocios/Servicios/_cover.webp";
+  const theme = THEME[groupName] || THEME["Servicios Profesionales y Generales"];
+  const heroUrl = HERO_BY_GROUP[groupName] || "/icons/CategoriasNegocios/Servicios/_cover.webp";
 
-  const [showAll, setShowAll] = useState(false);
+  // Altura del bloque fijo para compensar el scroll
   const [fixedH, setFixedH] = useState(360);
   const fixedRef = useRef(null);
+
+  // Modo y estado
+  const [modo, setModo] = useState("explorar"); // explorar | resultados
+  const [subcatActiva, setSubcatActiva] = useState("");
+  const [scrollYPrevio, setScrollYPrevio] = useState(0);
+
+  // Negocios (listado horizontal 3 por pantalla)
+  const [negocios, setNegocios] = useState([]);
 
   useEffect(() => {
     const el = fixedRef.current;
@@ -80,44 +92,84 @@ export default function Fase2Categorias() {
     return () => ro.disconnect();
   }, []);
 
-  const subcats = grupoObj?.subcats || [];
-  const visibleSubcats = showAll ? subcats : subcats.slice(0, 4);
-  const hasMore = subcats.length > 4;
+  const subcats = useMemo(() => {
+    const raw = grupoObj?.subcats || [];
+    return raw.map((c) => {
+      const name = typeof c === "string" ? c : c?.name;
+      const src = getIconPath(grupoObj?.name, name) || DEFAULT_ICON;
+      return { name, src };
+    });
+  }, [grupoObj]);
+
+  // Sincroniza modo con la URL (:subcat) — si hay subcat, mostrar resultados horizontales
+  useEffect(() => {
+    if (subcatFromPath) {
+      const niceName = deslugifyMatch(subcatFromPath, grupoObj?.subcats);
+      setSubcatActiva(niceName);
+      setModo("resultados");
+
+      // DEMO: cargar 18 negocios. Sustituir por fetch real.
+      const subcatSlug = subcatFromPath;
+      const ejemplo = Array.from({ length: 18 }).map((_, i) => ({
+        id: `${subcatSlug}-${i}`,
+        name: `${niceName} ${i + 1}`,
+        category: niceName,
+        rating: 4.5,
+        reviews: 80 + i,
+        distanceKm: (0.4 + 0.1 * i).toFixed(1),
+        isOpen: true,
+        photoUrl: "",
+        badges: i % 3 === 0 ? ["VIP"] : i % 5 === 0 ? ["Envío gratis"] : [],
+      }));
+      setNegocios(ejemplo);
+    } else {
+      setModo("explorar");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subcatFromPath, grupoSlug]);
 
   const onSelectCat = (c) => {
     const cat = typeof c === "string" ? c : c?.name || "";
     const subcatSlug = slugify(cat);
     const targetGrupo =
       grupoObj?.slug || grupoSlug || "servicios-profesionales-generales";
+
+    setScrollYPrevio(window.scrollY || 0);
     navigate(`/negocios/${targetGrupo}/${subcatSlug}`, { replace: false });
   };
 
-  const pills = subcats;
+  const pills = grupoObj?.subcats || [];
 
   return (
     <div
       className="relative bg-[#f7f8fb] overflow-hidden"
       style={{ minHeight: "calc(100svh - var(--bottom-nav-h, 0px) - 40px)" }}
     >
-      {/* BLOQUE FIJO: Header + Hero + Buscador + Pills */}
+      {/* BLOQUE FIJO: Header + (Hero condicional) + Buscador + Pills */}
       <div ref={fixedRef} className="fixed inset-x-0 top-7 z-50 bg-transparent">
         <HeaderLogeadoMobile />
 
-        <section className="w-full pt-3">
-          <div className="relative h-[210px] overflow-hidden">
-            <img
-              src={heroUrl}
-              alt={grupoObj?.name || "cover"}
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white via-white/80 to-transparent" />
-          </div>
-        </section>
+        {/* HERO solo en explorar */}
+        {modo === "explorar" && (
+          <section className="w-full pt-3">
+            <div className="relative h-[210px] overflow-hidden">
+              <img
+                src={heroUrl}
+                alt={groupName || "cover"}
+                className="w-full h-full object-cover"
+                width="800"
+                height="210"
+              />
+              <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white via-white/80 to-transparent" />
+            </div>
+          </section>
+        )}
 
-        <div className="-mt-10 px-3">
+        {/* Buscador */}
+        <div className={`${modo === "explorar" ? "-mt-10" : "mt-3"} px-3 transition-all`}>
           <BuscadorNegociosAuto
             scope="negocios"
-            scopeName={grupoObj?.name || "Negocios Locales"}
+            scopeName={groupName || "Negocios Locales"}
             onBuscar={(q) => {
               const targetGrupo =
                 grupoObj?.slug || grupoSlug || "servicios-profesionales-generales";
@@ -126,96 +178,79 @@ export default function Fase2Categorias() {
           />
         </div>
 
-        <div className="mt-0">
+        {/* Pills */}
+        <div className="mt-4">
           {pills.length > 0 && (
-            <PillsSubCategorias pills={pills} onSelect={onSelectCat} theme={theme} />
+            <PillsSubCategorias
+              pills={pills}
+              onSelect={onSelectCat}
+              theme={theme}
+            />
           )}
         </div>
       </div>
 
-      {/* CONTENIDO SCROLLEABLE */}
+      {/* CONTENIDO */}
       <div style={{ paddingTop: fixedH + 0 }}>
-        <section className={`w-full flex justify-center ${H_PADDING}`}>
-          <div className={`${CONTENT_W} mx-auto`}>
-            <div className="mt-5 grid grid-cols-2 gap-3">
-              {visibleSubcats.map((c) => {
-                const name = typeof c === "string" ? c : c.name;
-                const src = getIconPath(grupoObj?.name, name) || DEFAULT_ICON;
-                return (
-                  <button
-                    key={name}
-                    onClick={() => onSelectCat(c)}
-                    className="h-[110px] rounded-2xl bg-white border border-[#e6e9f0] shadow-sm flex flex-col items-center justify-center text-center hover:brightness-[1.02]"
-                    style={{ boxShadow: `0 8px 20px ${theme.base}10` }}
-                  >
-                    <div className="mb-0 flex items-center justify-center" aria-hidden="true">
-                      <img src={src} alt="" width="48" height="48" loading="lazy" />
+        {/* EXPLORAR: grid de subcategorías + banner */}
+        {modo === "explorar" && (
+          <>
+            <section className={`w-full flex justify-center ${H_PADDING}`}>
+              <div className={`${CONTENT_W} mx-auto`}>
+                <div className="mt-10">
+                  <GridCategorias2x2
+                    subcats={subcats}
+                    theme={theme}
+                    onSelect={onSelectCat}
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section className={`w-full flex justify-center mt-4 ${H_PADDING}`}>
+              <div className={`${CONTENT_W} mx-auto`}>
+                <div className="rounded-2xl border border-[#e6e9f0] bg-white overflow-hidden shadow flex h-[80px]">
+                  <div className="w-[40%] h-full bg-[#f1f5f9]" />
+                  <div className="flex-1 p-2 flex flex-col justify-center">
+                    <div className="text-[14px] font-extrabold text-[#0C1424] leading-tight">
+                      Descubre los mejores
                     </div>
-                    <span className="text-[14px] text-[#0C1424] font-semibold leading-tight px-2 line-clamp-2">
-                      {name}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {hasMore && !showAll && (
-              <div className="flex justify-center mt-8">
-                <button
-                  onClick={() => setShowAll(true)}
-                  className="-mt-6 px-5 h-10 rounded-full bg-white border border-[#e6e9f0] shadow-sm text-[#0C1424] font-semibold active:scale-95"
-                >
-                  + Categorías
-                </button>
+                    <div className="text-[14px] font-extrabold text-[#0C1424] leading-tight">
+                      Restaurantes de tu zona
+                    </div>
+                    <div className="text-[11px] text-[#64748b]">
+                      Explora recomendaciones seleccionadas.
+                    </div>
+                  </div>
+                </div>
               </div>
-            )}
+            </section>
+          </>
+        )}
 
-            {showAll && hasMore && (
-              <div className="grid grid-cols-2 gap-3 mt-3">
-                {subcats.slice(4).map((c) => {
-                  const name = typeof c === "string" ? c : c.name;
-                  const src = getIconPath(grupoObj?.name, name) || DEFAULT_ICON;
-                  return (
-                    <button
-                      key={name + "-more"}
-                      onClick={() => onSelectCat(c)}
-                      className="h-[110px] rounded-2xl bg-white border border-[#e6e9f0] shadow-sm flex flex-col items-center justify-center text-center hover:brightness-[1.02]"
-                      style={{ boxShadow: `0 8px 20px ${theme.base}10` }}
-                    >
-                      <div className="mb-2 flex items-center justify-center" aria-hidden="true">
-                        <img src={src} alt="" width="28" height="28" loading="lazy" />
-                      </div>
-                      <span className="text:[14px] text-[#0C1424] font-semibold leading-tight px-2 line-clamp-2">
-                        {name}
-                      </span>
-                    </button>
-                  );
-                })}
+        {/* RESULTADOS: listado horizontal (3 por pantalla) */}
+        {modo === "resultados" && (
+          <section className={`w-full flex justify-center ${H_PADDING}`}>
+            <div className={`${CONTENT_W} mx-auto w-full`}>
+              {/* Contexto */}
+              <div className="mt-4 text-[12px] text-[#64748b] px-1">
+                {groupName} › <span className="font-semibold text-[#0C1424]">{subcatActiva}</span>
+                {negocios.length ? ` · ${negocios.length} resultados` : ""}
               </div>
-            )}
-          </div>
-        </section>
 
-        <section className={`w-full flex justify-center mt-2 ${H_PADDING}`}>
-          <div className={`${CONTENT_W} mx-auto`}>
-            <div className="rounded-2xl border border-[#e6e9f0] bg-white overflow-hidden shadow flex h-[80px]">
-              <div className="w-[40%] h-full bg-[#f1f5f9]" />
-              <div className="flex-1 p-2 flex flex-col justify-center">
-                <div className="text-[14px] font-extrabold text-[#0C1424] leading-tight">
-                  Descubre los mejores
-                </div>
-                <div className="text-[14px] font-extrabold text-[#0C1424] leading-tight">
-                  Restaurantes de tu zona
-                </div>
-                <div className="text-[11px] text-[#64748b]">
-                  Explora recomendaciones seleccionadas.
-                </div>
+              {/* Lista horizontal compacta */}
+              <div className="mt-3 mb-4">
+                <ListaNegociosHorizontal
+                  items={negocios}
+                  onView={(it) => {}}
+                  onCall={(it) => {}}
+                  onOrder={(it) => {}}
+                  onChat={(it) => {}}
+                />
               </div>
             </div>
-          </div>
-        </section>
-
-        <div className="h-4" />
+          </section>
+        )}
       </div>
 
       <div className="fixed bottom-0 left-0 w-full z-40">

@@ -2,11 +2,11 @@
 import React from "react";
 
 /**
- * PillsSubCategorias — loop infinito bidireccional + autoplay suave
- * - Scroll nativo con el dedo en ambos sentidos (sin fricción)
- * - Loop infinito: al llegar a borde izq/der se reajusta sin brincos
- * - Autoplay lento (0.1–0.3), pausa al interactuar y reanuda luego
- * - Activo por LABEL (todas las copias del mismo item se pintan)
+ * PillsSubCategorias — autoplay suave con delta-tiempo (sin jitter)
+ * - Scroll nativo bidireccional con el dedo
+ * - Autoplay basado en tiempo (px/seg) para suavidad constante
+ * - Reajuste instantáneo (return inmediato) al cruzar bordes del loop
+ * - Sin redondeos y sin correcciones en onScroll (evita peleas)
  */
 export default function PillsSubCategorias({ pills = [], onSelect, theme }) {
   const wrapRef = React.useRef(null);
@@ -16,9 +16,10 @@ export default function PillsSubCategorias({ pills = [], onSelect, theme }) {
   const draggingRef = React.useRef(false);
   const resumeTimerRef = React.useRef(null);
 
-  // autoplay
+  // autoplay (px/seg)
   const posRef = React.useRef(0);
-  const speedRef = React.useRef(0.3); // ajusta 0.1–0.3
+  const speedPxRef = React.useRef(30); // se siente suave
+  const lastTsRef = React.useRef(0);
 
   // duplicamos para loop; 4x mejora el margen de reajuste
   const items = React.useMemo(() => {
@@ -33,38 +34,53 @@ export default function PillsSubCategorias({ pills = [], onSelect, theme }) {
   React.useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
-    // esperamos a que renderice para obtener tamaños correctos
     const id = requestAnimationFrame(() => {
       const half = (el.scrollWidth - el.clientWidth) / 2;
-      el.scrollLeft = half / 2; // punto medio del primer half
+      el.scrollLeft = half / 2;
       posRef.current = el.scrollLeft;
+      lastTsRef.current = performance.now();
     });
     return () => cancelAnimationFrame(id);
   }, [items.length]);
 
-  // ticker de autoplay
+  // ticker de autoplay con delta-time
   React.useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
     let raf;
-    const tick = () => {
+
+    const tick = (ts) => {
+      if (!lastTsRef.current) lastTsRef.current = ts;
+      const dt = Math.min((ts - lastTsRef.current) / 1000, 0.05); // máx 50ms
+      lastTsRef.current = ts;
+
       if (!isPausedRef.current && !draggingRef.current) {
-        posRef.current += speedRef.current;
-        el.scrollLeft = posRef.current;
+        const next = el.scrollLeft + speedPxRef.current * dt;
+        posRef.current = next;
+        el.scrollLeft = next;
+      } else {
+        // cuando está pausado, mantenemos posRef sincronizado
+        posRef.current = el.scrollLeft;
       }
 
-      // reajuste de loop infinito (funciona para ambos sentidos)
+      // loop infinito con reajuste instantáneo y retorno temprano
       const half = (el.scrollWidth - el.clientWidth) / 2;
-      if (el.scrollLeft <= 0) {
+      // usamos 0.5px de tolerancia
+      if (el.scrollLeft <= 0.5) {
         el.scrollLeft += half;
         posRef.current = el.scrollLeft;
-      } else if (el.scrollLeft >= half) {
+        raf = requestAnimationFrame(tick);
+        return;
+      } else if (el.scrollLeft >= half - 0.5) {
         el.scrollLeft -= half;
         posRef.current = el.scrollLeft;
+        raf = requestAnimationFrame(tick);
+        return;
       }
 
       raf = requestAnimationFrame(tick);
     };
+
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, []);
@@ -83,6 +99,7 @@ export default function PillsSubCategorias({ pills = [], onSelect, theme }) {
       draggingRef.current = false;
       isPausedRef.current = false;
       resumeTimerRef.current = null;
+      lastTsRef.current = performance.now(); // reinicia delta para evitar salto
     }, ms);
   };
 
@@ -107,7 +124,7 @@ export default function PillsSubCategorias({ pills = [], onSelect, theme }) {
   const activeBg = base;
   const borderColor = rgba(base, 0.6);
 
-  // ✅ activo por LABEL (todas las copias se pintan)
+  // activo por LABEL
   const [activeLabel, setActiveLabel] = React.useState(null);
 
   return (
@@ -119,6 +136,7 @@ export default function PillsSubCategorias({ pills = [], onSelect, theme }) {
           touchAction: "pan-x",
           WebkitOverflowScrolling: "touch",
           overscrollBehaviorX: "contain",
+          scrollbarGutter: "stable",
         }}
         // desktop
         onMouseEnter={pause}
@@ -128,18 +146,10 @@ export default function PillsSubCategorias({ pills = [], onSelect, theme }) {
         // táctil
         onTouchStart={() => { pause(); draggingRef.current = true; }}
         onTouchEnd={() => resumeWithDelay(150)}
-        // sincroniza posRef SIEMPRE y reajusta bordes para loop infinito
+        // sincroniza posRef (sin reajustar bordes)
         onScroll={(e) => {
           const el = e.currentTarget;
           posRef.current = el.scrollLeft;
-          const half = (el.scrollWidth - el.clientWidth) / 2;
-          if (el.scrollLeft <= 0) {
-            el.scrollLeft += half;
-            posRef.current = el.scrollLeft;
-          } else if (el.scrollLeft >= half) {
-            el.scrollLeft -= half;
-            posRef.current = el.scrollLeft;
-          }
         }}
       >
         <div className="flex gap-2 w-max pr-6">
@@ -152,7 +162,7 @@ export default function PillsSubCategorias({ pills = [], onSelect, theme }) {
                   setActiveLabel(p.label);
                   onSelect?.(p.label);
                 }}
-                className="px-4 h-9 rounded-full text-[13px] font-semibold whitespace-nowrap transition-[background,transform] duration-150 active:scale-95 focus:outline-none"
+                className="px-4 h-10 rounded-xl text-[13px] font-semibold whitespace-nowrap transition-[background,transform] duration-150 active:scale-95 focus:outline-none"
                 style={{
                   border: `1px solid ${borderColor}`,
                   color: isActive ? "#ffffff" : "#0C1424",

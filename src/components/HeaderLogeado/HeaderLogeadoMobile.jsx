@@ -17,8 +17,10 @@ const HeaderLogeadoMobile = () => {
   const showBack = !isHome;
 
   const handleBack = () => {
-    if (window.history.length > 1) {
-      navigate(-1);
+    const segments = location.pathname.split("/").filter(Boolean);
+    if (segments.length > 1) {
+      const parentPath = "/" + segments.slice(0, -1).join("/");
+      navigate(parentPath);
     } else {
       navigate("/");
     }
