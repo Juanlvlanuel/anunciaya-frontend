@@ -1,27 +1,16 @@
-
 // src/config/categorias.config-1.js
 // Catálogo Maestro + Rutas de íconos por carpeta en /public/icons/CategoriasNegocios
+//
+// Ajuste: carpetas renombradas para coincidir con tu estructura real del /public:
+//   Comida, Salud, Servicios, Comercios, Diversion, Movilidad, Finanzas, Educacion, Mascotas
+//
+// Convención de archivo para subcategorías:
+//   /icons/CategoriasNegocios/<Carpeta>/<slug>.webp
+//   <slug> = minúsculas, sin acentos, espacios→guiones.
+// Ícono por defecto:
+const DEFAULT_ICON = "/icons/CategoriasNegocios/Servicios/servicios.webp";
 
-/*
-Carpetas (exactamente como están en /public/icons/CategoriasNegocios):
-- Alimentos
-- Salud
-- Servicios
-- Boutiques
-- Entretenimiento
-- Transporte
-- S.Financieros
-- Educacion
-- Mascotas
-
-Convención de archivo:
-- Cada subcategoría apunta a /icons/CategoriasNegocios/<Carpeta>/<slug>.webp
-- <slug> es el nombre de la subcategoría en minúsculas, sin acentos ni caracteres raros,
-  espacios por guiones. Ej: "Comida Rápida" -> "comida-rapida.webp"
-- Ícono por defecto: /icons/CategoriasNegocios/servicios.webp
-*/
-
-// ========================= Utils =========================
+// Utils
 const normalize = (s = "") =>
   s
     .toLowerCase()
@@ -32,17 +21,15 @@ const normalize = (s = "") =>
 
 const slugify = (s = "") => normalize(s).replace(/\s+/g, "-");
 
-const DEFAULT_ICON = "/icons/CategoriasNegocios/servicios.webp";
-
-// Mapa de carpeta por grupo
+// Mapa grupo → carpeta física
 export const GROUP_FOLDER = {
-  "Alimentos y Consumo": "Alimentos",
-  "Salud y Cuidado Personal": "Salud",
-  "Servicios Profesionales y Generales": "Servicios",
-  "Boutiques y Tiendas": "Boutiques",
-  "Entretenimiento": "Entretenimiento",
-  "Transporte y Movilidad": "Transporte",
-  "Servicios Financieros": "S.Financieros",
+  "Comida": "Comida",
+  "Salud & Fit": "Salud",
+  "Servicios": "Servicios",
+  "Comercios": "Comercios",
+  "Diversión": "Diversion",
+  "Movilidad": "Movilidad",
+  "Finanzas": "Finanzas",
   "Educación y Cuidado": "Educacion",
   "Mascotas": "Mascotas",
 };
@@ -50,8 +37,8 @@ export const GROUP_FOLDER = {
 // ====================== Catálogo =========================
 export const CATEGORIAS = [
   {
-    name: "Alimentos y Consumo",
-    slug: "alimentos-consumo",
+    name: "Comida",
+    slug: "comida",
     subcats: [
       "Restaurantes",
       "Cafeterías",
@@ -73,8 +60,8 @@ export const CATEGORIAS = [
     ],
   },
   {
-    name: "Salud y Cuidado Personal",
-    slug: "salud-cuidado-personal",
+    name: "Salud & Fit",
+    slug: "salud-fit",
     subcats: [
       "Médicos y Clínicas Generales",
       "Hospitales y Centros de Salud",
@@ -93,8 +80,8 @@ export const CATEGORIAS = [
     ],
   },
   {
-    name: "Servicios Profesionales y Generales",
-    slug: "servicios-profesionales-generales",
+    name: "Servicios",
+    slug: "servicios",
     subcats: [
       "Hogar y Mantenimiento",
       "Eventos y Producciones",
@@ -106,8 +93,8 @@ export const CATEGORIAS = [
     ],
   },
   {
-    name: "Boutiques y Tiendas",
-    slug: "boutiques-tiendas",
+    name: "Comercios",
+    slug: "comercios",
     subcats: [
       "Boutiques y Ropa",
       "Zapaterías",
@@ -124,8 +111,8 @@ export const CATEGORIAS = [
     ],
   },
   {
-    name: "Entretenimiento",
-    slug: "entretenimiento",
+    name: "Diversión",
+    slug: "diversion",
     subcats: [
       "Bares y Antros",
       "Karaoke y Salones Recreativos",
@@ -136,8 +123,8 @@ export const CATEGORIAS = [
     ],
   },
   {
-    name: "Transporte y Movilidad",
-    slug: "transporte-movilidad",
+    name: "Movilidad",
+    slug: "movilidad",
     subcats: [
       "Taxis",
       "Renta de Vehículos",
@@ -151,8 +138,8 @@ export const CATEGORIAS = [
     ],
   },
   {
-    name: "Servicios Financieros",
-    slug: "servicios-financieros",
+    name: "Finanzas",
+    slug: "finanzas",
     subcats: [
       "Casas de Empeño",
       "Préstamos y Créditos",
@@ -187,7 +174,6 @@ export const CATEGORIAS = [
   },
 ];
 
-// ================ Rutas por subcategoría =================
 // Devuelve la ruta absoluta en /public para el ícono de una subcategoría
 export function getIconPath(groupName, subcatName) {
   const folder = GROUP_FOLDER[groupName];
@@ -196,5 +182,11 @@ export function getIconPath(groupName, subcatName) {
   return `/icons/CategoriasNegocios/${folder}/${file}`;
 }
 
-// Ícono por defecto si no encuentras el de la subcategoría
+// Ruta del cover del grupo (hero)
+export function getGroupCover(groupName) {
+  const folder = GROUP_FOLDER[groupName];
+  if (!folder) return "/icons/CategoriasNegocios/Servicios/_cover.webp";
+  return `/icons/CategoriasNegocios/${folder}/_cover.webp`;
+}
+
 export { DEFAULT_ICON };

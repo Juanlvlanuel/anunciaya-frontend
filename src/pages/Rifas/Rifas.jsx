@@ -1,6 +1,6 @@
 // ✅ src/pages/Rifas.jsx (RENOMBRADO Y AJUSTADO)
 import { useContext, useEffect, useState } from "react";
-import { UbiContext } from "../context/UbiContext";
+import { UbiContext } from "../../context/UbiContext";
 import Swal from "sweetalert2";
 
 const Rifas = () => {

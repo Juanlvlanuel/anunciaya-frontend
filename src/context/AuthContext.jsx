@@ -28,6 +28,9 @@ import { UbiContext } from "./UbiContext";
 
 
 axios.defaults.withCredentials = true;
+// Evita envíos duplicados del login (single-flight)
+let __loginInflight = null;
+
 
 const AuthContext = createContext();
 
@@ -305,26 +308,33 @@ const AuthProvider = ({ children }) => {
 
   const login = async ({ correo, contraseña }) => {
     limpiarEstadoTemporal();
-    try {
-      const res = await axios.post(
-        `${API_BASE}/api/usuarios/login`,
-        { correo, contraseña },
-        { withCredentials: true, headers: { "Content-Type": "application/json" } }
-      );
-      await iniciarSesion(res.data?.token, res.data?.usuario);
-      return res.data;
-    } catch (err) {
-      const mensaje = (err && err.response && err.response.data && err.response.data.mensaje)
-        ? err.response.data.mensaje
-        : (err && err.message)
-          ? err.message
-          : "Error al iniciar sesión";
-      try { localStorage.removeItem("token"); } catch { }
-      try { localStorage.removeItem("wasLoggedIn"); } catch { }
-      try { setAuthSession && setAuthSession({ accessToken: null, user: null }); } catch { }
-      setAutenticado(false);
-      throw new Error(mensaje);
-    }
+    // Single-flight: si ya hay un login en curso, reusa esa promesa
+    if (__loginInflight) return __loginInflight;
+    __loginInflight = (async () => {
+      try {
+        const res = await axios.post(
+          `${API_BASE}/api/usuarios/login`,
+          { correo, contraseña },
+          { withCredentials: true, headers: { "Content-Type": "application/json" } }
+        );
+        await iniciarSesion(res.data?.token, res.data?.usuario);
+        return res.data;
+      } catch (err) {
+        const mensaje = (err && err.response && err.response.data && err.response.data.mensaje)
+          ? err.response.data.mensaje
+          : (err && err.message)
+            ? err.message
+            : "Error al iniciar sesión";
+        try { localStorage.removeItem("token"); } catch { }
+        try { localStorage.removeItem("wasLoggedIn"); } catch { }
+        try { setAuthSession && setAuthSession({ accessToken: null, user: null }); } catch { }
+        setAutenticado(false);
+        throw new Error(mensaje);
+      } finally {
+        __loginInflight = null;
+      }
+    })();
+    return __loginInflight;
   };
 
   const registrar = async ({ nombre, correo, contraseña, nickname }) => {

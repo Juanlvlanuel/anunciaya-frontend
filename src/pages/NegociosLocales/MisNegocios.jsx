@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
+import { Link } from "react-router-dom";
 import { patch, negocios } from "../../services/api";
 import CrearNegocioModal from "../../components/Negocios/CrearNegocioModal";
 import NegocioMediaUploader from "../../components/Negocios/NegocioMediaUploader";
@@ -55,7 +56,7 @@ export default function MisNegocios() {
         const fresh = list.find(x => x._id === mediaItem._id);
         if (fresh) setMediaItem(fresh);
       }
-    } catch (e) {
+    } catch {
       setItems([]);
     } finally {
       setLoading(false);
@@ -133,11 +134,24 @@ export default function MisNegocios() {
     return resp;
   };
 
+  const hasItems = !loading && items.length > 0;
+
   return (
     <div className="min-h-screen bg-[#f6f8fa] pb-24">
       <header className="sticky top-0 z-40 bg-white/95 border-b border-slate-200 backdrop-blur">
         <div className="max-w-[640px] mx-auto px-4 py-3">
-          <h1 className="text-lg font-extrabold text-[#0C1424] tracking-tight">Mis negocios</h1>
+          <div className="flex items-center justify-between gap-3">
+            <h1 className="text-lg font-extrabold text-[#0C1424] tracking-tight">Mis negocios</h1>
+            {hasItems && (
+              <Link
+                to="/panel/mis-negocios/nuevo"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 hover:shadow"
+              >
+                <span className="text-base leading-none">＋</span>
+                <span className="text-sm font-medium">Crear negocio</span>
+              </Link>
+            )}
+          </div>
           <p className="text-slate-600 text-sm">Gestiona tus negocios (activar/desactivar, editar, borrar, fotos).</p>
         </div>
       </header>
@@ -149,7 +163,13 @@ export default function MisNegocios() {
           <Card>
             <div className="p-6 text-center text-slate-600">
               <div className="text-3xl mb-2">📭</div>
-              <p className="text-sm">Aún no has publicado negocios.</p>
+              <p className="text-sm mb-3">Aún no has publicado negocios.</p>
+              <Link
+                to="/panel/mis-negocios/nuevo"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-blue-600 bg-blue-600 text-white hover:brightness-110"
+              >
+                <span>Crear mi primer negocio</span>
+              </Link>
             </div>
           </Card>
         ) : (
@@ -183,11 +203,7 @@ export default function MisNegocios() {
                       <p className="text-slate-600 text-sm">{n.categoria} · {n.ciudad}</p>
                     </div>
                     <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium border select-none ${
-                        n.activo
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                          : "bg-rose-50 text-rose-700 border-rose-200"
-                      }`}
+                      className={`px-2 py-1 rounded-full text-xs font-medium border select-none ${n.activo ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-rose-50 text-rose-700 border-rose-200"}`}
                     >
                       {n.activo ? "Activo" : "Inactivo"}
                     </span>

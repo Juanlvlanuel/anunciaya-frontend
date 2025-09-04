@@ -56,11 +56,11 @@ const HeaderLogeadoMobile = () => {
                 type="button"
                 aria-label="Regresar"
                 onClick={handleBack}
-                className="relative top-[-4px] ml-2 inline-flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 shadow-[4px_4px_8px_rgba(0,0,0,0.15),-4px_-4px_8px_rgba(255,255,255,0.8)] hover:shadow-[2px_2px_4px_rgba(0,0,0,0.2),-2px_-2px_4px_rgba(255,255,255,0.7)] active:scale-[0.95]"
+                className="relative top-[-4px] ml-2 inline-flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 shadow-[4px_4px_8px_rgba(0,0,0,0.15),-4px_-4px_8px_rgba(255,255,255,0.8)] hover:shadow-[2px_2px_4px_rgba(0,0,0,0.2),-2px_-2px_4px_rgba(255,255,255,0.7)] active:scale-[0.95]"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none"
                   viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}
-                  className="w-5 h-5 text-slate-700">
+                  className="w-6 h-6 text-slate-700">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
@@ -79,7 +79,7 @@ const HeaderLogeadoMobile = () => {
                 loading="eager"
                 decoding="async"
                 fetchpriority="high"
-                className={`w-[210px] max-w-[62vw] mx-auto drop-shadow-lg transition-transform duration-200 ${logoPressed ? "scale-95" : "scale-100"
+                className={`w-[220px] max-w-[65vw] mx-auto drop-shadow-lg transition-transform duration-200 ${logoPressed ? "scale-95" : "scale-100"
                   }`}
                 draggable="false"
                 onTouchStart={handleLogoTouch}

@@ -1,108 +1,94 @@
-
 // src/pages/NegociosLocales/Fase1Lobby-1.jsx
-import React, { useContext } from "react";
-import { motion } from "framer-motion";
-import CarrouselCategoriasNegocios from "../../components/CarrouselCategoriasNegocios";
+import React, { useContext, useEffect, useState, useCallback } from "react";
 import BotonPublicarNegocio from "../../components/Negocios/BotonPublicarNegocio";
 import BuscadorNegociosAuto from "../../components/Negocios/BuscadorNegociosAuto";
 import { AuthContext } from "../../context/AuthContext";
+import { negocios } from "../../services/api";
+import HeaderLogeadoMobile from "../../components/HeaderLogeado/HeaderLogeadoMobile";
+import HeroLobbyCurvo from "../../components/Negocios/HeroLobbyCurvo";
+import CarrouselSubNegocios from "../../components/Negocios/CarrouselSubNegocios";
+import ExpiringPromosCarousel from "../../components/Promos/ExpiringPromosCarousel";
 
-/* =====================
-   Categorías MADRE (9) — slugs finales para /negocios/:grupo
-   ===================== */
 const CATS = [
-  { key: "alimentos-consumo", label: "Alimentos y Consumo", icon: "/icons/CategoriasNegocios/alimentos.webp" },
-  { key: "salud-cuidado-personal", label: "Salud y Cuidado Personal", icon: "/icons/CategoriasNegocios/salud.webp" },
-  { key: "servicios-profesionales-generales", label: "Servicios Profesionales y Generales", icon: "/icons/CategoriasNegocios/servicios.webp" },
-  { key: "boutiques-tiendas", label: "Boutiques y Tiendas", icon: "/icons/CategoriasNegocios/boutiques.webp" },
-  { key: "entretenimiento", label: "Entretenimiento", icon: "/icons/CategoriasNegocios/entretenimiento.webp" },
-  { key: "transporte-movilidad", label: "Transporte y Movilidad", icon: "/icons/CategoriasNegocios/transporte.webp" },
-  { key: "servicios-financieros", label: "Servicios Financieros", icon: "/icons/CategoriasNegocios/financieros.webp" },
+  { key: "comida", label: "Comida", icon: "/icons/CategoriasNegocios/alimentos.webp" },
+  { key: "salud-fit", label: "Salud & Fit", icon: "/icons/CategoriasNegocios/salud.webp" },
+  { key: "servicios", label: "Servicios", icon: "/icons/CategoriasNegocios/servicios.webp" },
+  { key: "comercios", label: "Comercios", icon: "/icons/CategoriasNegocios/comercios.webp" },
+  { key: "diversion", label: "Diversión", icon: "/icons/CategoriasNegocios/diversion.webp" },
+  { key: "movilidad", label: "Movilidad", icon: "/icons/CategoriasNegocios/movilidad.webp" },
+  { key: "finanzas", label: "Finanzas", icon: "/icons/CategoriasNegocios/finanzas.webp" },
   { key: "educacion-cuidado", label: "Educación y Cuidado", icon: "/icons/CategoriasNegocios/educacion.webp" },
   { key: "mascotas", label: "Mascotas", icon: "/icons/CategoriasNegocios/mascotas.webp" },
 ];
 
 export default function Fase1Lobby() {
   const { usuario } = useContext(AuthContext);
+  const esComerciante = usuario?.tipo === "comerciante";
+
+  const [hasNegocios, setHasNegocios] = useState(false);
+  const cargarFlag = useCallback(async () => {
+    if (!esComerciante) { setHasNegocios(false); return; }
+    try {
+      const data = await negocios.listMine({ limit: 1 });
+      const count = Array.isArray(data?.items) ? data.items.length : 0;
+      setHasNegocios(count > 0);
+    } catch { setHasNegocios(false); }
+  }, [esComerciante]);
+  useEffect(() => { cargarFlag(); }, [cargarFlag]);
 
   const goSearch = (q) => {
     if (!q) return;
     window.location.assign(`/negocios/fase2?search=${encodeURIComponent(q)}&scope=negocios`);
   };
+  const goCat = (slug) => slug && window.location.assign(`/negocios/${slug}`);
+  const goPublicar = () => window.location.assign("/panel/mis-negocios/nuevo");
+  const goMisNegocios = () => window.location.assign("/panel/mis-negocios");
 
-  // Navegar por path /negocios/:grupo
-  const goCat = (slug) => {
-    if (!slug) return;
-    window.location.assign(`/negocios/${slug}`);
-  };
-
-  const goPublicar = () => {
-    window.location.assign("/panel/mis-negocios");
-  };
+  const itemsCarrusel = CATS.map((c) => ({
+    nombre: c.label,
+    archivo: c.icon,
+    slug: c.key,
+  }));
 
   return (
-    <div className="layout-safe">
-      {/* ENCABEZADO con animación */}
-      <div className="z-10">
-        <div className="bg-white/95 backdrop-blur border-b border-[#e8ebf2]">
-          <div className="mx-auto max-w-[520px] px-4 pt-5 pb-2">
-            {/* Título animado centrado */}
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.45, ease: [0.2, 0.8, 0.2, 1] }}
-              className="flex items-center justify-center"
-            >
-              <h1 className="text-4xl font-extrabold leading-none tracking-tight bg-gradient-to-b from-[#1e78ff] to-[#0a4fc2] bg-clip-text text-transparent text-center">
-                Negocios Locales
-              </h1>
-            </motion.div>
+    <div className="layout-safe bg-[#f7f8fb]">
+      <HeaderLogeadoMobile />
 
-            {/* Buscador con auto-completado y alcance */}
-            <motion.div
-              initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.45, delay: 0.08 }}
-              className="mt-3"
-            >
-              <div className="mx-auto max-w-[520px]">
-                <BuscadorNegociosAuto
-                  scope="negocios"
-                  scopeName="Negocios Locales"
-                  onBuscar={goSearch}
-                />
-              </div>
-            </motion.div>
-
-            {/* Carrusel de categorías de Negocios Locales */}
-            <div className="mt-3">
-              <CarrouselCategoriasNegocios
-                categorias={CATS}
-                onSelect={(slug) => goCat(slug)}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* HERO (foto) */}
       <div className="mx-auto max-w-[520px]">
-        <div className="relative w-full">
-          <img
-            src={"/img/NegociosFase1.webp"}
-            alt="Negocios Locales"
-            className="block w-full h-[calc(100svh-150px-var(--bottom-nav-h))] object-cover object-center"
-            width="1080"
-            height="1440"
-            loading="lazy"
-            decoding="async"
-          />
-        </div>
+        <HeroLobbyCurvo section="NEGOCIOS" />
       </div>
 
-      {/* FAB Publicar centrado, sobre el Bottom Nav */}
-      {usuario?.tipo === "comerciante" && (
-        <BotonPublicarNegocio onClick={goPublicar} label="Publicar" />
+      <div className="mx-auto max-w-[520px] px-4 mt-2">
+        <BuscadorNegociosAuto scope="negocios" scopeName="Negocios Locales" onBuscar={goSearch} />
+      </div>
+
+      {/* Carrusel estilo Uber con los íconos de categorías */}
+      <div className="mx-auto max-w-[520px] px-2 -mt-3">
+        <CarrouselSubNegocios
+          items={itemsCarrusel}
+          onItemClick={(item) => goCat(item.slug)}
+          autoplay
+          speed={0.7}
+          repeticiones={6}
+          maxWidthClass="max-w-[520px]"
+        />
+      </div>
+
+      {/* Carrusel de Promos por vencer */}
+      <div className="mx-auto max-w-[520px] px-2 mt-3">
+        <ExpiringPromosCarousel
+          // sin fetcher → usa mock interno hasta conectar endpoint real
+          onView={(p) => window.location.assign(`/negocio/${p?.negocio?.id}?promo=${p?.id}`)}
+          onUse={(p) => window.location.assign(`/cupon/${p?.id}/usar`)}
+        />
+      </div>
+
+      {esComerciante && (
+        <BotonPublicarNegocio
+          hasNegocios={hasNegocios}
+          onClickPublicar={goPublicar}
+          onClickMisNegocios={goMisNegocios}
+        />
       )}
     </div>
   );

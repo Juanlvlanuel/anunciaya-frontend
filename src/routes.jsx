@@ -1,5 +1,3 @@
-
-// routes-1.jsx — flujo Negocios Locales con rutas compatibles
 import React, { Suspense, lazy } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 
@@ -16,15 +14,16 @@ const HomeSelector = lazy(() =>
 );
 
 // ===== Negocios Locales (nuevo flujo en carpeta) =====
-const NegociosLocales = lazy(() => import("./pages/NegociosLocales/index.jsx"));           // Fase 1 (Lobby)
+const Fase1Lobby = lazy(() => import("./pages/NegociosLocales/Fase1Lobby.jsx")); // Fase 1 (Lobby)
 const Fase2Categorias = lazy(() => import("./pages/NegociosLocales/Fase2Categorias.jsx")); // Fase 2 (detalle por grupo)
 const NegocioDetalle = lazy(() => import("./pages/NegociosLocales/NegocioDetalle.jsx"));
 const MisNegocios = lazy(() => import("./pages/NegociosLocales/MisNegocios.jsx"));
+const NegocioNuevo = lazy(() => import("./pages/NegociosLocales/NegocioNuevo.jsx")); // NUEVO: crear negocio
 
-const Marketplace = lazy(() => import("./pages/Marketplace"));
-const Promociones = lazy(() => import("./pages/Promociones"));
-const Subastas = lazy(() => import("./pages/Subastas"));
-const Rifas = lazy(() => import("./pages/Rifas"));
+const Marketplace = lazy(() => import("./pages/Marketplace/Marketplace"));
+const Promociones = lazy(() => import("./pages/Promociones/Promociones"));
+const Subastas = lazy(() => import("./pages/Subastas/Subastas"));
+const Rifas = lazy(() => import("./pages/Rifas/Rifas"));
 const RegalaODona = lazy(() => import("./pages/RegalaODona"));
 const Empleos = lazy(() => import("./pages/Empleos"));
 const MiCuenta = lazy(() => import("./pages/MiCuenta/MiCuenta.jsx"));
@@ -56,7 +55,7 @@ const AppRoutes = ({ abrirModalLogin, abrirModalRegistro }) => (
 
       {/* ===== Rutas públicas ===== */}
       {/* Nuevo flujo Negocios Locales */}
-      <Route path="/negocios" element={<NegociosLocales />} />
+      <Route path="/negocios" element={<Fase1Lobby />} />
       <Route path="/negocios/:grupo" element={<Fase2Categorias />} />
       {/* NUEVA: subcategoría directa (reutiliza Fase2Categorias para leer :subcat) */}
       <Route path="/negocios/:grupo/:subcat" element={<Fase2Categorias />} />
@@ -101,6 +100,18 @@ const AppRoutes = ({ abrirModalLogin, abrirModalRegistro }) => (
           <RequireAuth>
             <RequireRole role="comerciante">
               <MisNegocios />
+            </RequireRole>
+          </RequireAuth>
+        }
+      />
+
+      {/* ✅ NUEVO: Crear negocio (protegido) */}
+      <Route
+        path="/panel/mis-negocios/nuevo"
+        element={
+          <RequireAuth>
+            <RequireRole role="comerciante">
+              <NegocioNuevo />
             </RequireRole>
           </RequireAuth>
         }

@@ -1,11 +1,10 @@
-
 // src/pages/NegociosLocales/Fase2Categorias-1.jsx
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import HeaderLogeadoMobile from "../../components/HeaderLogeado/HeaderLogeadoMobile";
 import BuscadorNegociosAuto from "../../components/Negocios/BuscadorNegociosAuto";
 import MobileBottomNav from "../../components/NavsLogeado/MobileBottomNav";
-import { CATEGORIAS, getIconPath, DEFAULT_ICON } from "../../config/categorias.config";
+import { CATEGORIAS, getIconPath, DEFAULT_ICON, getGroupCover } from "../../config/categorias.config";
 import PillsSubCategorias from "../../components/Negocios/PillsSubCategorias";
 import GridCategorias2x2 from "../../components/Negocios/GridCategorias2x2";
 import ListaNegociosHorizontal from "../../components/Negocios/ListaNegociosHorizontal";
@@ -26,29 +25,17 @@ const deslugifyMatch = (slug, arr) => {
   return typeof found === "string" ? found : found?.name || slug;
 };
 
-// THEME
+// THEME (colores UI, no afecta rutas de imágenes)
 const THEME = {
-  "Alimentos y Consumo": { base: "#16a34a", soft: "#eaf8ef" },
-  "Salud y Cuidado Personal": { base: "#16a34a", soft: "#eaf8ef" },
-  "Servicios Profesionales y Generales": { base: "#0ea5e9", soft: "#e6f6ff" },
-  "Boutiques y Tiendas": { base: "#db2777", soft: "#ffe9f3" },
-  "Entretenimiento": { base: "#7c3aed", soft: "#f4edff" },
-  "Transporte y Movilidad": { base: "#0ea5e9", soft: "#e6f6ff" },
-  "Servicios Financieros": { base: "#0f766e", soft: "#e6fffa" },
+  "Comida": { base: "#16a34a", soft: "#eaf8ef" },
+  "Salud & Fit": { base: "#16a34a", soft: "#eaf8ef" },
+  "Servicios": { base: "#0ea5e9", soft: "#e6f6ff" },
+  "Comercios": { base: "#db2777", soft: "#ffe9f3" },
+  "Diversión": { base: "#7c3aed", soft: "#f4edff" },
+  "Movilidad": { base: "#0ea5e9", soft: "#e6f6ff" },
+  "Finanzas": { base: "#0f766e", soft: "#e6fffa" },
   "Educación y Cuidado": { base: "#475569", soft: "#eef2f7" },
   "Mascotas": { base: "#ea580c", soft: "#fff3e9" },
-};
-
-const HERO_BY_GROUP = {
-  "Alimentos y Consumo": "/icons/CategoriasNegocios/Alimentos/_cover.webp",
-  "Salud y Cuidado Personal": "/icons/CategoriasNegocios/Salud/_cover.webp",
-  "Servicios Profesionales y Generales": "/icons/CategoriasNegocios/Servicios/_cover.webp",
-  "Boutiques y Tiendas": "/icons/CategoriasNegocios/Boutiques/_cover.webp",
-  "Entretenimiento": "/icons/CategoriasNegocios/Entretenimiento/_cover.webp",
-  "Transporte y Movilidad": "/icons/CategoriasNegocios/Transporte/_cover.webp",
-  "Servicios Financieros": "/icons/CategoriasNegocios/S.Financieros/_cover.webp",
-  "Educación y Cuidado": "/icons/CategoriasNegocios/Educacion/_cover.webp",
-  "Mascotas": "/icons/CategoriasNegocios/Mascotas/_cover.webp",
 };
 
 export default function Fase2Categorias() {
@@ -66,10 +53,10 @@ export default function Fase2Categorias() {
   }, []);
 
   const grupoObj = indexBySlug.get(grupoSlug) || null;
-  const groupName = grupoObj?.name || "Servicios Profesionales y Generales";
+  const groupName = grupoObj?.name || "Servicios";
 
-  const theme = THEME[groupName] || THEME["Servicios Profesionales y Generales"];
-  const heroUrl = HERO_BY_GROUP[groupName] || "/icons/CategoriasNegocios/Servicios/_cover.webp";
+  const theme = THEME[groupName] || THEME["Servicios"];
+  const heroUrl = getGroupCover(groupName);
 
   // Altura del bloque fijo para compensar el scroll
   const [fixedH, setFixedH] = useState(360);
@@ -132,8 +119,7 @@ export default function Fase2Categorias() {
     const cat = typeof c === "string" ? c : c?.name || "";
     const subcatSlug = slugify(cat);
     const targetGrupo =
-      grupoObj?.slug || grupoSlug || "servicios-profesionales-generales";
-
+      grupoObj?.slug || grupoSlug || "servicios";
     setScrollYPrevio(window.scrollY || 0);
     navigate(`/negocios/${targetGrupo}/${subcatSlug}`, { replace: false });
   };
@@ -172,7 +158,7 @@ export default function Fase2Categorias() {
             scopeName={groupName || "Negocios Locales"}
             onBuscar={(q) => {
               const targetGrupo =
-                grupoObj?.slug || grupoSlug || "servicios-profesionales-generales";
+                grupoObj?.slug || grupoSlug || "servicios";
               navigate(`/buscar?grupo=${targetGrupo}&q=${encodeURIComponent(q)}`);
             }}
           />
@@ -218,7 +204,7 @@ export default function Fase2Categorias() {
                     <div className="text-[14px] font-extrabold text-[#0C1424] leading-tight">
                       Restaurantes de tu zona
                     </div>
-                    <div className="text-[11px] text-[#64748b]">
+                    <div className="text_[11px] text-[#64748b]">
                       Explora recomendaciones seleccionadas.
                     </div>
                   </div>

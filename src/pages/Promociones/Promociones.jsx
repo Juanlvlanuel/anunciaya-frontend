@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from "react";
-import { UbiContext } from "../context/UbiContext";
+import { UbiContext } from "../../context/UbiContext";
 import Swal from "sweetalert2";
 import { FaHeart, FaRegHeart, FaShareAlt, FaSave, FaRegSave } from "react-icons/fa";
 

@@ -1,11 +1,12 @@
+// src/components/CarrouselSeccionesMobile-1.jsx
 import React, { useRef, useEffect } from "react";
 import comercioIcon from "../../assets/icons/comercios.png";
 import marketplaceIcon from "../../assets/icons/marketplace.png";
 import ofertasIcon from "../../assets/icons/ofertas.png";
 import subastaIcon from "../../assets/icons/subasta.png";
 import rifaIcon from "../../assets/icons/rifa.png";
-import donativosIcon from "../../assets/icons/donativos.png";
-import bolsaIcon from "../../assets/icons/bolsa.png";
+import turismoIcon from "../../assets/icons/turismo.png";
+import comunidadIcon from "../../assets/icons/comunidad.png";
 
 const iconos = [
   { nombre: "Negocios\nLocales", archivo: comercioIcon },
@@ -13,8 +14,8 @@ const iconos = [
   { nombre: "Promociones", archivo: ofertasIcon },
   { nombre: "Subastas", archivo: subastaIcon },
   { nombre: "Rifas", archivo: rifaIcon },
-  { nombre: "Regala\no Dona", archivo: donativosIcon },
-  { nombre: "Empleos", archivo: bolsaIcon },
+  { nombre: "Turismo", archivo: turismoIcon },
+  { nombre: "Comunidad", archivo: comunidadIcon },
 ];
 
 // Repite íconos varias veces para hacer efecto infinito
@@ -99,7 +100,7 @@ export default function CarrouselCategoriasMobile() {
             key={icono.nombre + idx}
             className="
               flex flex-col items-center justify-center
-              min-w-[72px] max-w-[86px] mx-3
+              min-w-[72px] max-w-[86px] mx-5
               active:scale-95 transition-all duration-150
               group outline-none
             "
@@ -109,46 +110,50 @@ export default function CarrouselCategoriasMobile() {
           >
             <div
               className="
-                flex items-center justify-center
-                w-16 h-16 bg-white rounded-xl mb-0.5
-                shadow-[0_2px_8px_0_rgba(44,114,255,0.11)]
-                group-active:scale-95
-                transition-all duration-150
-                overflow-hidden
-              "
+    flex items-center justify-center
+    mb-0.5
+    group-active:scale-95
+    transition-all duration-150
+  "
             >
               <img
                 src={icono.archivo}
                 alt={icono.nombre.replace('\n', ' ')}
-                className="max-w-[70%] max-h-[70%] object-contain"
+                className="w-16 h-16 object-contain"
                 draggable="false"
-                style={{ aspectRatio: "1 / 1", display: "block" }}
               />
             </div>
-            <span
-              className="
-                text-[14px] mt-1 text-blue-800 font-bold text-center
-                leading-[1.22] tracking-tight whitespace-pre-line
-                transition-all duration-150 group-active:text-blue-700
-                select-none
-              "
-              style={{
-                textShadow: `
-                  0 0 3px #fff,
-                  0 0 2px #fff,
-                  1px 1px 0 #fff,
-                  -1px -1px 0 #fff,
-                  1px -1px 0 #fff,
-                  -1px 1px 0 #fff,
-                  0 2px 6px #b3e3ff29,
-                  0 1px 0 #ffffffcf
-                `,
-                letterSpacing: "-0.01em",
-                filter: "brightness(0.98) contrast(1.12)"
-              }}
-            >
-              {icono.nombre}
-            </span>
+
+            <div className="relative leading-[1.22] tracking-tight whitespace-pre-line select-none">
+              {/* Capa 1: SOLO contorno blanco, detrás */}
+              <span
+                className="absolute inset-0 text-center font-bold"
+                style={{
+                  WebkitTextStroke: "5px white", // grosor del contorno (ajusta 0.8–1.5)
+                  color: "transparent",            // sin relleno, solo borde
+                  textShadow: "0 1px 0 #ffffffcf", // brillo suave opcional
+                  filter: "brightness(0.98) contrast(1.12)",
+                }}
+              >
+                {icono.nombre}
+              </span>
+
+              {/* Capa 2: relleno AZUL, enfrente */}
+              <span
+                className="relative text-[16px] text-blue-800 font-bold text-center transition-all duration-150 group-active:text-blue-700"
+                style={{
+                  // sin stroke aquí, para que no tape el relleno
+                  textShadow: "0 0 2px rgba(255,255,255,0.35)", // leve halo para legibilidad
+                  letterSpacing: "-0.01em",
+                  filter: "brightness(0.98) contrast(1.12)",
+                  display: "block",
+                }}
+              >
+                {icono.nombre}
+              </span>
+            </div>
+
+
           </button>
         ))}
       </div>

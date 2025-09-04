@@ -20,10 +20,13 @@ const overlayVariants = {
 
 const limpiarEstadoTemporal = () => { try { removeFlag("tipoCuentaIntentada"); removeFlag("perfilCuentaIntentada"); } catch {} };
 
+const STORAGE_KEY = "loginData";
+
 const LoginModal = ({ isOpen, onClose }) => {
   const [correo, setCorreo] = useState("");
   const [contraseña, setContraseña] = useState("");
   const [mostrarPassword, setMostrarPassword] = useState(false);
+  const [recordarDatos, setRecordarDatos] = useState(false);
 
   const { login , iniciarSesion } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -34,15 +37,45 @@ const LoginModal = ({ isOpen, onClose }) => {
     setMostrarPassword(false);
   };
 
+  // Helper centralizado para guardar datos
+  const saveLoginData = (correoVal, contraseñaVal) => {
+    try {
+      // Guarda solo si hay algún dato (evita persistir strings vacíos)
+      const hasAny = (correoVal && correoVal.trim() !== "") || (contraseñaVal && contraseñaVal !== "");
+      if (!hasAny) return;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ correo: correoVal, contraseña: contraseñaVal }));
+    } catch {}
+  };
+
   useEffect(() => {
     if (isOpen) {
       limpiarEstadoTemporal();
       resetForm();
+      // Cargar datos guardados si existen
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed?.correo && parsed?.contraseña) {
+            setCorreo(parsed.correo);
+            setContraseña(parsed.contraseña);
+            setRecordarDatos(true);
+          }
+        }
+      } catch {}
     } else {
       resetForm();
     }
     return () => limpiarEstadoTemporal();
   }, [isOpen]);
+
+  // ⬇️ Nuevo: si el toggle está activo y el usuario escribe después,
+  // guardamos en vivo los cambios al localStorage.
+  useEffect(() => {
+    if (recordarDatos) {
+      saveLoginData(correo, contraseña);
+    }
+  }, [correo, contraseña, recordarDatos]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -153,6 +186,29 @@ const LoginModal = ({ isOpen, onClose }) => {
     }, { scope: "email,public_profile" });
   };
 
+  const toggleId = "recordarDatosToggle";
+
+  const handleToggle = () => {
+    const nuevoValor = !recordarDatos;
+    setRecordarDatos(nuevoValor);
+    if (nuevoValor) {
+      // Guardar datos actuales (si existen) e informar al usuario
+      saveLoginData(correo, contraseña);
+      Swal.fire({
+        toast: true,
+        position: "top-end",
+        icon: "info",
+        title: "Tus datos se guardarán en este dispositivo.\nNo uses esta opción en equipos compartidos.",
+        showConfirmButton: false,
+        timer: 3500,
+        timerProgressBar: true
+      });
+    } else {
+      // Borrar datos
+      try { localStorage.removeItem(STORAGE_KEY); } catch {}
+    }
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -221,6 +277,37 @@ const LoginModal = ({ isOpen, onClose }) => {
                   {mostrarPassword ? <FaEyeSlash /> : <FaEye />}
                 </button>
               </div>
+
+              {/* Toggle: Recordar mis datos */}
+              <div className="mb-3">
+                <div className="w-full flex items-center justify-between gap-4 select-none">
+                  <label htmlFor={toggleId} className="text-gray-800 text-[0.98rem] font-medium cursor-pointer">
+                    Recordar mis datos
+                  </label>
+                  <div className="inline-flex items-center">
+                    <input
+                      id={toggleId}
+                      type="checkbox"
+                      checked={recordarDatos}
+                      onChange={handleToggle}
+                      className="sr-only"
+                    />
+                    <div
+                      className={`w-[52px] h-[30px] rounded-full relative transition-colors duration-200 shadow-inner ${
+                        recordarDatos ? "bg-[#1745CF]" : "bg-gray-200"
+                      }`}
+                      onClick={handleToggle}
+                    >
+                      <div
+                        className={`absolute top-1/2 -translate-y-1/2 w-[22px] h-[22px] bg-white rounded-full shadow transition-all duration-200 ${
+                          recordarDatos ? "left-7" : "left-1"
+                        }`}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <button
                 type="submit"
                 className="w-full bg-[#1745CF] hover:bg-[#123da3] text-white font-semibold py-3 rounded-xl mt-1 text-lg shadow transition"
