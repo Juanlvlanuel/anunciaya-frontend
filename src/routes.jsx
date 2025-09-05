@@ -21,12 +21,12 @@ const MisNegocios = lazy(() => import("./pages/NegociosLocales/MisNegocios.jsx")
 const NegocioNuevo = lazy(() => import("./pages/NegociosLocales/NegocioNuevo.jsx")); // NUEVO: crear negocio
 
 const Marketplace = lazy(() => import("./pages/Marketplace/Marketplace"));
-const Promociones = lazy(() => import("./pages/Promociones/Promociones"));
 const Subastas = lazy(() => import("./pages/Subastas/Subastas"));
 const Rifas = lazy(() => import("./pages/Rifas/Rifas"));
 const RegalaODona = lazy(() => import("./pages/RegalaODona"));
 const Empleos = lazy(() => import("./pages/Empleos"));
-const MiCuenta = lazy(() => import("./pages/MiCuenta/MiCuenta.jsx"));
+const Panel = lazy(() => import("./pages/Panel/Panel.jsx"));
+const ChatPage = lazy(() => import("./pages/ChatPage.jsx"));
 const VerificarCorreo = lazy(() => import("./pages/VerificarCorreo"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const GoogleCallback = lazy(() => import("./pages/GoogleCallback"));
@@ -65,7 +65,7 @@ const AppRoutes = ({ abrirModalLogin, abrirModalRegistro }) => (
       <Route path="/negocios/:id" element={<NegocioDetalle />} />
 
       <Route path="/marketplace" element={<Marketplace />} />
-      <Route path="/promociones" element={<Promociones />} />
+      <Route path="/promociones" element={<Navigate to="/" replace />} />
       <Route path="/subastas" element={<Subastas />} />
       <Route path="/rifas" element={<Rifas />} />
       <Route path="/regala-o-dona" element={<RegalaODona />} />
@@ -76,7 +76,7 @@ const AppRoutes = ({ abrirModalLogin, abrirModalRegistro }) => (
         path="/mi-cuenta"
         element={
           <RequireAuth>
-            <MiCuenta />
+            <Panel />
           </RequireAuth>
         }
       />
@@ -118,33 +118,19 @@ const AppRoutes = ({ abrirModalLogin, abrirModalRegistro }) => (
       />
 
       {/* Alias */}
-      <Route path="/cuenta" element={<Navigate to="/mi-cuenta" replace />} />
+      <Route path="/panel" element={<Panel />} />
 
-      {/* Ejemplo gated */}
       <Route
-        path="/promos/nueva"
+        path="/chat"
         element={
           <RequireAuth>
-            <RequireAbility action="promo:create">
-              <RequireFeature flag="promos">
-                <div className="p-4">Crear Promoción</div>
-              </RequireFeature>
-            </RequireAbility>
+            <ChatPage />
           </RequireAuth>
         }
       />
 
-      {/* Extras */}
-      <Route path="/verificar-email" element={<VerificarCorreo />} />
-      <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/auth/google/callback" element={<GoogleCallback />} />
 
-      {/* Admin */}
-      <Route path="/admin" element={<LoginAdmin />} />
-      <Route path="/admin/PanelAdministrativo" element={<PanelAdministrativo />}>
-        <Route path="carousel" element={<CarouselPage />} />
-        <Route path="catalogo" element={<CatalogoAcciones />} />
-      </Route>
+      {/* Ejemplo gated */}
     </Routes>
   </Suspense>
 );

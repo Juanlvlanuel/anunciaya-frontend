@@ -3,11 +3,12 @@ import React, { useContext, useEffect, useState, useCallback } from "react";
 import BotonPublicarNegocio from "../../components/Negocios/BotonPublicarNegocio";
 import BuscadorNegociosAuto from "../../components/Negocios/BuscadorNegociosAuto";
 import { AuthContext } from "../../context/AuthContext";
-import { negocios } from "../../services/api";
+import { negocios, cupones } from "../../services/api";
 import HeaderLogeadoMobile from "../../components/HeaderLogeado/HeaderLogeadoMobile";
 import HeroLobbyCurvo from "../../components/Negocios/HeroLobbyCurvo";
 import CarrouselSubNegocios from "../../components/Negocios/CarrouselSubNegocios";
-import ExpiringPromosCarousel from "../../components/Promos/ExpiringPromosCarousel";
+import ExpiringCuponesCarousel from "../../components/Cupones/ExpiringCuponesCarousel";
+import { toast } from "react-hot-toast"; // si ya usas react-hot-toast
 
 const CATS = [
   { key: "comida", label: "Comida", icon: "/icons/CategoriasNegocios/alimentos.webp" },
@@ -50,6 +51,17 @@ export default function Fase1Lobby() {
     slug: c.key,
   }));
 
+  const handleUseCupon = async (c) => {
+    try {
+      const r = await cupones.redeem(c.id); // POST /api/cupones/:id/redeem
+      toast.success(`Cupón canjeado ✅ Código: ${r.codigo}`);
+      // opcional: redirigir a una vista de detalle
+      // window.location.assign(`/cupon/${c.id}/codigo/${r.codigo}`);
+    } catch (e) {
+      toast.error(e.message || "No se pudo canjear el cupón");
+    }
+  };
+
   return (
     <div className="layout-safe bg-[#f7f8fb]">
       <HeaderLogeadoMobile />
@@ -76,10 +88,10 @@ export default function Fase1Lobby() {
 
       {/* Carrusel de Promos por vencer */}
       <div className="mx-auto max-w-[520px] px-2 mt-3">
-        <ExpiringPromosCarousel
-          // sin fetcher → usa mock interno hasta conectar endpoint real
-          onView={(p) => window.location.assign(`/negocio/${p?.negocio?.id}?promo=${p?.id}`)}
-          onUse={(p) => window.location.assign(`/cupon/${p?.id}/usar`)}
+        <ExpiringCuponesCarousel
+          fetcher={() => cupones.listExpiring({ limit: 10 })}
+          onView={(p) => window.location.assign(`/negocio/${p?.negocio?.id}?cupon=${p?.id}`)}
+          onUse={handleUseCupon}
         />
       </div>
 

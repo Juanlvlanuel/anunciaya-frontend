@@ -1,16 +1,17 @@
 import React, { useContext, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { FaHome, FaUser, FaTags, FaSignOutAlt } from "react-icons/fa";
+import { FaHome, FaUser, FaComments, FaSignOutAlt } from "react-icons/fa";
 import { AuthContext } from "../../context/AuthContext";
 import { setSuppressLoginOnce, setFlag } from "../../utils/authStorage";
 import Tools from "../Tools/Tools.jsx";
 import { motion } from "framer-motion";
 
+// ✅ BottomNav con: Inicio, Panel, (botón central Herramientas), ChatYA, Salir
 const items = [
   { label: "Inicio", icon: <FaHome size={26} />, action: "home" },
-  { label: "Mi Cuenta", icon: <FaUser size={26} />, action: "mi-cuenta" },
-  { label: "Mis Compras", icon: <FaTags size={26} />, action: "compras" },
+  { label: "Panel", icon: <FaUser size={26} />, action: "panel" },
+  { label: "ChatYA", icon: <FaComments size={26} />, action: "chatya" },
   { label: "Salir", icon: <FaSignOutAlt size={26} />, action: "salir" },
 ];
 
@@ -49,11 +50,12 @@ const MobileBottomNavContent = () => {
       case "home":
         navigate("/", { replace: true, state: { showLogin: false } });
         break;
-      case "mi-cuenta":
-        navigate("/mi-cuenta");
+      case "panel":
+        navigate("/panel");
         break;
-      case "compras":
-        navigate("/compras");
+      case "chatya":
+        // Navega a la vista de chat a pantalla completa
+        navigate("/chat");
         break;
       case "salir":
         try { setSuppressLoginOnce(true); setFlag("logoutAt", String(Date.now())); } catch { }
@@ -82,6 +84,7 @@ const MobileBottomNavContent = () => {
     } catch { }
   };
 
+  // Mantiene el botón central de Herramientas
   const ordered = [items[0], items[1], { label: "__TOOLS__" }, items[2], items[3]];
 
   return (

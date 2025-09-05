@@ -1,4 +1,6 @@
-// src/services/api-1.js — Fix 401 en /session + auto-refresh robusto
+// src/services/api.js — versión limpia (solo Cupones) ✅
+// Basada en tu api-3.js, corrigiendo llaves sobrantes y removiendo el bloque viejo de /api/promos.
+
 import { getAuthSession, setAuthSession } from "../utils/authStorage";
 
 function normalizeBase(s = "") {
@@ -6,7 +8,6 @@ function normalizeBase(s = "") {
 }
 
 const baseProd = normalizeBase(import.meta.env?.VITE_API_BASE || "");
-
 let API_BASE = baseProd;
 
 // Forzar mismo origen en dev (Vite proxy)
@@ -45,19 +46,19 @@ async function refreshAccessToken() {
     });
     if (!res.ok) {
       let msg = "";
-      try { const j = await res.json(); msg = j?.mensaje || j?.error || ""; } catch { }
+      try { const j = await res.json(); msg = j?.mensaje || j?.error || ""; } catch {}
       _refreshingPromise = null;
       throw new Error(msg || `refresh_failed ${res.status}`);
     }
     const data = await res.json().catch(() => ({}));
     const newToken = typeof data?.token === "string" ? data.token : null;
     if (newToken) {
-      try { localStorage.setItem("token", newToken); } catch { }
+      try { localStorage.setItem("token", newToken); } catch {}
       try {
         const sess = typeof getAuthSession === "function" ? getAuthSession() : null;
         const user = sess && typeof sess === "object" ? sess.user : null;
         if (typeof setAuthSession === "function") setAuthSession({ accessToken: newToken, user });
-      } catch { }
+      } catch {}
     }
     _refreshingPromise = null;
     return newToken;
@@ -75,7 +76,7 @@ function withAuthHeader(headers = {}) {
         sess?.accessToken ||
         (typeof localStorage !== "undefined" ? localStorage.getItem("token") : null);
       if (token) h["Authorization"] = `Bearer ${token}`;
-    } catch { }
+    } catch {}
   }
   return h;
 }
@@ -98,7 +99,7 @@ async function _json(path, opts = {}) {
       (sess && sess.accessToken) ||
       (typeof localStorage !== "undefined" ? localStorage.getItem("token") : null);
     if (t) __hadTokenBefore = true;
-  } catch { }
+  } catch {}
   let headers = withAuthHeader({ ...baseHeaders, ...incoming });
 
   const url = `${API_BASE}${path}`;
@@ -108,13 +109,7 @@ async function _json(path, opts = {}) {
     String(path).includes(SESSION_ENDPOINT_PATH) || String(url).includes(SESSION_ENDPOINT_PATH);
 
   if (isSessionCall) {
-    // ⛔ Guard: si NO había token previo, no pegues al server
-    if (!__hadTokenBefore) {
-      clearSessionCache?.();
-      return {};
-    }
-
-    // ✅ Tu lógica de caché se queda igual
+    // ✅ Cache TTL para /session
     const now = Date.now();
     if (_sessionCache.data && now - _sessionCache.ts < SESSION_TTL_MS) {
       return _sessionCache.data;
@@ -134,7 +129,7 @@ async function _json(path, opts = {}) {
         const hdrs2 = { ...headers, Authorization: `Bearer ${newToken}` };
         res = await doFetch(hdrs2);
       }
-    } catch { }
+    } catch {}
     if (res.status === 401) {
       clearSessionCache();
       return {};
@@ -149,7 +144,7 @@ async function _json(path, opts = {}) {
         const hdrs2 = { ...headers, Authorization: `Bearer ${newToken}` };
         res = await doFetch(hdrs2);
       }
-    } catch { }
+    } catch {}
   }
 
   if (!res.ok) {
@@ -253,5 +248,29 @@ export const negocios = {
     if (params.limit) qs.set("limit", String(params.limit));
     const path = qs.toString() ? `/api/negocios/mis?${qs.toString()}` : "/api/negocios/mis";
     return getJSON(path, { headers: {} });
+  },
+};
+
+/* =================== Cupones =================== */
+export const cupones = {
+  async listExpiring({ limit = 10 } = {}) {
+    try {
+      const qs = new URLSearchParams({ limit: String(limit) });
+      const res = await getJSON(`/api/cupones/expiring?${qs.toString()}`, { headers: {} });
+      return res; // { serverNow, items: [...] }
+    } catch (err) {
+      console.error("Error cupones.listExpiring", err);
+      return { serverNow: Date.now(), items: [] };
+    }
+  },
+  async listAvailable({ limit = 50 } = {}) {
+    const qs = new URLSearchParams({ limit: String(limit) });
+    return getJSON(`/api/cupones/available?${qs.toString()}`, { headers: {} });
+  },
+  async redeem(cuponId) {
+    return postJSON(`/api/cupones/${cuponId}/redeem`, {});
+  },
+  async use(couponId) {
+    return postJSON(`/api/cupones/use`, { couponId });
   },
 };

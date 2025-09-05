@@ -12,6 +12,8 @@ import MobileBottomNav from "../components/NavsLogeado/MobileBottomNav";
 import { ChatPanelPortal } from "../components/Chat/ChatPanelPortal";
 import { StatusBar, Style } from "@capacitor/status-bar";
 import { Capacitor } from "@capacitor/core";
+import { Toaster } from "react-hot-toast";
+
 
 function App() {
   const { cargando, autenticado } = useContext(AuthContext);
@@ -80,7 +82,7 @@ function App() {
   // Prefetch del chunk de /mi-cuenta cuando el usuario se autentica
   useEffect(() => {
     if (autenticado) {
-      try { import("../pages/MiCuenta/MiCuenta.jsx"); } catch { }
+      try { import("../pages/Panel/Panel.jsx"); } catch { }
       try {
         const ret = getFlag(FLAGS.retAfterLogin);
         if (ret) {
@@ -134,6 +136,7 @@ function App() {
       </div>
 
       {typeof window !== "undefined" && autenticado && <MobileBottomNav />}
+      <Toaster position="top-right" />
     </>
   );
 }
