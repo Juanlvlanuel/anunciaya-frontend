@@ -35,6 +35,7 @@ const CarouselPage = lazy(() => import("./pages/admin/CarouselPage"));
 const CatalogoAcciones = lazy(() => import("./pages/admin/CatalogoAcciones"));
 
 const PanelComerciante = lazy(() => import("./pages/PanelComerciante"));
+const NuevoCupon = lazy(() => import("./components/Cupones/NuevoCupon.jsx"));
 
 const Loader = () => <div className="p-4 text-slate-600 text-sm">Cargando…</div>;
 
@@ -112,6 +113,19 @@ const AppRoutes = ({ abrirModalLogin, abrirModalRegistro }) => (
           <RequireAuth>
             <RequireRole role="comerciante">
               <NegocioNuevo />
+            </RequireRole>
+          </RequireAuth>
+        }
+      />
+
+
+      {/* Crear cupón (protegido, comerciante) */}
+      <Route
+        path="/panel/publicaciones/cupones/nuevo"
+        element={
+          <RequireAuth>
+            <RequireRole role="comerciante">
+              <NuevoCupon />
             </RequireRole>
           </RequireAuth>
         }

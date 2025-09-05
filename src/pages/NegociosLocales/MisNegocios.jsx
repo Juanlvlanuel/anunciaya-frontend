@@ -12,20 +12,10 @@ function toThumb(u) {
 }
 
 async function deleteNegocio(id) {
-  const res = await fetch(`/api/negocios/${id}`, {
-    method: "DELETE",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-  });
-  if (!res.ok) {
-    let msg = "No se pudo borrar el negocio";
-    try {
-      const data = await res.json();
-      msg = data?.mensaje || msg;
-    } catch {}
-    throw new Error(msg);
-  }
-  return res.json();
+  // Usamos el helper `patch` (que ya añade Authorization/CSRF y refresh)
+  // contra el alias de backend.
+  const res = await patch(`/api/negocios/${id}/delete`, {}, {});
+  return res;
 }
 
 const Card = ({ children }) => (
@@ -252,23 +242,20 @@ export default function MisNegocios() {
                     <button
                       onClick={() => onToggle(n._id)}
                       disabled={toggling === n._id}
-                      className={`ml-auto inline-flex items-center gap-2 px-3 py-2 rounded-lg border transition ${
-                        n.activo
+                      className={`ml-auto inline-flex items-center gap-2 px-3 py-2 rounded-lg border transition ${n.activo
                           ? "border-amber-500 bg-amber-50 text-amber-700"
                           : "border-emerald-600 bg-emerald-600 text-white"
-                      } disabled:opacity-60`}
+                        } disabled:opacity-60`}
                       title={n.activo ? "Desactivar" : "Activar"}
                     >
                       <span className="text-sm">{toggling === n._id ? "…" : (n.activo ? "Desactivar" : "Activar")}</span>
                       <span
-                        className={`relative inline-block w-10 h-5 rounded-full transition-colors ${
-                          n.activo ? "bg-amber-400" : "bg-emerald-400"
-                        }`}
+                        className={`relative inline-block w-10 h-5 rounded-full transition-colors ${n.activo ? "bg-amber-400" : "bg-emerald-400"
+                          }`}
                       >
                         <span
-                          className={`absolute top-[2px] left-[2px] w-4 h-4 rounded-full bg-white transition-transform ${
-                            n.activo ? "translate-x-5" : "translate-x-0"
-                          }`}
+                          className={`absolute top-[2px] left-[2px] w-4 h-4 rounded-full bg-white transition-transform ${n.activo ? "translate-x-5" : "translate-x-0"
+                            }`}
                         />
                       </span>
                     </button>

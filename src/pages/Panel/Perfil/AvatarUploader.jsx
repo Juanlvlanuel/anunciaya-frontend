@@ -1,57 +1,90 @@
+// src/components/Perfil/AvatarUploader-1.jsx
 import { useRef, useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "../../../context/AuthContext";
-import { API_BASE, postJSON } from "../../../services/api";
+import { API_BASE } from "../../../services/api";
 import { LayoutGroup, motion, AnimatePresence } from "framer-motion";
 
-// ---- Client-side compressor (WebP) ----
+/* ---------------- Client-side compressor (WebP) ---------------- */
 async function shrinkImage(file, { maxW = 1024, maxH = 1024, quality = 0.85 } = {}) {
   const bmp = await createImageBitmap(file);
   const scale = Math.min(1, maxW / bmp.width, maxH / bmp.height);
   const w = Math.max(1, Math.round(bmp.width * scale));
   const h = Math.max(1, Math.round(bmp.height * scale));
-  const canvas = document.createElement('canvas');
-  canvas.width = w; canvas.height = h;
-  const ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d", { alpha: true, desynchronized: true });
   ctx.drawImage(bmp, 0, 0, w, h);
-  const blob = await new Promise((res)=>canvas.toBlob(res, 'image/webp', quality));
+  const blob = await new Promise((res) => canvas.toBlob(res, "image/webp", quality));
   if (!blob) return file;
-  return new File([blob], (file.name||'avatar').replace(/\.[^.]+$/, '') + '.webp', { type: 'image/webp' });
+  return new File([blob], (file.name || "avatar").replace(/\.[^.]+$/, "") + ".webp", { type: "image/webp" });
 }
 
-/**
- * AvatarUploader-3
- * - FIX definitivo: añade `signature` al FormData (subida firmada) y NO envía `upload_preset`.
- */
+/* ---------------- Utils ---------------- */
+function getAuthHeader() {
+  try {
+    const t = localStorage.getItem("token");
+    return t ? { Authorization: `Bearer ${t}` } : {};
+  } catch { return {}; }
+}
+
+async function signUploadAvatar(userId) {
+  const env = (typeof window !== "undefined" && /localhost|127\.0\.0\.1/.test(window.location.host)) ? "dev" : "prod";
+  const body = {
+    env,
+    // El server detecta carpeta de avatar y fuerza public_id="avatar", overwrite & invalidate
+    folder: `anunciaya/${env}/users/${userId}/avatar`
+  };
+  const res = await fetch("/api/media/sign", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...getAuthHeader() },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data?.uploadUrl || !data?.fields) {
+    throw new Error(data?.mensaje || data?.error || "No autenticado");
+  }
+  return data; // { uploadUrl, fields }
+}
+
+async function uploadSigned(file, signed) {
+  const fd = new FormData();
+  const fields = signed?.fields || {};
+  for (const [k, v] of Object.entries(fields)) fd.append(k, v);
+  fd.append("file", file);
+  const upRes = await fetch(signed.uploadUrl, { method: "POST", body: fd });
+  const up = await upRes.json().catch(() => ({}));
+  if (!upRes.ok || !up?.secure_url) {
+    throw new Error(up?.error?.message || "Error subiendo a Cloudinary");
+  }
+  return up.secure_url || up.url;
+}
+
+const normalizeSrc = (u) => {
+  if (!u) return "";
+  const s = String(u).trim();
+  if (/^(blob:|https?:\/\/)/i.test(s)) return s;
+  if (s.startsWith("/uploads/")) return `${API_BASE}${s}`;
+  if (/^data:image\/[a-z0-9.+-]+;base64,/i.test(s)) return s;
+  if (/^data:image\/[a-z0-9.+-]+;/i.test(s)) {
+    const [head, restRaw] = s.split(",", 2);
+    const headFixed = head.replace(/base_?64/i, "base64").replace(/;?base64$/i, ";base64");
+    const rest = typeof restRaw === "string" ? restRaw : "";
+    return `${headFixed},${rest}`;
+  }
+  if (/^[A-Za-z0-9+/=\s]+$/.test(s) && s.replace(/\s+/g, "").length > 100) {
+    return `data:image/jpeg;base64,${s.replace(/\s+/g, "")}`;
+  }
+  return s;
+};
+
 export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload }) {
   const inputRef = useRef(null);
   const avatarRef = useRef(null);
   const { usuario, actualizarPerfil } = useAuth() || {};
   const userInitial = usuario?.fotoPerfil || usuario?.avatarUrl || "";
-
-  // --- Helpers
-  const normalizeSrc = (u) => {
-    if (!u) return "";
-    const s = String(u).trim();
-
-    if (/^(blob:|https?:\/\/)/i.test(s)) return s; // URLs válidas
-    if (s.startsWith("/uploads/")) return `${API_BASE}${s}`; // backend
-    if (/^data:image\/[a-z0-9.+-]+;base64,/i.test(s)) return s; // data url ok
-
-    // Data URL con variantes
-    if (/^data:image\/[a-z0-9.+-]+;/i.test(s)) {
-      const [head, restRaw] = s.split(",", 2);
-      const headFixed = head.replace(/base_?64/i, "base64").replace(/;?base64$/i, ";base64");
-      const rest = typeof restRaw === "string" ? restRaw : "";
-      return `${headFixed},${rest}`;
-    }
-
-    // base64 crudo
-    if (/^[A-Za-z0-9+/=\s]+$/.test(s) && s.replace(/\s+/g, "").length > 100) {
-      return `data:image/jpeg;base64,${s.replace(/\s+/g, "")}`;
-    }
-    return s;
-  };
 
   const resolvedInitial = useMemo(() => normalizeSrc(initialUrl || userInitial || ""), [initialUrl, userInitial]);
 
@@ -59,14 +92,11 @@ export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Lightbox state
   const [showModal, setShowModal] = useState(false);
   const [fullSrc, setFullSrc] = useState("");
 
-  // Sincronizar preview si cambian las fuentes
   useEffect(() => { setPreview(resolvedInitial); }, [resolvedInitial]);
 
-  // ESC para cerrar
   useEffect(() => {
     if (!showModal) return;
     const onKey = (e) => { if (e.key === "Escape") setShowModal(false); };
@@ -74,7 +104,6 @@ export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload
     return () => document.removeEventListener("keydown", onKey);
   }, [showModal]);
 
-  // Bloquear scroll del body
   useEffect(() => {
     if (!showModal) return;
     const prev = document.body.style.overflow;
@@ -83,60 +112,11 @@ export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload
   }, [showModal]);
 
   const handlePick = () => inputRef.current?.click();
-
   const openLightbox = () => {
     const src = preview || resolvedInitial || "";
     if (!src) return;
-    const img = new Image();
-    img.src = normalizeSrc(src);
     setFullSrc(normalizeSrc(src));
     setShowModal(true);
-  };
-
-  // Subida directa a Cloudinary usando firma del backend
-  const uploadToCloudinary = async (file) => {
-    const uid = usuario?._id || "me";
-    const env = (typeof window !== "undefined" && /localhost|127\.0\.0\.1/.test(window.location.host)) ? "dev" : "prod";
-
-    // 🔐 Firma desde backend
-    const sign = await postJSON(`/api/media/sign`, {
-      env,
-      folder: `anunciaya/${env}/users/${uid}/avatar`,
-      tags: [`app:anunciaya`, `env:${env}`, `cat:Users`, `user:${uid}`],
-    });
-
-    file = await shrinkImage(file);
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("api_key", String(sign.apiKey));
-    fd.append("timestamp", String(sign.timestamp));
-    fd.append("signature", sign.signature); // 🔑 campo requerido para subida firmada
-    if (sign.folder) fd.append("folder", sign.folder);
-    if (sign.public_id) fd.append("public_id", sign.public_id);
-    if (typeof sign.overwrite !== "undefined") fd.append("overwrite", String(sign.overwrite));
-    if (typeof sign.invalidate !== "undefined") fd.append("invalidate", String(sign.invalidate));
-    if (sign.tags) fd.append("tags", sign.tags);
-    if (sign.context) fd.append("context", sign.context);
-    // 🚫 NO enviar upload_preset
-
-    const cloudUrl = `https://api.cloudinary.com/v1_1/${sign.cloudName}/image/upload`;
-    const upRes = await fetch(cloudUrl, { method: "POST", body: fd });
-    const upText = await upRes.text();
-    if (!upRes.ok) {
-      throw new Error(upText || "Error subiendo a Cloudinary");
-    }
-    const up = JSON.parse(upText);
-    return up.secure_url || up.url || "";
-  };
-
-  const toFile = (blob, name, type) => {
-    try {
-      return new File([blob], name, { type });
-    } catch {
-      blob.name = name; // Safari fallback
-      blob.lastModifiedDate = new Date();
-      return blob;
-    }
   };
 
   const handleFile = async (e) => {
@@ -154,13 +134,16 @@ export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload
       if (typeof beforeUpload === "function") {
         const transformed = await beforeUpload(original);
         if (transformed instanceof Blob) {
-          const type = transformed.type || "image/jpeg";
-          const name = original.name.replace(/\.[^.]+$/, "") + ".jpg";
-          toUpload = toFile(transformed, name, type);
+          const type = transformed.type || "image/webp";
+          const name = original.name.replace(/\.[^.]+$/, "") + ".webp";
+          toUpload = new File([transformed], name, { type });
         }
+      } else {
+        toUpload = await shrinkImage(original);
       }
 
-      const finalUrl = await uploadToCloudinary(toUpload);
+      const signed = await signUploadAvatar(usuario?._id || "me");
+      const finalUrl = await uploadSigned(toUpload, signed);
 
       const payload = finalUrl ? { fotoPerfil: finalUrl } : {};
       if (actualizarPerfil && Object.keys(payload).length) {
@@ -168,7 +151,7 @@ export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload
           const updated = await actualizarPerfil(payload);
           const next = updated?.fotoPerfil || updated?.avatarUrl || finalUrl || blobUrl;
           setPreview(next ? normalizeSrc(next) : blobUrl);
-        } catch (e2) {
+        } catch {
           setPreview(finalUrl ? normalizeSrc(finalUrl) : blobUrl);
         }
       } else {
@@ -181,6 +164,7 @@ export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload
       setPreview(resolvedInitial);
     } finally {
       setLoading(false);
+      if (e?.target) e.target.value = "";
     }
   };
 
@@ -193,8 +177,7 @@ export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload
           ref={avatarRef}
           className="w-20 h-20 rounded-full bg-gray-200 overflow-hidden cursor-pointer ring-1 ring-gray-200"
           onClick={openLightbox}
-          title={loading ? "Subiendo..." : "Ver / Cambiar foto"
-         }
+          title={loading ? "Subiendo..." : "Ver / Cambiar foto"}
         >
           {preview ? (
             <motion.img
@@ -222,6 +205,18 @@ export default function AvatarUploader({ initialUrl = "", onChange, beforeUpload
           onChange={handleFile}
           disabled={loading}
         />
+
+        <button
+          type="button"
+          onClick={handlePick}
+          disabled={loading}
+          className="absolute -right-2 -bottom-2 rounded-full bg-white border border-[#e6e9f0] shadow p-2 active:scale-[0.98]"
+          title="Cambiar foto"
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </button>
 
         {showModal && createPortal(
           <AnimatePresence>

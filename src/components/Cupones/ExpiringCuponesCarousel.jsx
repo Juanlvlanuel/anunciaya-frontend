@@ -30,7 +30,8 @@ function normalizeItem(p = {}, serverNow = Date.now()) {
   const titulo = p.titulo || "";
   const etiqueta = p.etiqueta || "";
   const colorHex = p.colorHex || "#2563eb";
-  const negocio = p.negocio || null;
+  const negocioId = String(p.negocioId || p.negocio || "");
+  const logoUrl = p.logoUrl || p.logoThumbUrl || p.logo || "";
 
   let expiresAt = null;
   if (p.expiresAt != null) {
@@ -50,7 +51,7 @@ function normalizeItem(p = {}, serverNow = Date.now()) {
   }
   if (!publishedAt && p.createdAt) publishedAt = toMs(p.createdAt);
 
-  return { id, titulo, etiqueta, colorHex, negocio, expiresAt, publishedAt };
+  return { id, titulo, etiqueta, colorHex, negocioId, logoUrl, expiresAt, publishedAt };
 }
 
 export default function ExpiringCuponesCarousel({
@@ -295,6 +296,18 @@ export default function ExpiringCuponesCarousel({
                   NUEVO
                 </div>
               )}
+
+              {/* Logo del negocio (en miniatura) */}
+              {p.logoUrl ? (
+                <a
+                  href={p.negocioId ? `/negocios/${p.negocioId}` : undefined}
+                  onClick={(e) => { if (!p.negocioId) e.preventDefault(); }}
+                  className="absolute right-2 top-2 w-7 h-7 rounded-full overflow-hidden border border-white/90 bg-white/90 grid place-items-center shadow"
+                  title="Ir al negocio"
+                >
+                  <img src={p.logoUrl} alt="logo" className="w-full h-full object-contain" />
+                </a>
+              ) : null}
               <div className="absolute right-2 bottom-2 text-[11px] font-medium text-[#0C1424] bg-white/90 px-1.5 py-0.5 rounded tabular-nums">
                 {msToLabel(p.remainingMs)}
               </div>

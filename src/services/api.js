@@ -1,5 +1,8 @@
-// src/services/api.js — versión limpia (solo Cupones) ✅
-// Basada en tu api-3.js, corrigiendo llaves sobrantes y removiendo el bloque viejo de /api/promos.
+// src/services/api-1.js
+// Basado 100% en tu archivo actual `src/services/api.js`.
+// Cambios mínimos:
+// 1) Mejora la extracción de errores para evitar "[object Object]".
+// 2) Agrega métodos de negocios: create, update, toggle, remove, updatePhotos.
 
 import { getAuthSession, setAuthSession } from "../utils/authStorage";
 
@@ -151,7 +154,21 @@ async function _json(path, opts = {}) {
     let errText = "";
     try {
       const maybeJson = await res.json();
-      errText = maybeJson?.mensaje || maybeJson?.error || JSON.stringify(maybeJson) || "";
+      if (typeof maybeJson?.mensaje === "string" && maybeJson.mensaje) {
+        errText = maybeJson.mensaje;
+      } else if (typeof maybeJson?.message === "string" && maybeJson.message) {
+        errText = maybeJson.message;
+      } else if (typeof maybeJson?.error === "string") {
+        errText = maybeJson.error;
+      } else if (maybeJson?.error && typeof maybeJson.error === "object") {
+        errText =
+          maybeJson.error.message ||
+          maybeJson.error.msg ||
+          maybeJson.error.code ||
+          JSON.stringify(maybeJson.error);
+      } else {
+        errText = JSON.stringify(maybeJson);
+      }
     } catch {
       try { errText = await res.text(); } catch { errText = ""; }
     }
@@ -234,6 +251,7 @@ export const negocios = {
     const qs = new URLSearchParams();
     if (params.q) qs.set("q", String(params.q));
     if (params.categoria) qs.set("categoria", String(params.categoria));
+    if (params.subcategoria) qs.set("subcategoria", String(params.subcategoria));
     if (params.ciudad) qs.set("ciudad", String(params.ciudad));
     if (params.page) qs.set("page", String(params.page));
     if (params.limit) qs.set("limit", String(params.limit));
@@ -249,6 +267,13 @@ export const negocios = {
     const path = qs.toString() ? `/api/negocios/mis?${qs.toString()}` : "/api/negocios/mis";
     return getJSON(path, { headers: {} });
   },
+
+  // === NUEVOS: CRUD desde el wrapper (evita 401 y muestra mensajes reales) ===
+  create: (payload = {}) => postJSON(`/api/negocios`, payload),
+  update: (id, payload = {}) => patch(`/api/negocios/${id}`, {}, payload),
+  toggle: (id) => patch(`/api/negocios/${id}/toggle-activo`, {}, {}),
+  remove: (id) => del(`/api/negocios/${id}`),
+  updatePhotos: (id, body) => patch(`/api/negocios/${id}/fotos`, {}, body),
 };
 
 /* =================== Cupones =================== */

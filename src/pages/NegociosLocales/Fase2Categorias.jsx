@@ -8,6 +8,7 @@ import { CATEGORIAS, getIconPath, DEFAULT_ICON, getGroupCover } from "../../conf
 import PillsSubCategorias from "../../components/Negocios/PillsSubCategorias";
 import GridCategorias2x2 from "../../components/Negocios/GridCategorias2x2";
 import ListaNegociosHorizontal from "../../components/Negocios/ListaNegociosHorizontal";
+import { negocios } from "../../services/api";
 
 const CONTENT_W = "w-full max-w-[400px]";
 const H_PADDING = "px-3";
@@ -68,7 +69,9 @@ export default function Fase2Categorias() {
   const [scrollYPrevio, setScrollYPrevio] = useState(0);
 
   // Negocios (listado horizontal 3 por pantalla)
-  const [negocios, setNegocios] = useState([]);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
 
   useEffect(() => {
     const el = fixedRef.current;
@@ -88,29 +91,39 @@ export default function Fase2Categorias() {
     });
   }, [grupoObj]);
 
-  // Sincroniza modo con la URL (:subcat) — si hay subcat, mostrar resultados horizontales
+  // Sincroniza modo con la URL (:subcat) — si hay subcat, mostrar resultados reales
   useEffect(() => {
     if (subcatFromPath) {
       const niceName = deslugifyMatch(subcatFromPath, grupoObj?.subcats);
       setSubcatActiva(niceName);
       setModo("resultados");
 
-      // DEMO: cargar 18 negocios. Sustituir por fetch real.
-      const subcatSlug = subcatFromPath;
-      const ejemplo = Array.from({ length: 18 }).map((_, i) => ({
-        id: `${subcatSlug}-${i}`,
-        name: `${niceName} ${i + 1}`,
-        category: niceName,
-        rating: 4.5,
-        reviews: 80 + i,
-        distanceKm: (0.4 + 0.1 * i).toFixed(1),
-        isOpen: true,
-        photoUrl: "",
-        badges: i % 3 === 0 ? ["VIP"] : i % 5 === 0 ? ["Envío gratis"] : [],
-      }));
-      setNegocios(ejemplo);
+      // CARGA REAL DESDE BACKEND
+      (async () => {
+        try {
+          setLoading(true);
+          setErr("");
+          // El backend acepta label o slug; enviamos el label del grupo para canónica
+          const res = await negocios.listPublic({
+            categoria: grupoObj?.name || grupoSlug,
+            subcategoria: niceName,
+            limit: 30,
+          });
+          // El backend ya mapea a { id, name, photoUrl, thumbUrl, rating, reviews, gallery, ... }
+          // Si tu wrapper devuelve directamente { items }, úsalo tal cual.
+          const arr = Array.isArray(res?.items) ? res.items : [];
+          setItems(arr);
+        } catch (e) {
+          setErr(e?.message || "No se pudieron cargar los negocios.");
+          setItems([]);
+        } finally {
+          setLoading(false);
+        }
+      })();
     } else {
       setModo("explorar");
+      setItems([]);
+      setErr("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subcatFromPath, grupoSlug]);
@@ -118,8 +131,7 @@ export default function Fase2Categorias() {
   const onSelectCat = (c) => {
     const cat = typeof c === "string" ? c : c?.name || "";
     const subcatSlug = slugify(cat);
-    const targetGrupo =
-      grupoObj?.slug || grupoSlug || "servicios";
+    const targetGrupo = grupoObj?.slug || grupoSlug || "servicios";
     setScrollYPrevio(window.scrollY || 0);
     navigate(`/negocios/${targetGrupo}/${subcatSlug}`, { replace: false });
   };
@@ -157,8 +169,7 @@ export default function Fase2Categorias() {
             scope="negocios"
             scopeName={groupName || "Negocios Locales"}
             onBuscar={(q) => {
-              const targetGrupo =
-                grupoObj?.slug || grupoSlug || "servicios";
+              const targetGrupo = grupoObj?.slug || grupoSlug || "servicios";
               navigate(`/buscar?grupo=${targetGrupo}&q=${encodeURIComponent(q)}`);
             }}
           />
@@ -202,7 +213,7 @@ export default function Fase2Categorias() {
                       Descubre los mejores
                     </div>
                     <div className="text-[14px] font-extrabold text-[#0C1424] leading-tight">
-                      Restaurantes de tu zona
+                      {groupName} de tu zona
                     </div>
                     <div className="text_[11px] text-[#64748b]">
                       Explora recomendaciones seleccionadas.
@@ -221,19 +232,29 @@ export default function Fase2Categorias() {
               {/* Contexto */}
               <div className="mt-4 text-[12px] text-[#64748b] px-1">
                 {groupName} › <span className="font-semibold text-[#0C1424]">{subcatActiva}</span>
-                {negocios.length ? ` · ${negocios.length} resultados` : ""}
+                {items.length ? ` · ${items.length} resultados` : ""}
               </div>
 
+              {/* Estado */}
+              {loading && (
+                <div className="mt-4 text-sm text-slate-500 px-1">Cargando…</div>
+              )}
+              {err && !loading && (
+                <div className="mt-4 text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">{err}</div>
+              )}
+
               {/* Lista horizontal compacta */}
-              <div className="mt-3 mb-4">
-                <ListaNegociosHorizontal
-                  items={negocios}
-                  onView={(it) => {}}
-                  onCall={(it) => {}}
-                  onOrder={(it) => {}}
-                  onChat={(it) => {}}
-                />
-              </div>
+              {!loading && !err && (
+                <div className="mt-3 mb-4">
+                  <ListaNegociosHorizontal
+                    items={items}
+                    onView={(it) => {}}
+                    onCall={(it) => {}}
+                    onOrder={(it) => {}}
+                    onChat={(it) => {}}
+                  />
+                </div>
+              )}
             </div>
           </section>
         )}

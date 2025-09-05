@@ -1,42 +1,41 @@
-// src/pages/NegociosLocales/NegocioNuevo.jsx
-import React, { useState } from "react";
+// src/pages/NegociosLocales/NegocioNuevo-1.jsx
+import React, { useMemo, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-
-async function crearNegocio(form) {
-  const res = await fetch("/api/negocios", {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(form),
-  });
-  if (!res.ok) {
-    let msg = "No se pudo crear el negocio";
-    try {
-      const data = await res.json();
-      msg = data?.mensaje || msg;
-    } catch {}
-    throw new Error(msg);
-  }
-  return res.json();
-}
+import { CATEGORIAS } from "../../config/categorias.config";
+import { negocios } from "../../services/api";
 
 export default function NegocioNuevo() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ nombre: "", categoria: "", ciudad: "", whatsapp: "", descripcion: "" });
+
+  const grupos = useMemo(() => Array.isArray(CATEGORIAS) ? CATEGORIAS : [], []);
+  const [grupoSlug, setGrupoSlug] = useState(grupos[0]?.slug || "");
+  const subcats = useMemo(() => {
+    const g = grupos.find(x => x.slug === grupoSlug);
+    return g?.subcats || [];
+  }, [grupos, grupoSlug]);
+
+  const [form, setForm] = useState({
+    nombre: "",
+    categoria: grupos.find(x => x.slug === grupoSlug)?.name || "",
+    subcategoria: "",
+    ciudad: "",
+    whatsapp: "",
+    descripcion: "",
+  });
+
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
-
-  const handleChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSending(true);
     setError("");
     try {
-      await crearNegocio(form);
+      await negocios.create(form); // POST /api/negocios (via wrapper)
       navigate("/panel/mis-negocios", { replace: true });
     } catch (err) {
-      setError(err?.message || "Error al publicar.");
+      const msg = (typeof err?.message === "string" && err.message) ? err.message : "Error al publicar.";
+      setError(msg);
     } finally {
       setSending(false);
     }
@@ -62,42 +61,94 @@ export default function NegocioNuevo() {
 
         <form onSubmit={handleSubmit} className="bg-white border border-slate-200 rounded-2xl shadow-sm p-4 space-y-3">
           <div className="grid grid-cols-1 gap-3">
+            {/* Nombre */}
             <label className="text-sm text-slate-700">
               Nombre del negocio
               <input
-                type="text" name="nombre" value={form.nombre} onChange={handleChange} required
+                type="text"
+                name="nombre"
+                value={form.nombre}
+                onChange={(e) => setForm(f => ({ ...f, nombre: e.target.value }))}
+                required
                 className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 outline-none focus:ring-2 focus:ring-blue-200"
               />
             </label>
 
+            {/* Categoría (grupo) */}
             <label className="text-sm text-slate-700">
               Categoría
-              <input
-                type="text" name="categoria" value={form.categoria} onChange={handleChange} required
+              <select
+                value={grupoSlug}
+                onChange={(e) => {
+                  const slug = e.target.value;
+                  setGrupoSlug(slug);
+                  const g = grupos.find(x => x.slug === slug);
+                  const etiqueta = g?.name || "";
+                  setForm(f => ({
+                    ...f,
+                    categoria: etiqueta,
+                    subcategoria: "",
+                  }));
+                }}
+                required
                 className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 outline-none focus:ring-2 focus:ring-blue-200"
-              />
+              >
+                {grupos.map(g => (
+                  <option key={g.slug} value={g.slug}>{g.name}</option>
+                ))}
+              </select>
             </label>
 
+            {/* Subcategoría */}
+            <label className="text-sm text-slate-700">
+              Subcategoría
+              <select
+                value={form.subcategoria}
+                onChange={(e) => setForm(f => ({ ...f, subcategoria: e.target.value }))}
+                required
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 outline-none focus:ring-2 focus:ring-blue-200"
+              >
+                <option value="" disabled>Elige una subcategoría</option>
+                {subcats.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+            </label>
+
+            {/* Ciudad */}
             <label className="text-sm text-slate-700">
               Ciudad
               <input
-                type="text" name="ciudad" value={form.ciudad} onChange={handleChange} required
+                type="text"
+                name="ciudad"
+                value={form.ciudad}
+                onChange={(e) => setForm(f => ({ ...f, ciudad: e.target.value }))}
+                required
                 className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 outline-none focus:ring-2 focus:ring-blue-200"
               />
             </label>
 
+            {/* WhatsApp (opcional) */}
             <label className="text-sm text-slate-700">
               WhatsApp (opcional)
               <input
-                type="tel" name="whatsapp" value={form.whatsapp} onChange={handleChange} placeholder="6381234567"
+                type="tel"
+                name="whatsapp"
+                value={form.whatsapp}
+                onChange={(e) => setForm(f => ({ ...f, whatsapp: e.target.value }))}
+                placeholder="6381128286"
                 className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 outline-none focus:ring-2 focus:ring-blue-200"
               />
             </label>
 
+            {/* Descripción (opcional) */}
             <label className="text-sm text-slate-700">
               Descripción (opcional)
               <textarea
-                name="descripcion" value={form.descripcion} onChange={handleChange} rows={4}
+                name="descripcion"
+                value={form.descripcion}
+                onChange={(e) => setForm(f => ({ ...f, descripcion: e.target.value }))}
+                rows={4}
                 className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 outline-none focus:ring-2 focus:ring-blue-200"
                 placeholder="Describe tu negocio, servicios, horarios…"
               />
