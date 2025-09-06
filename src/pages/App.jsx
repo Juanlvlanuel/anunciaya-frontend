@@ -13,7 +13,8 @@ import { ChatPanelPortal } from "../components/Chat/ChatPanelPortal";
 import { StatusBar, Style } from "@capacitor/status-bar";
 import { Capacitor } from "@capacitor/core";
 import { Toaster } from "react-hot-toast";
-
+import ForceLogoutListener from "../components/security/ForceLogoutListener";
+import SessionPinger from "../components/security/SessionPinger";
 
 function App() {
   const { cargando, autenticado } = useContext(AuthContext);
@@ -109,6 +110,9 @@ function App() {
 
   return (
     <>
+      <ForceLogoutListener />
+      <SessionPinger />
+
       {/* Franja gris semitransparente bajo los iconos del sistema */}
       <div className="statusbar-overlay" />
 
