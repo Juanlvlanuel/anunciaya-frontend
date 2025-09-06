@@ -93,7 +93,7 @@ const genNonce = () => {
 const GoogleLoginButtonMobile = ({
   onClose,
   onRegistroExitoso,
-  modo = "login", // "login" o "registro"
+  modo = "login", // "login" | "registro" | "link"
   tipo,
   perfil,
 }) => {
@@ -126,10 +126,23 @@ const GoogleLoginButtonMobile = ({
       }
 
       // ✅ Ruta ABSOLUTA a backend en producción (evita 405 en Vercel)
-      const res = await axios.post(`${__API_BASE__}/api/usuarios/auth/google`, body, {
+      const endpoint = modo === "link" ? "/api/usuarios/oauth/google/link" : "/api/usuarios/auth/google";
+      const res = await axios.post(`${__API_BASE__}${endpoint}`, body, {
         withCredentials: true,
         headers: { "Content-Type": "application/json" },
       });
+
+      if (modo === "link") {
+        if (res.status === 200 && (res.data?.linked === true || res.data?.usuario)) {
+          onRegistroExitoso && onRegistroExitoso();
+          onClose && onClose();
+          Swal.fire({ icon: "success", title: "Google vinculado", timer: 1400, showConfirmButton: false });
+          return;
+        }
+        const mensaje = res?.data?.mensaje || "No se pudo vincular Google.";
+        Swal.fire({ icon: "warning", title: "Google", text: mensaje });
+        return;
+      }
 
       if (res.status === 200 && res.data?.token) {
         await iniciarSesion(res.data.token, res.data.usuario);
@@ -205,10 +218,21 @@ const GoogleLoginButtonMobile = ({
       }
 
       // ✅ Ruta ABSOLUTA a backend en producción (evita 405 en Vercel)
-      const r = await axios.post(`${__API_BASE__}/api/usuarios/auth/google`, body, {
+      const endpoint = modo === "link" ? "/api/usuarios/oauth/google/link" : "/api/usuarios/auth/google";
+      const r = await axios.post(`${__API_BASE__}${endpoint}`, body, {
         withCredentials: true,
         headers: { "Content-Type": "application/json" },
       });
+
+      if (modo === "link") {
+        if (r.status === 200 && (r.data?.linked === true || r.data?.usuario)) {
+          onRegistroExitoso && onRegistroExitoso();
+          onClose && onClose();
+          return;
+        }
+        Swal.fire({ icon: "warning", title: "Google", text: r?.data?.mensaje || "No se pudo vincular Google." });
+        return;
+      }
 
       if (r.status === 200 && r.data?.token) {
         await iniciarSesion(r.data.token, r.data.usuario);

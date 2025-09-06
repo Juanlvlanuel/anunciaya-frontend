@@ -1,7 +1,7 @@
-// src/components/Cupones/ExpiringCuponesCarousel.jsx
+// src/components/Cupones/ExpiringCuponesCarousel-1.jsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { cupones } from "../../services/api"; // HTTP a /api/cupones
-import { getSocket } from "../../sockets/socketClient"; // ajusta la ruta si tu socketClient está en otro lugar
+import { cupones } from "../../services/api";
+import { getSocket } from "../../sockets/socketClient";
 
 // ===== Helpers de tiempo =====
 const ONE_HOUR_MS = 60 * 60 * 1000;
@@ -24,6 +24,62 @@ function toMs(v) {
   return Number.isFinite(n) ? n : null;
 }
 
+// ===== Mini Slider (auto) =====
+function MiniSlider({ images = [] }) {
+  const imgs = Array.isArray(images) ? images.filter(Boolean) : [];
+  const [idx, setIdx] = useState(0);
+  const n = imgs.length;
+
+  useEffect(() => {
+    if (n <= 1) return;
+    const id = setInterval(() => setIdx((i) => (i + 1) % n), 2500);
+    return () => clearInterval(id);
+  }, [n]);
+
+  if (!n) return null;
+
+  return (
+    <div className="relative h-[120px] bg-[#eef2ff]">
+      <div
+        className="absolute inset-0 overflow-hidden rounded-t-2xl"
+        aria-label="Imágenes del cupón"
+      >
+        <div
+          className="h-full w-full flex transition-transform duration-500 ease-out"
+          style={{ transform: `translateX(-${idx * 100}%)` }}
+        >
+          {imgs.map((src, i) => (
+            <div key={i} className="min-w-full h-full">
+              <img
+                src={src}
+                alt="cupón"
+                className="w-full h-full object-cover"
+                width={400}
+                height={160}
+                loading={i === 0 ? "eager" : "lazy"}
+                decoding="async"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Dots */}
+      {n > 1 && (
+        <div className="absolute left-3 bottom-2 flex gap-1">
+          {imgs.map((_, i) => (
+            <span
+              key={i}
+              className={`w-1.5 h-1.5 rounded-full ${i === idx ? "bg-white" : "bg-white/60"} border border-white/70`}
+              aria-hidden
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Normaliza item proveniente del backend
 function normalizeItem(p = {}, serverNow = Date.now()) {
   const id = String(p.id || p._id || "");
@@ -32,6 +88,25 @@ function normalizeItem(p = {}, serverNow = Date.now()) {
   const colorHex = p.colorHex || "#2563eb";
   const negocioId = String(p.negocioId || p.negocio || "");
   const logoUrl = p.logoUrl || p.logoThumbUrl || p.logo || "";
+
+  // Galería de imágenes (thumbs primero)
+  const galeria = Array.isArray(p.galeria)
+    ? p.galeria
+        .map((g) => g?.thumbUrl || g?.url || g?.secureUrl || "")
+        .filter(Boolean)
+    : [];
+  const images = [
+    ...(p.thumbUrl ? [p.thumbUrl] : []),
+    ...(p.imageUrl ? [p.imageUrl] : []),
+    ...galeria,
+  ];
+  // quitar duplicados preservando orden
+  const seen = new Set();
+  const imagesUniq = images.filter((u) => {
+    if (!u || seen.has(u)) return false;
+    seen.add(u);
+    return true;
+  });
 
   let expiresAt = null;
   if (p.expiresAt != null) {
@@ -51,24 +126,24 @@ function normalizeItem(p = {}, serverNow = Date.now()) {
   }
   if (!publishedAt && p.createdAt) publishedAt = toMs(p.createdAt);
 
-  return { id, titulo, etiqueta, colorHex, negocioId, logoUrl, expiresAt, publishedAt };
+  return { id, titulo, etiqueta, colorHex, negocioId, logoUrl, images: imagesUniq, expiresAt, publishedAt };
 }
 
 export default function ExpiringCuponesCarousel({
-  fetcher,              // opcional: () => Promise<{ serverNow, items }>
-  onUse,                // opcional: (cupón) => void
-  onView,               // opcional: (cupón) => void
+  fetcher,
+  onUse,
+  onView,
   maxItems = 10,
   actionLabel = "Usar",
-  autoRefreshSec = 60,  // re-fetch periódico
-  minRefreshSec = 30,   // evita refrescar demasiado rápido
+  autoRefreshSec = 60,
+  minRefreshSec = 30,
 }) {
   const [loading, setLoading] = useState(true);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [itemsRaw, setItemsRaw] = useState([]);
   const [nowTick, setNowTick] = useState(() => Date.now());
 
-  // Corrección de “drift”: base de tiempo servidor/cliente
+  // Corrección de drift
   const [timeBase, setTimeBase] = useState(() => ({
     serverNow: Date.now(),
     clientNow: Date.now(),
@@ -77,7 +152,7 @@ export default function ExpiringCuponesCarousel({
   const seenRef = useRef(new Set());
   const dismissedRef = useRef(new Set());
   const scrollRef = useRef(null);
-  const cardsRef = useRef({}); // id -> element
+  const cardsRef = useRef({});
   const currentFetchRef = useRef(null);
   const lastFetchAtRef = useRef(0);
   const nowServerRef = useRef(Date.now());
@@ -89,7 +164,6 @@ export default function ExpiringCuponesCarousel({
 
   useEffect(() => { nowServerRef.current = nowServer; }, [nowServer]);
 
-  // Hidrata manteniendo sólo válidos y con expiración
   const hydrate = useCallback(
     (arr = [], srvNow) => {
       const baseNow = Number.isFinite(srvNow) ? srvNow : nowServerRef.current;
@@ -104,7 +178,7 @@ export default function ExpiringCuponesCarousel({
   const doFetch = useCallback(async (force = false) => {
     if (currentFetchRef.current) return currentFetchRef.current;
     const now = Date.now();
-    if (!force && now - lastFetchAtRef.current < 5000) return; // debounce 5s
+    if (!force && now - lastFetchAtRef.current < 5000) return;
 
     setLoading((prev) => prev || !hasLoadedOnce);
     const p = (async () => {
@@ -115,16 +189,8 @@ export default function ExpiringCuponesCarousel({
         const serverNow = Number.isFinite(srvNow) ? srvNow : Date.now();
         setTimeBase({ serverNow, clientNow: Date.now() });
 
-        setItemsRaw((prev) => {
-          const incoming = hydrate(items, serverNow);
-          const ids = new Set(incoming.map((x) => x.id));
-          const kept = prev
-            .filter((x) => !ids.has(x.id))
-            .filter((x) => (x.expiresAt || 0) > (Date.now() - 1000));
-          return [...incoming, ...kept].slice(0, Math.max(maxItems, incoming.length, prev.length));
-        });
+        setItemsRaw(() => hydrate(items, serverNow));  // authoritative replace
       } catch {
-        // si falla el fetch, mantenemos lo que hubiera llegado por socket
       } finally {
         setLoading(false);
         setHasLoadedOnce(true);
@@ -136,16 +202,15 @@ export default function ExpiringCuponesCarousel({
     return p;
   }, [fetcher, hasLoadedOnce, hydrate, maxItems]);
 
-  // Primera carga
-  useEffect(() => { doFetch(true); /* forzada */ }, []); // eslint-disable-line
+  useEffect(() => { doFetch(true); }, []); // primera carga
 
-  // Tick 1s
+  // Tick 1s (contador)
   useEffect(() => {
     const id = setInterval(() => setNowTick(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
 
-  // Re-fetch periódico + al volver a foco/online
+  // Re-fetch periódico + foco/online
   useEffect(() => {
     const refreshSec = Math.max(Number(minRefreshSec) || 30, Number(autoRefreshSec) || 0);
     if (!refreshSec) return;
@@ -166,7 +231,7 @@ export default function ExpiringCuponesCarousel({
     };
   }, [autoRefreshSec, minRefreshSec, doFetch]);
 
-  // Marcar como “visto” (sólo UI)
+  // Marcar visto (solo UI)
   useEffect(() => {
     if (!cardsRef.current) return;
     const io = new IntersectionObserver(
@@ -189,7 +254,6 @@ export default function ExpiringCuponesCarousel({
     return () => io.disconnect();
   }, [itemsRaw]);
 
-  // Computados
   const items = useMemo(() => {
     return (itemsRaw || [])
       .map((p) => {
@@ -208,11 +272,10 @@ export default function ExpiringCuponesCarousel({
   const handleView = (p) => { dismissedRef.current.add(p.id); setNowTick(Date.now()); onView && onView(p); };
   const handleUse  = (p) => { dismissedRef.current.add(p.id); setNowTick(Date.now()); onUse  && onUse(p); };
 
-  // Tiempo real: cupones:new / cupones:recent
+  // Tiempo real
   useEffect(() => {
     const s = getSocket?.();
     if (!s) return;
-
     const onConnect = () => { doFetch(true); };
     const onNew = (payload) => {
       if (!payload || !payload.id) return;
@@ -225,7 +288,6 @@ export default function ExpiringCuponesCarousel({
       if ((hydrated.expiresAt || 0) <= nowServerRef.current) return;
       setItemsRaw((prev) => (prev.find((x) => x.id === hydrated.id) ? prev : [hydrated, ...prev]).slice(0, Math.max(maxItems, prev.length + 1)));
     };
-
     const onRecent = (payload) => {
       const srvNow = Number(payload?.serverNow);
       const arr = Array.isArray(payload?.items) ? payload.items : [];
@@ -240,19 +302,26 @@ export default function ExpiringCuponesCarousel({
         return [...normalized, ...kept].slice(0, Math.max(maxItems, normalized.length, prev.length));
       });
     };
+    const onRemoved = (payload) => {
+      const id = String(payload?.id || "");
+      if (!id) return;
+      setItemsRaw((prev) => prev.filter((x) => String(x.id) !== id));
+    };
 
     try { s.emit("cupones:getRecent"); } catch {}
     s.on("connect", onConnect);
     s.on("cupones:new", onNew);
     s.on("cupones:recent", onRecent);
+    s.on("cupones:removed", onRemoved);
+
     return () => {
       s.off("connect", onConnect);
       s.off("cupones:new", onNew);
       s.off("cupones:recent", onRecent);
+      s.off("cupones:removed", onRemoved);
     };
   }, [hydrate, maxItems, doFetch]);
 
-  // No renderiza nada si no hay items
   if ((hasLoadedOnce && items.length === 0 && !loading) || (!hasLoadedOnce && loading)) return null;
 
   return (
@@ -279,39 +348,68 @@ export default function ExpiringCuponesCarousel({
             ref={(el) => { cardsRef.current[p.id] = el; }}
             className="min-w-[200px] max-w-[220px] bg-white rounded-2xl border border-[#e6e9f0] shadow-sm overflow-hidden"
           >
-            <div className="relative h-[88px]">
-              <div
-                className={`absolute inset-0 ${p.remainingMs <= 10_000 ? "animate-pulse" : ""}`}
-                style={{
-                  background: `linear-gradient(135deg, ${p.colorHex || "#2563eb"}1A, ${p.colorHex || "#2563eb"}33)`,
-                }}
-              />
-              <div className="absolute left-2 top-2 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-white border border-[#e6e9f0]">
-                <span className="text-[11px] font-semibold text-[#0C1424]">
-                  {p.etiqueta || "Cupón"}
-                </span>
-              </div>
-              {p.isNew && (
-                <div className="absolute right-2 top-2 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-[#10b981] text-white text-[10px] font-bold shadow">
-                  NUEVO
+            {/* Header: imagen en carrusel (si hay), si no gradiente de color */}
+            {p.images && p.images.length ? (
+              <div className="relative">
+                <MiniSlider images={p.images} />
+                {p.isNew && (
+                  <div className="absolute right-2 top-2 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-[#10b981] text-white text-[10px] font-bold shadow">
+                    NUEVO
+                  </div>
+                )}
+                {/* Logo del negocio */}
+                {p.logoUrl ? (
+                  <a
+                    href={p.negocioId ? `/negocios/${p.negocioId}` : undefined}
+                    onClick={(e) => { if (!p.negocioId) e.preventDefault(); }}
+                    className="absolute right-2 top-2 w-7 h-7 rounded-full overflow-hidden border border-white/90 bg-white/90 grid place-items-center shadow"
+                    title="Ir al negocio"
+                  >
+                    <img src={p.logoUrl} alt="logo" className="w-full h-full object-contain" width={28} height={28} />
+                  </a>
+                ) : null}
+                <div className="absolute left-2 top-2 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-white border border-[#e6e9f0]">
+                  <span className="text-[11px] font-semibold text-[#0C1424]">
+                    {p.etiqueta || "Cupón"}
+                  </span>
                 </div>
-              )}
-
-              {/* Logo del negocio (en miniatura) */}
-              {p.logoUrl ? (
-                <a
-                  href={p.negocioId ? `/negocios/${p.negocioId}` : undefined}
-                  onClick={(e) => { if (!p.negocioId) e.preventDefault(); }}
-                  className="absolute right-2 top-2 w-7 h-7 rounded-full overflow-hidden border border-white/90 bg-white/90 grid place-items-center shadow"
-                  title="Ir al negocio"
-                >
-                  <img src={p.logoUrl} alt="logo" className="w-full h-full object-contain" />
-                </a>
-              ) : null}
-              <div className="absolute right-2 bottom-2 text-[11px] font-medium text-[#0C1424] bg-white/90 px-1.5 py-0.5 rounded tabular-nums">
-                {msToLabel(p.remainingMs)}
+                <div className="absolute right-2 bottom-2 text-[11px] font-medium text-[#0C1424] bg-white/90 px-1.5 py-0.5 rounded tabular-nums">
+                  {msToLabel(p.remainingMs)}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="relative h-[88px]">
+                <div
+                  className={`absolute inset-0 ${p.remainingMs <= 10_000 ? "animate-pulse" : ""}`}
+                  style={{
+                    background: `linear-gradient(135deg, ${p.colorHex || "#2563eb"}1A, ${p.colorHex || "#2563eb"}33)`,
+                  }}
+                />
+                <div className="absolute left-2 top-2 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-white border border-[#e6e9f0]">
+                  <span className="text-[11px] font-semibold text-[#0C1424]">
+                    {p.etiqueta || "Cupón"}
+                  </span>
+                </div>
+                {p.isNew && (
+                  <div className="absolute right-2 top-2 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-[#10b981] text-white text-[10px] font-bold shadow">
+                    NUEVO
+                  </div>
+                )}
+                {p.logoUrl ? (
+                  <a
+                    href={p.negocioId ? `/negocios/${p.negocioId}` : undefined}
+                    onClick={(e) => { if (!p.negocioId) e.preventDefault(); }}
+                    className="absolute right-2 top-2 w-7 h-7 rounded-full overflow-hidden border border-white/90 bg-white/90 grid place-items-center shadow"
+                    title="Ir al negocio"
+                  >
+                    <img src={p.logoUrl} alt="logo" className="w-full h-full object-contain" width={28} height={28} />
+                  </a>
+                ) : null}
+                <div className="absolute right-2 bottom-2 text-[11px] font-medium text-[#0C1424] bg-white/90 px-1.5 py-0.5 rounded tabular-nums">
+                  {msToLabel(p.remainingMs)}
+                </div>
+              </div>
+            )}
 
             <div className="p-3">
               <div className="text-[13px] font-bold text-[#0C1424] leading-tight line-clamp-2">

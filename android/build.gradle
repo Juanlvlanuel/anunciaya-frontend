@@ -24,6 +24,31 @@ allprojects {
     }
 }
 
+// === Forzar JDK 21 en TODOS los subproyectos (incluye :capacitor-android) ===
+subprojects {
+    plugins.withType(JavaPlugin) {
+        java {
+            toolchain {
+                languageVersion = JavaLanguageVersion.of(21)
+            }
+        }
+        tasks.withType(JavaCompile).configureEach {
+            options.release = 21
+        }
+    }
+    afterEvaluate {
+        def androidExt = project.extensions.findByName("android")
+        if (androidExt != null) {
+            androidExt.compileOptions {
+                sourceCompatibility JavaVersion.VERSION_21
+                targetCompatibility JavaVersion.VERSION_21
+            }
+        }
+    }
+}
+
+
 task clean(type: Delete) {
     delete rootProject.buildDir
 }
+

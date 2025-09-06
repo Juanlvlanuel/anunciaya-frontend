@@ -1,4 +1,5 @@
-// src/pages/Panel/Seguridad/SeguridadSection.jsx
+
+// src/pages/Panel/Seguridad/SeguridadSection.jsx (unificado)
 import React from "react";
 import PasswordChangeForm from "./PasswordChangeForm";
 import OAuthConnections from "./OAuthConnections";
@@ -11,6 +12,7 @@ export default function SeguridadSection() {
     <div className="p-5 sm:p-6 lg:p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
       <div>
         <div className="font-semibold mb-3">Contraseña</div>
+        {/* El formulario se auto-configura: crear o cambiar según el estado del usuario */}
         <PasswordChangeForm onSubmit={async () => {}} />
       </div>
 
