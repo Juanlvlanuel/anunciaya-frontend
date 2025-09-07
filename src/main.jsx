@@ -64,17 +64,20 @@ function wrapConsole(method) {
 const Root = () => {
   // Configurar StatusBar al iniciar
   useEffect(() => {
-    const setStatus = async () => {
-      try {
+  const setStatus = async () => {
+    try {
+      if (Capacitor.getPlatform() !== "web") {
         await StatusBar.setOverlaysWebView({ overlay: true });
-        await StatusBar.setBackgroundColor({ color: "#00000000" }); // transparente
-        await StatusBar.setStyle({ style: Style.Light }); // íconos oscuros (ajusta a Style.Dark si quieres blancos)
-      } catch (e) {
-        console.log("StatusBar plugin no disponible", e);
+        await StatusBar.setBackgroundColor({ color: "#00000000" });
+        await StatusBar.setStyle({ style: Style.Light });
       }
-    };
-    setStatus();
-  }, []);
+    } catch {
+      // silenciado: en web no hay plugin
+    }
+  };
+  setStatus();
+}, []);
+
 
   // Carga SDK de Facebook una sola vez
   useEffect(() => {

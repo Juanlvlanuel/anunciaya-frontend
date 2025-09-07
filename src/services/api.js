@@ -6,11 +6,20 @@
 
 import { getAuthSession, setAuthSession } from "../utils/authStorage";
 
+
 function normalizeBase(s = "") {
   return s ? s.trim().replace(/\/+$/, "") : "";
 }
 
-const baseProd = normalizeBase(import.meta.env?.VITE_API_BASE || "");
+// === Base de API (dev: relativo /api por proxy; prod: absoluto) ===
+const env = (import.meta && import.meta.env) ? import.meta.env : {};
+const baseCandidates = [
+  env.VITE_API_BASE,
+  env.VITE_API_URL,
+  env.VITE_BACKEND_URL,
+  env.VITE_SOCKET_URL, // por si sólo configuraste el socket
+];
+const baseProd = normalizeBase(baseCandidates.find(Boolean) || "");
 let API_BASE = baseProd;
 
 // Forzar mismo origen en dev (Vite proxy)
@@ -20,11 +29,17 @@ const isLocalLike =
   isBrowser &&
   /^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$/i.test(origin);
 
-if (isLocalLike && import.meta.env?.DEV) {
+if (isLocalLike && env.DEV) {
   API_BASE = ""; // usa /api vía proxy → cookie HttpOnly viaja
 }
 
+// Fallback extra en prod si no hay variable: usa mismo origen (no recomendado pero evita 405 inmediatos)
+if (!isLocalLike && !API_BASE) {
+  try { API_BASE = `${window.location.protocol}//${window.location.host}`; } catch {}
+}
+
 export { API_BASE };
+
 
 /* =============== Auto-refresh (single-flight) =============== */
 const REFRESH_ENDPOINT_PATH = "/api/usuarios/auth/refresh";

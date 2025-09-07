@@ -1,8 +1,4 @@
-// src/context/AuthContext-1.jsx — corrige logout al refrescar estando logueado
-// - Elimina limpieza agresiva por "logoutAt" al montar.
-// - Limpia el flag "logoutAt" apenas se inicia sesión correctamente.
-// - Mantiene todo el resto intacto.
-
+// src/context/AuthContext-1.jsx — añade listener de 'force-logout' por WS (parche mínimo)
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { API_BASE, getJSON, patch, clearSessionCache } from "../services/api";
@@ -14,7 +10,6 @@ import {
   setSuppressLoginOnce,
   setFlag,
   getFlag,
-  // 👇 nuevo
   removeFlag,
 } from "../utils/authStorage";
 
@@ -23,14 +18,11 @@ import { ROLE_ABILITIES } from "../config/abilities";
 
 import { UbiContext } from "./UbiContext";
 
-
-
-
+// 👇 NUEVO: cliente de sockets (mantiene tu API existente)
+import { getSocket } from "../sockets/socketClient";
 
 axios.defaults.withCredentials = true;
-// Evita envíos duplicados del login (single-flight)
 let __loginInflight = null;
-
 
 const AuthContext = createContext();
 
@@ -53,7 +45,6 @@ function enriquecerUsuario(base) {
   return { ...base, accountType, profileType, plan, features, abilities };
 }
 
-// === Persistencia de ubicación (manual/auto) ===
 const UBIC_KEY = "AY_ubicacion";
 const readUbicacion = () => {
   try {
@@ -69,26 +60,18 @@ const AuthProvider = ({ children }) => {
   const [cargando, setCargando] = useState(true);
   const [mounted, setMounted] = useState(false);
 
-  // === Ubicación global (alta precisión + manual) ===
   const [ubicacion, setUbicacion] = useState(() => readUbicacion());
-
-  // UbiContext (plugin nativo)
   const ubiCtx = useContext(UbiContext) || null;
 
-  // Hidratación inicial (no bloquea la app)
   useEffect(() => {
     try {
       const token = localStorage.getItem("token");
-
-      // ⛔ Si no hay token, no llames /session ni nada de auth
       if (!token) {
         setAutenticado(false);
         setUsuario(null);
         setMounted(true);
-        return; // <- importante
+        return;
       }
-
-      // ✅ A partir de aquí, solo con token:
       const usuarioGuardado = localStorage.getItem("usuario");
       if (usuarioGuardado) {
         try {
@@ -100,20 +83,13 @@ const AuthProvider = ({ children }) => {
           setAutenticado(false);
         }
       }
-
-      // Si usas getAuthSession() o fetch /session, hazlo DESPUÉS del guard:
-      const stored =
-        typeof getAuthSession === "function" ? getAuthSession() : null;
+      const stored = typeof getAuthSession === "function" ? getAuthSession() : null;
       if (stored?.user) setUsuario(enriquecerUsuario(stored.user));
       if (stored?.accessToken) setAutenticado(true);
     } catch { }
     setMounted(true);
   }, []);
 
-
-  // Solicita ubicación con alta precisión y resuelve ciudad vía backend (/api/geo/reverse).
-  // ⚠️ No sobreescribe si ya existe ciudad manual (source:"manual").
-  // === Delegado: usa UbiContext (plugin nativo) si está disponible; fallback a null si no ===
   const solicitarUbicacionAltaPrecision = async (opts = {}) => {
     const fn =
       ubiCtx && typeof ubiCtx.solicitarUbicacionAltaPrecision === "function"
@@ -135,27 +111,24 @@ const AuthProvider = ({ children }) => {
           writeUbicacion(next);
           return res;
         } else {
-          try { console.warn("[ubicacion] respuesta inesperada de UbiContext.solicitarUbicacionAltaPrecision()", res); } catch {}
+          try { console.warn("[ubicacion] respuesta inesperada", res); } catch { }
           return null;
         }
       } catch (e) {
-        try { console.warn("[ubicacion] error solicitando ubicación (UbiContext)", e); } catch {}
+        try { console.warn("[ubicacion] error solicitando ubicación", e); } catch { }
         return null;
       }
     }
-    try { console.warn("[ubicacion] UbiContext no disponible; no se puede solicitar ubicación"); } catch {}
+    try { console.warn("[ubicacion] UbiContext no disponible"); } catch { }
     return null;
   };
- 
 
-
-  // Refresca ubicación al montar SOLO si no hay ciudad manual
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const current = readUbicacion();
-        if (current?.ciudad && current?.source === "manual") return; // respeta manual
+        if (current?.ciudad && current?.source === "manual") return;
         if (current?.ciudad && !current?.source) return;
         const result = await solicitarUbicacionAltaPrecision();
         if (!cancelled && result) setUbicacion((prev) => prev ?? result);
@@ -165,7 +138,6 @@ const AuthProvider = ({ children }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Mantener sincronía entre pestañas/ventanas
   useEffect(() => {
     const onStorage = (e) => {
       if (e.key === UBIC_KEY) {
@@ -179,7 +151,6 @@ const AuthProvider = ({ children }) => {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  // Consulta de sesión real (una sola vez, usando la caché de api.js)
   useEffect(() => {
     let cancelled = false;
     let fetched = false;
@@ -231,11 +202,27 @@ const AuthProvider = ({ children }) => {
           const full = enriquecerUsuario(data.usuario);
           setUsuario(full);
           try { localStorage.setItem("usuario", JSON.stringify(full)); } catch { }
-          try { setAuthSession({ accessToken: token || localStorage.getItem("token") || null, user: full }); } catch { }
+          try {
+            setAuthSession({
+              accessToken: token || localStorage.getItem("token") || null,
+              user: full
+            });
+          } catch { }
+
+          // 👇 UNIÓN AL CANAL user:<id>
+          try {
+            const s = getSocket();
+            if (full?._id) {
+              s.emit("join", { usuarioId: full._id });
+            }
+          } catch { }
         }
-      } catch { }
+      } catch (e) {
+        console.warn("Error en hidratarEnSegundoPlano:", e);
+      }
     })();
   };
+
 
   const iniciarSesion = async (token, usuarioRecibido) => {
     if (!token) return;
@@ -251,18 +238,22 @@ const AuthProvider = ({ children }) => {
       setUsuario(prelim);
       setAutenticado(true);
       try { setAuthSession({ accessToken: token, user: prelim }); } catch { }
+      // Parche agregado dentro de iniciarSesion(), justo después de setAuthSession...
+      try {
+        const socket = getSocket();
+        const decoded = JSON.parse(atob(token.split(".")[1]));
+        const jti = decoded?.jti || null;
+        const fam = decoded?.fam || decoded?.family || null;
+        if (jti) socket.emit("session:update", { jti, fam });
+      } catch (e) {
+        console.warn("No se pudo emitir session:update", e);
+      }
       limpiarEstadoTemporal();
-
-      // ✅ limpiar flag de logout reciente para que refrescar no te expulse
       try { removeFlag && removeFlag("logoutAt"); } catch { }
-
       hidratarEnSegundoPlano(token);
       return;
     }
-
-    // ✅ limpiar flag de logout reciente también aquí
     try { removeFlag && removeFlag("logoutAt"); } catch { }
-
     hidratarEnSegundoPlano(token);
     limpiarEstadoTemporal();
   };
@@ -308,7 +299,6 @@ const AuthProvider = ({ children }) => {
 
   const login = async ({ correo, contraseña }) => {
     limpiarEstadoTemporal();
-    // Single-flight: si ya hay un login en curso, reusa esa promesa
     if (__loginInflight) return __loginInflight;
     __loginInflight = (async () => {
       try {

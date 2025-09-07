@@ -1,10 +1,11 @@
-// src/pages/Panel/Seguridad/SessionsList.jsx
+// src/pages/Panel/Seguridad/SessionsList-1.jsx
 import { useEffect, useState, useCallback } from "react";
+import { useAuth } from "../../../context/AuthContext"; // ✅ FIX: import useAuth
 
 async function fetchJson(url, options = {}) {
   const res = await fetch(url, {
     credentials: "include",
-    headers: { "Accept": "application/json", ...(options.headers || {}) },
+    headers: { Accept: "application/json", ...(options.headers || {}) },
     ...options,
   });
   const ct = res.headers.get("content-type") || "";
@@ -18,12 +19,16 @@ async function fetchJson(url, options = {}) {
 
 function formatDate(v) {
   if (!v) return "—";
-  try { return new Date(v).toLocaleString(); } catch { return String(v); }
+  try {
+    return new Date(v).toLocaleString();
+  } catch {
+    return String(v);
+  }
 }
 
 function relativeTime(v) {
   if (!v) return "—";
-  const d = (v instanceof Date) ? v : new Date(v);
+  const d = v instanceof Date ? v : new Date(v);
   const diff = Date.now() - d.getTime();
   const s = Math.floor(diff / 1000);
   if (s < 10) return "justo ahora";
@@ -39,15 +44,23 @@ function relativeTime(v) {
 function summarizeUA(ua = "") {
   const s = String(ua || "");
   if (!s) return "Navegador · SO";
-  const nav = /Edg\//.test(s) ? "Edge"
-    : /Chrome\//.test(s) ? "Chrome"
-    : /Safari\//.test(s) && !/Chrome\//.test(s) ? "Safari"
-    : /Firefox\//.test(s) ? "Firefox"
+  const nav = /Edg\//.test(s)
+    ? "Edge"
+    : /Chrome\//.test(s)
+    ? "Chrome"
+    : /Safari\//.test(s) && !/Chrome\//.test(s)
+    ? "Safari"
+    : /Firefox\//.test(s)
+    ? "Firefox"
     : "Navegador";
-  const os = /Windows NT/.test(s) ? "Windows"
-    : /Mac OS X/.test(s) ? "macOS"
-    : /Android/.test(s) ? "Android"
-    : /(iPhone|iPad|iPod)/.test(s) ? "iOS"
+  const os = /Windows NT/.test(s)
+    ? "Windows"
+    : /Mac OS X/.test(s)
+    ? "macOS"
+    : /Android/.test(s)
+    ? "Android"
+    : /(iPhone|iPad|iPod)/.test(s)
+    ? "iOS"
     : "SO";
   return `${nav} · ${os}`;
 }
@@ -56,6 +69,7 @@ export default function SessionsList({ onSignOutAll }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [sessions, setSessions] = useState([]);
+  const { cerrarSesion } = useAuth(); // ✅ ahora definido
 
   const fetchSessions = useCallback(async () => {
     setLoading(true);
@@ -81,7 +95,9 @@ export default function SessionsList({ onSignOutAll }) {
     }
   }, []);
 
-  useEffect(() => { fetchSessions(); }, [fetchSessions]);
+  useEffect(() => {
+    fetchSessions();
+  }, [fetchSessions]);
 
   const closeOne = async (id) => {
     if (!id) return;
@@ -113,16 +129,19 @@ export default function SessionsList({ onSignOutAll }) {
   const signOutAll = async () => {
     if (!window.confirm("¿Cerrar TODAS las sesiones (incluida esta)?")) return;
     try {
-      if (onSignOutAll) {
+      // 1) Orden al backend
+      await fetchJson(`/api/usuarios/sessions/revoke-all`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+
+      // 2) Salir localmente (no llamamos fetchSessions porque ya no habrá cookie)
+      if (typeof onSignOutAll === "function") {
         await onSignOutAll();
       } else {
-        await fetchJson(`/api/usuarios/sessions/revoke-all`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: "{}",
-        });
+        await cerrarSesion();
       }
-      await fetchSessions();
     } catch (e) {
       setError(e?.message || "No se pudieron cerrar todas las sesiones.");
     }
@@ -133,7 +152,9 @@ export default function SessionsList({ onSignOutAll }) {
       {error ? (
         <div className="space-y-3">
           <div className="text-sm text-red-600">{error}</div>
-          <button onClick={fetchSessions} className="text-sm px-3 py-1.5 rounded-xl border hover:bg-gray-50">Reintentar</button>
+          <button onClick={fetchSessions} className="text-sm px-3 py-1.5 rounded-xl border hover:bg-gray-50">
+            Reintentar
+          </button>
         </div>
       ) : null}
 

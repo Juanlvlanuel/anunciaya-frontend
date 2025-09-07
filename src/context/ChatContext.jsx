@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { io } from "socket.io-client";
+import { getSocket, refreshSocketAuth } from "../sockets/socketClient";
 import { getJSON, API_BASE, clearSessionCache } from "../services/api";
 import { AuthContext } from "./AuthContext";
 import { getAuthSession, setAuthSession } from "../utils/authStorage";
@@ -105,74 +105,106 @@ export default function ChatProvider({ children }) {
   const lastRefreshAttemptRef = useRef(0);
   useEffect(() => { notifiersRef.current.attach(); }, []);
 
+  
+  // Socket singleton (HMR-safe). Reutiliza una sola conexión.
   useEffect(() => {
     if (!me) return;
-    if (socketRef.current) return;
+
+    const s = getSocket(); // singleton
+    socketRef.current = s;
+    setSocket(s);
+
     const startedAt = Date.now();
-    const timer = setTimeout(() => {
-      const s = io(wsURL, {
-        path: "/socket.io",
-        transports: ["websocket", "polling"],
-        withCredentials: true,
-        reconnection: true,
-        reconnectionAttempts: Infinity,
-        reconnectionDelay: 600,
-        reconnectionDelayMax: 6000,
-        timeout: 10000,
-      });
-      s.on("connect", () => {
-        console.info("[chat-socket] connected", { id: s.id, wsURL, sinceMs: Date.now() - startedAt });
-        try { s.emit("join", { usuarioId: me }); } catch { }
-        try { s.emit("chat:join", { usuarioId: me }); } catch { }
-        try { s.emit("user:join", String(me)); } catch { }
-        try { s.emit("user:status:request"); } catch { }
 
-      });
-      s.on("disconnect", (reason) => { console.warn("[chat-socket] disconnected:", reason); });
-      s.on("reconnect_attempt", (n) => { if (n % 10 === 0) console.info("[chat-socket] reconnecting… attempt", n); });
-      s.on("reconnect", (n) => console.info("[chat-socket] reconnected on attempt", n));
-      s.on("reconnect_error", (err) => { console.debug("[chat-socket] reconnect error:", err?.message || err); });
-      s.on("connect_error", (err) => { console.debug("[chat-socket] connect error:", err?.message || err); });
+    const onConnect = () => {
+      try { console.info("[chat-socket] connected", { id: s.id, sinceMs: Date.now() - startedAt }); } catch {}
+      try { s.emit("join", { usuarioId: me }); } catch {}
+      try { s.emit("chat:join", { usuarioId: me }); } catch {}
+      try { s.emit("user:join", String(me)); } catch {}
+      try { s.emit("user:status:request"); } catch {}
+    };
 
-      s.on("user:status:snapshot", (snapshot) => setStatusMap(snapshot || {}));
-      s.on("user:status", ({ userId, status }) => setStatusMap((m) => ({ ...m, [userId]: status })));
+    const onDisconnect = (reason) => { try { console.warn("[chat-socket] disconnected:", reason); } catch {} };
+    const onReconnectAttempt = (n) => { if (n % 10 === 0) try { console.info("[chat-socket] reconnecting… attempt", n); } catch {} };
+    const onReconnect = (n) => { try { console.info("[chat-socket] reconnected on attempt", n); } catch {} };
+    const onReconnectError = (err) => { try { console.debug("[chat-socket] reconnect error:", err?.message || err); } catch {} };
+    const onConnectError = (err) => { try { console.debug("[chat-socket] connect error:", err?.message || err); } catch {} };
 
-      s.on("chat:newMessage", ({ chatId, mensaje }) => {
-        const incoming = { ...mensaje };
-        if (!incoming.replyTo && incoming.reply) incoming.replyTo = incoming.reply;
-        clearReplyTarget();
-        setMessages((m) => {
-          const list = m[chatId] || [];
-          const idx = list.findIndex((x) => String(x?._id) === String(incoming?._id));
-          const next = idx >= 0 ? [...list.slice(0, idx), incoming, ...list.slice(idx + 1)] : [...list, incoming];
-          return { ...m, [chatId]: next };
-        });
-        setChats((prev) => {
-          const exists = prev.some((c) => String(c._id) === String(chatId));
-          if (!exists) { loadChats?.(); return prev; }
-          return prev.map((c) => (c._id === chatId ? { ...c, ultimoMensaje: mensaje?.texto ?? mensaje } : c));
-        });
-        notifiersRef.current.playBeep(); notifiersRef.current.vibrate();
-      });
+    // Mensajería
+    const onStatusSnapshot = (snapshot) => setStatusMap(snapshot || {});
+    const onStatus = ({ userId, status }) => setStatusMap((m) => ({ ...m, [userId]: status }));
 
-      s.on("message:new", ({ chatId, message }) => { s.emit("chat:newMessage", { chatId, mensaje: message }); });
-      s.on("chat:typing", ({ chatId, usuarioId, typing }) => { setTypingMap((t) => ({ ...t, [chatId]: typing ? usuarioId : null })); });
-      s.on("chat:messageEdited", ({ chatId, mensaje }) => {
-        clearReplyTarget();
-        setMessages((m) => {
-          const list = m[chatId] || []; const idx = list.findIndex((x) => String(x?._id) === String(mensaje?._id));
-          if (idx === -1) return m; const next = list.slice(); next[idx] = { ...list[idx], ...mensaje }; return { ...m, [chatId]: next };
-        });
+    const onNewMessage = ({ chatId, mensaje }) => {
+      const incoming = { ...mensaje };
+      if (!incoming.replyTo && incoming.reply) incoming.replyTo = incoming.reply;
+      clearReplyTarget();
+      setMessages((m) => {
+        const list = m[chatId] || [];
+        const idx = list.findIndex((x) => String(x?._id) === String(incoming?._id));
+        const next = idx >= 0 ? [...list.slice(0, idx), incoming, ...list.slice(idx + 1)] : [...list, incoming];
+        return { ...m, [chatId]: next };
       });
-      s.on("chat:messageDeleted", ({ chatId, messageId }) => {
-        clearReplyTarget();
-        setMessages((m) => { const list = m[chatId] || []; const next = list.filter((x) => String(x?._id) !== String(messageId)); return { ...m, [chatId]: next }; });
+      setChats((prev) => {
+        const exists = prev.some((c) => String(c._id) === String(chatId));
+        if (!exists) { loadChats?.(); return prev; }
+        return prev.map((c) => (c._id === chatId ? { ...c, ultimoMensaje: mensaje?.texto ?? mensaje } : c));
       });
+      notifiersRef.current.playBeep(); notifiersRef.current.vibrate();
+    };
 
-      socketRef.current = s; setSocket(s);
-    }, 400);
-    return () => { clearTimeout(timer); try { socketRef.current?.disconnect(); } catch { } socketRef.current = null; setSocket(null); };
-  }, [me, wsURL]);
+    const onMessageNew = ({ chatId, message }) => { try { s.emit("chat:newMessage", { chatId, mensaje: message }); } catch {} };
+    const onTyping = ({ chatId, usuarioId, typing }) => { setTypingMap((t) => ({ ...t, [chatId]: typing ? usuarioId : null })); };
+    const onMessageEdited = ({ chatId, mensaje }) => {
+      clearReplyTarget();
+      setMessages((m) => {
+        const list = m[chatId] || []; const idx = list.findIndex((x) => String(x?._id) === String(mensaje?._id));
+        if (idx === -1) return m; const next = list.slice(); next[idx] = { ...list[idx], ...mensaje }; return { ...m, [chatId]: next };
+      });
+    };
+    const onMessageDeleted = ({ chatId, messageId }) => {
+      clearReplyTarget();
+      setMessages((m) => { const list = m[chatId] || []; const next = list.filter((x) => String(x?._id) !== String(messageId)); return { ...m, [chatId]: next }; });
+    };
+
+    // Attach once per mount
+    s.on("connect", onConnect);
+    s.on("disconnect", onDisconnect);
+    s.on("reconnect_attempt", onReconnectAttempt);
+    s.on("reconnect", onReconnect);
+    s.on("reconnect_error", onReconnectError);
+    s.on("connect_error", onConnectError);
+    s.on("user:status:snapshot", onStatusSnapshot);
+    s.on("user:status", onStatus);
+    s.on("chat:newMessage", onNewMessage);
+    s.on("message:new", onMessageNew);
+    s.on("chat:typing", onTyping);
+    s.on("chat:messageEdited", onMessageEdited);
+    s.on("chat:messageDeleted", onMessageDeleted);
+
+    // En caso de que el token haya cambiado en memoria
+    try { refreshSocketAuth?.(); } catch {}
+
+    return () => {
+      // Detach listeners solamente (no desconectar la instancia global)
+      try {
+        s.off("connect", onConnect);
+        s.off("disconnect", onDisconnect);
+        s.off("reconnect_attempt", onReconnectAttempt);
+        s.off("reconnect", onReconnect);
+        s.off("reconnect_error", onReconnectError);
+        s.off("connect_error", onConnectError);
+        s.off("user:status:snapshot", onStatusSnapshot);
+        s.off("user:status", onStatus);
+        s.off("chat:newMessage", onNewMessage);
+        s.off("message:new", onMessageNew);
+        s.off("chat:typing", onTyping);
+        s.off("chat:messageEdited", onMessageEdited);
+        s.off("chat:messageDeleted", onMessageDeleted);
+      } catch {}
+      socketRef.current = null;
+      setSocket(null);
+    };
+  }, [me]);
 
   useEffect(() => {
     if (!socket) return;

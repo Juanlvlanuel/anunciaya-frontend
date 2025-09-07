@@ -53,13 +53,16 @@ function App() {
     if (Capacitor.getPlatform() !== "web") {
       (async () => {
         try {
-          await StatusBar.setOverlaysWebView({ overlay: true });          // WebView debajo
-          await StatusBar.setBackgroundColor({ color: "transparent" });   // fondo transparente
-          await StatusBar.setStyle({ style: Style.Dark });                 // iconos/letras negras
-        } catch { }
+          await StatusBar.setOverlaysWebView({ overlay: true }); // WebView debajo
+          await StatusBar.setBackgroundColor({ color: "transparent" }); // fondo transparente
+          await StatusBar.setStyle({ style: Style.Dark }); // iconos/letras negras
+        } catch {
+          // no mostrar nada en consola si falla en web
+        }
       })();
     }
   }, []);
+
 
   useEffect(() => {
     try {

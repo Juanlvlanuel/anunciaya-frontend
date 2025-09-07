@@ -1,11 +1,9 @@
-// src/sockets/socketClient.js
-// Cliente Socket.IO con singleton, auth por token y reconexión segura.
-
+// src/sockets/socketClient-1.js
 import { io } from "socket.io-client";
 
-let socket = null;
+const GLOBAL_KEY = "__ANUNCIAYA_WS_SINGLETON__";
 
-// Obtiene token (localStorage) sin romper SSR
+/* ===== Helpers ===== */
 function getToken() {
   try {
     if (typeof localStorage !== "undefined") {
@@ -16,85 +14,135 @@ function getToken() {
   return undefined;
 }
 
-/**
- * Crea la instancia única del socket.
- * - Si VITE_SOCKET_BASE está definida, se conecta ahí (útil si backend está en otro dominio).
- * - Si no, usa mismo origen (ideal con Vite proxy).
- */
+function hasRefreshCookie(name) {
+  try {
+    const n = name || (import.meta?.env?.VITE_REFRESH_COOKIE_NAME || "rid");
+    return (
+      typeof document !== "undefined" &&
+      document.cookie.split(";").some((c) => c.trim().startsWith(`${n}=`))
+    );
+  } catch {}
+  return false;
+}
+
+function normalizeBase(s = "") {
+  return s ? String(s).trim().replace(/\/+$/, "") : "";
+}
+
+function resolveSocketBase() {
+  const env =
+    typeof import.meta !== "undefined" && import.meta.env ? import.meta.env : {};
+  if (env && env.VITE_SOCKET_BASE) return normalizeBase(env.VITE_SOCKET_BASE);
+
+  // Fallback: derivar del API_BASE si existe
+  if (env && env.VITE_API_BASE) {
+    try {
+      const u = new URL(env.VITE_API_BASE);
+      const port = u.port || (u.protocol === "https:" ? "443" : "80");
+      return `${u.protocol}//${u.hostname}:${port}`;
+    } catch {}
+  }
+
+  // Último recurso: mismo host del navegador con puerto backend (5000 por defecto)
+  try {
+    const { protocol, hostname } = window.location;
+    const httpProto = protocol === "https:" ? "https" : "http";
+    const port =
+      (env && (env.VITE_API_PORT || env.VITE_BACKEND_PORT)) ||
+      5000;
+    return `${httpProto}://${hostname}:${port}`;
+  } catch {}
+  return "";
+}
+
+/* ===== Socket singleton ===== */
 function createSocket() {
-  // Si defines VITE_SOCKET_BASE (ej. "https://miapi.com"), úsala. Si no, mismo origen.
-  const base =
-    typeof import.meta !== "undefined" &&
-    import.meta.env &&
-    import.meta.env.VITE_SOCKET_BASE;
+  const base = resolveSocketBase();
 
   const opts = {
     autoConnect: false,
-    transports: ["websocket"], // evita long-polling
+    transports: ["websocket"],
     withCredentials: true,
-    // auth dinámico: se lee en cada conexión
     auth: { token: getToken() },
-    // path: "/socket.io", // por defecto; descomenta si cambiaste en el servidor
+    path: "/socket.io",
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelayMax: 3000,
   };
 
   const s = base ? io(base, opts) : io(opts);
 
-  // --- Debug útil en dev ---
-  if (typeof import.meta !== "undefined" && import.meta.env?.DEV) {
-    s.on("connect", () => console.info("[socket] connect", s.id));
-    s.on("disconnect", (r) => console.info("[socket] disconnect", r));
-    s.on("connect_error", (e) => console.warn("[socket] connect_error", e?.message || e));
-    s.onAny((event, ...args) => {
-      if (["cupones:new", "cupones:recent"].includes(event)) {
-        console.debug("[socket] event:", event, args?.[0] ?? "");
-      }
-    });
-  }
+  s.on("connect", () => {
+    try {
+      // if (import.meta.env.DEV) console.info("[socket] connect", s.id);
+      s.emit("session:joinAll");
+    } catch {}
+  });
 
-  // Conecta al crear
-  s.connect();
+  s.on("disconnect", () => {
+    // if (import.meta.env.DEV) console.warn("[socket] disconnect");
+  });
+
+  s.on("connect_error", (e) => {
+    const msg = (e && e.message) ? String(e.message) : "";
+    // Silenciar cuando el backend responde Unauthorized si no hay sesión
+    if (msg.toLowerCase().includes("unauthorized")) return;
+    if (import.meta.env.DEV) {
+      try { console.warn("[socket] connect_error", msg || e); } catch {}
+    }
+  });
+
   return s;
 }
 
-/**
- * Devuelve el socket singleton (lo crea si no existe).
- */
-export function getSocket() {
-  if (socket && socket.connected) return socket;
-  if (!socket) socket = createSocket();
-  // Si existe pero no está conectado (p.ej. recuperamos tras dormir/refresh)
-  if (!socket.connected && !socket.active) {
-    try {
-      socket.auth = { token: getToken() };
-      socket.connect();
-    } catch {}
+function ensureSingleton() {
+  const g = typeof globalThis !== "undefined" ? globalThis : window;
+  if (!g[GLOBAL_KEY] || !g[GLOBAL_KEY].socket) {
+    const socket = createSocket();
+    g[GLOBAL_KEY] = { socket };
   }
-  return socket;
+  return g[GLOBAL_KEY].socket;
 }
 
-/**
- * Fuerza reconexión con un token nuevo (p.ej. tras login o refresh).
- * Útil si manejas el token en tu AuthContext y quieres refrescar el handshake.
- */
-export function reconnectWithAuth(newToken) {
-  if (!socket) return;
-  socket.auth = { token: newToken ? `Bearer ${newToken}` : undefined };
+/* ===== Public API ===== */
+export function getSocket() {
+  const s = ensureSingleton();
+  try { s.auth = { token: getToken() }; } catch {}
+
+  // Conectar solo si hay sesión (token o cookie rid)
+  if (!s.connected && !s.active) {
+    if (getToken() || hasRefreshCookie()) {
+      try { s.connect(); } catch {}
+    }
+  }
+  return s;
+}
+
+export function refreshSocketAuth() {
   try {
-    if (socket.connected) socket.disconnect();
-    socket.connect();
+    const s = ensureSingleton();
+    s.auth = { token: getToken() };
+    // Reintentar conectar si ahora ya hay sesión
+    if (!s.connected && (getToken() || hasRefreshCookie())) {
+      try { s.connect(); } catch {}
+    }
   } catch {}
 }
 
-/**
- * (Opcional) Desconecta y limpia el singleton. Útil en logout.
- */
 export function destroySocket() {
   try {
-    if (socket) {
-      socket.removeAllListeners();
-      socket.disconnect();
+    const g = typeof globalThis !== "undefined" ? globalThis : window;
+    const s = g[GLOBAL_KEY]?.socket;
+    if (s) {
+      s.removeAllListeners();
+      s.disconnect();
     }
-  } finally {
-    socket = null;
-  }
+    g[GLOBAL_KEY] = { socket: null };
+  } catch {}
+}
+
+/* HMR */
+if (import.meta && import.meta.hot) {
+  import.meta.hot.accept(() => {});
+  import.meta.hot.dispose(() => {});
 }

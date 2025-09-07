@@ -1,24 +1,21 @@
-// vite.config-1.js
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import dns from "dns";
+
+dns.setDefaultResultOrder?.("ipv4first");
+
+const DEV_TARGET = process.env.VITE_DEV_API_TARGET || "http://127.0.0.1:5000";
 
 export default defineConfig({
   plugins: [react()],
   server: {
-    // Servir para LAN y forzar HMR al hostname/IP de tu red
     host: "0.0.0.0",
     port: 5173,
     strictPort: true,
-    hmr: {
-      host: "192.168.1.70", // <-- tu IP LAN (ajústala si cambia)
-      port: 5173,
-      clientPort: 5173,
-      protocol: "ws",
-      overlay: false,
-    },
+    hmr: { overlay: false },
     proxy: {
       "/api": {
-        target: "http://localhost:5000",
+        target: DEV_TARGET,
         changeOrigin: true,
         secure: false,
         ws: false,
@@ -26,27 +23,20 @@ export default defineConfig({
         configure: (proxy) => {
           proxy.on("proxyRes", (proxyRes) => {
             const key = "set-cookie";
-            if (proxyRes.headers[key]) {
-              proxyRes.headers[key] = proxyRes.headers[key].map((cookie) =>
+            const sc = proxyRes.headers[key];
+            if (sc) {
+              proxyRes.headers[key] = sc.map((cookie) =>
                 cookie
-                  .replace(/Domain=[^;]+;?\s*/i, "")
-                  .replace(/;\s*SameSite=None/i, "")
+                  .replace(/;\s*Domain=[^;]+/i, "")
+                  .replace(/;\s*SameSite=None/ig, "; SameSite=Lax")
               );
             }
           });
+          proxy.on("error", () => {});
         },
       },
-      "/socket.io": {
-        target: "http://localhost:5000",
-        changeOrigin: true,
-        secure: false,
-        ws: true,
-      },
-      "/uploads": {
-        target: "http://localhost:5000",
-        changeOrigin: true,
-        secure: false,
-      },
+      // 👇 Quitamos por completo el proxy de /socket.io para evitar logs ECONNABORTED
     },
+    watch: { usePolling: true, interval: 300 },
   },
 });
