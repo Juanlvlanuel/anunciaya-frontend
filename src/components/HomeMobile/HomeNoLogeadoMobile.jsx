@@ -149,20 +149,19 @@ const HomeNoLogeadoMobile = ({ abrirModalLogin, abrirModalRegistro }) => {
   }, []);
 
   return (
-    <div
-      className="
-    relative
-    min-h-[100svh]
-    flex flex-col
-    overflow-x-hidden
-    overflow-y-auto
-    overscroll-none
-    pt-[calc(env(safe-area-inset-top,0px)+56px)]
-    bg-[url('/src/assets/fondo-inicio-mobile.webp')]
-    bg-cover
-    bg-[position:70%_top]
-  "
-    >
+     <div className="relative min-h-[100svh] flex flex-col overflow-x-hidden">
+      {/* Imagen de fondo optimizada */}
+      <img
+        src="/fondo-inicio-mobile.webp"
+        alt="Fondo de inicio"
+        width={1200}
+        height={1600}
+        loading="eager"
+        decoding="async"
+        fetchpriority="high"
+        className="absolute inset-0 w-full h-full object-cover object-top z-0"
+      />
+
       {/* Overlays (franjas negras) */}
       <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-b from-black/30 to-transparent z-10 pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-full h-28 bg-gradient-to-t from-black/30 to-transparent z-10 pointer-events-none" />
@@ -178,7 +177,7 @@ const HomeNoLogeadoMobile = ({ abrirModalLogin, abrirModalRegistro }) => {
 
       {/* 1. Caja ÚNETE a la plataforma */}
       <motion.div
-        className="w-full flex justify-center mt-20 mb-3 relative z-10"
+        className="w-full flex justify-center mt-36 mb-3 relative z-10"
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 1.2 }}
@@ -193,7 +192,7 @@ const HomeNoLogeadoMobile = ({ abrirModalLogin, abrirModalRegistro }) => {
           border border-white/60
           backdrop-blur-[9px]
         ">
-          <span className="block text-[18px] font-semibold text-gray-900 drop-shadow-sm leading-[1.3]">
+          <span className="block text-[18px] font-semibold text-gray-900 drop-shadow-sm leading-[1.3] ">
             <span>
               Únete a la Plataforma más Completa<br />para Crecer en
               <br />
