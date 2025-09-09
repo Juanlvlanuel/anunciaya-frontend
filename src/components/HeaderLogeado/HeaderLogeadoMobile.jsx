@@ -103,8 +103,8 @@ const HeaderLogeadoMobile = () => {
               <img
                 src="/logo-anunciaya.webp"
                 alt="AnunciaYA"
-                width={160}
-                height={44}
+                width={220}
+                height={90}
                 loading="eager"
                 decoding="async"
                 fetchpriority="high"

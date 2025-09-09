@@ -43,14 +43,20 @@ const HomeLogeadoMobile = () => {
   const primerosNombres = getPrimerosNombres(usuario);
 
   return (
-    <div
-      className="
-        relative min-h-screen flex flex-col
-        bg-[url('/src/assets/fondo-inicio-mobile.webp')]
-        bg-cover bg-[position:70%_top]
-        overflow-x-hidden
-      "
-    >
+    <div className="relative min-h-screen flex flex-col overflow-x-hidden">
+      {/* Imagen de fondo optimizada */}
+      <img
+        src="/fondo-inicio-mobile.webp"
+        alt="Fondo de inicio"
+        width={1200}
+        height={1600}
+        loading="eager"
+        decoding="async"
+        fetchpriority="high"
+        className="absolute inset-0 w-full h-full object-cover object-top z-0"
+      />
+
+
       {/* Overlays */}
       <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-b from-black/30 to-transparent z-10 pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-full h-28 bg-gradient-to-t from-black/30 to-transparent z-10 pointer-events-none" />
