@@ -313,7 +313,7 @@ const AuthProvider = ({ children }) => {
     (async () => {
       try {
         const base = (API_BASE || "");
-        const data = await fetchJsonWithTimeout(`${base}api/usuarios/session`, { method: 'GET', headers: { 'Accept': 'application/json' }, credentials: 'include', timeout: FETCH_TIMEOUT_MS });
+        const data = await fetchJsonWithTimeout(`${base}/api/usuarios/session`, { method: 'GET', headers: { 'Accept': 'application/json' }, credentials: 'include', timeout: FETCH_TIMEOUT_MS });
         if (data && data.usuario) {
           const full = enriquecerUsuario(data.usuario);
           setUsuario(full);
