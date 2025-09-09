@@ -1,6 +1,7 @@
-// src/pages/Panel/Seguridad/SessionsList-1.jsx
+
 import { useEffect, useState, useCallback } from "react";
-import { useAuth } from "../../../context/AuthContext"; // ✅ FIX: import useAuth
+import { useAuth } from "../../../context/AuthContext";
+const API_BASE = import.meta.env.VITE_API_BASE; // ✅ Usar API_BASE
 
 async function fetchJson(url, options = {}) {
   const res = await fetch(url, {
@@ -69,18 +70,18 @@ export default function SessionsList({ onSignOutAll }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [sessions, setSessions] = useState([]);
-  const { cerrarSesion } = useAuth(); // ✅ ahora definido
+  const { cerrarSesion } = useAuth();
 
   const fetchSessions = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      await fetchJson("/api/usuarios/sessions/ping", {
+      await fetchJson(`${API_BASE}/api/usuarios/sessions/ping`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: "{}",
       });
-      const data = await fetchJson("/api/usuarios/sessions");
+      const data = await fetchJson(`${API_BASE}/api/usuarios/sessions`);
       const list = Array.isArray(data?.sessions)
         ? data.sessions
         : Array.isArray(data?.items)
@@ -102,7 +103,7 @@ export default function SessionsList({ onSignOutAll }) {
   const closeOne = async (id) => {
     if (!id) return;
     try {
-      await fetchJson(`/api/usuarios/sessions/${encodeURIComponent(id)}`, {
+      await fetchJson(`${API_BASE}/api/usuarios/sessions/${encodeURIComponent(id)}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
       });
@@ -115,7 +116,7 @@ export default function SessionsList({ onSignOutAll }) {
   const signOutOthers = async () => {
     if (!window.confirm("¿Cerrar todas las demás sesiones?")) return;
     try {
-      await fetchJson(`/api/usuarios/sessions/revoke-others`, {
+      await fetchJson(`${API_BASE}/api/usuarios/sessions/revoke-others`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: "{}",
@@ -129,14 +130,11 @@ export default function SessionsList({ onSignOutAll }) {
   const signOutAll = async () => {
     if (!window.confirm("¿Cerrar TODAS las sesiones (incluida esta)?")) return;
     try {
-      // 1) Orden al backend
-      await fetchJson(`/api/usuarios/sessions/revoke-all`, {
+      await fetchJson(`${API_BASE}/api/usuarios/sessions/revoke-all`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: "{}",
       });
-
-      // 2) Salir localmente (no llamamos fetchSessions porque ya no habrá cookie)
       if (typeof onSignOutAll === "function") {
         await onSignOutAll();
       } else {
