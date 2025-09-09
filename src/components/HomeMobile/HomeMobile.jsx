@@ -4,10 +4,15 @@ import { AuthContext } from "../../context/AuthContext";
 import HomeLogeadoMobile from "./HomeLogeadoMobile";
 import HomeNoLogeadoMobile from "./HomeNoLogeadoMobile";
 
-const HomeMobile = () => {
+const HomeMobile = ({ abrirModalLogin, abrirModalRegistro }) => {
   const { autenticado } = useContext(AuthContext);
 
-  return autenticado ? <HomeLogeadoMobile /> : <HomeNoLogeadoMobile />;
+  return autenticado
+    ? <HomeLogeadoMobile />
+    : <HomeNoLogeadoMobile
+      abrirModalLogin={abrirModalLogin}
+      abrirModalRegistro={abrirModalRegistro}
+    />;
 };
 
 export default HomeMobile;

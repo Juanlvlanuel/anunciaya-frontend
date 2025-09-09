@@ -1,4 +1,12 @@
-// main-1.jsx
+// ✅ Agrega esto justo al principio de main.jsx
+if (!window.Capacitor) {
+  window.Capacitor = {
+    triggerEvent: () => {},
+    Plugins: {},
+    isNative: false
+  };
+}
+
 import React, { useEffect } from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
@@ -11,7 +19,6 @@ import { AuthProvider } from "./context/AuthContext";
 import { UbiProvider } from "./context/UbiContext";
 import ChatProvider from "./context/ChatContext";
 
-import { GoogleOAuthProvider } from "@react-oauth/google";
 import { StatusBar, Style } from "@capacitor/status-bar";
 
 // Env
@@ -99,7 +106,7 @@ const Root = () => {
   }, []);
 
   return (
-    <GoogleOAuthProvider clientId={clientId}>
+
       <UbiProvider>
         <AuthProvider>
           <ChatProvider currentUserId={USER_ID}>
@@ -111,7 +118,7 @@ const Root = () => {
           </ChatProvider>
         </AuthProvider>
       </UbiProvider>
-    </GoogleOAuthProvider>
+
 
   );
 };

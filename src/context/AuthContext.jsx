@@ -1,7 +1,12 @@
-// src/context/AuthContext-1.jsx — añade listener de 'force-logout' por WS (parche mínimo)
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+// src/context/AuthContext-1.jsx
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
-import { API_BASE, getJSON, patch, clearSessionCache } from "../services/api";
+import { getJSON, patch, clearSessionCache } from "../services/api";
+const API_BASE =
+  import.meta.env.MODE === "development"
+    ? ""   // en desarrollo usa el proxy de Vite (/api/...)
+    : import.meta.env.VITE_API_BASE || "";
+
 import {
   setAuthSession,
   getAuthSession,
@@ -17,9 +22,38 @@ import { FEATURES_BY_PLAN } from "../config/features";
 import { ROLE_ABILITIES } from "../config/abilities";
 
 import { UbiContext } from "./UbiContext";
-
-// 👇 NUEVO: cliente de sockets (mantiene tu API existente)
 import { getSocket } from "../sockets/socketClient";
+
+/** ------------------------------------------------------------------
+ *  Protecciones contra cuelgues en el Splash:
+ *  - fetchJsonWithTimeout: usa AbortController (12s por default)
+ *  - Logs mínimos para trazar dónde se queda
+ * ------------------------------------------------------------------*/
+const FETCH_TIMEOUT_MS = 4000;
+
+async function fetchJsonWithTimeout(url, options = {}) {
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timeout = typeof options.timeout === "number" ? options.timeout : FETCH_TIMEOUT_MS;
+  let timer = null;
+  if (controller) {
+    try { timer = setTimeout(() => { try { controller.abort(); } catch { } }, timeout); } catch { }
+  }
+  try {
+    const res = await fetch(url, { ...options, signal: options.signal || (controller && controller.signal) });
+    const ct = String(res.headers.get("content-type") || "");
+    const data = ct.includes("application/json") ? await res.json().catch(() => ({})) : {};
+    if (!res.ok) {
+      const err = new Error("HTTP " + res.status);
+      err.status = res.status;
+      err.data = data;
+      throw err;
+    }
+    return data;
+  } finally {
+    try { if (timer) clearTimeout(timer); } catch { }
+  }
+}
+
 
 axios.defaults.withCredentials = true;
 let __loginInflight = null;
@@ -50,9 +84,15 @@ const readUbicacion = () => {
   try {
     const raw = localStorage.getItem(UBIC_KEY);
     return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 };
-const writeUbicacion = (obj) => { try { localStorage.setItem(UBIC_KEY, JSON.stringify(obj)); } catch { } };
+const writeUbicacion = (obj) => {
+  try {
+    localStorage.setItem(UBIC_KEY, JSON.stringify(obj));
+  } catch { }
+};
 
 const AuthProvider = ({ children }) => {
   const [autenticado, setAutenticado] = useState(false);
@@ -130,13 +170,16 @@ const AuthProvider = ({ children }) => {
         const current = readUbicacion();
         if (current?.ciudad && current?.source === "manual") return;
         if (current?.ciudad && !current?.source) return;
-        const result = await solicitarUbicacionAltaPrecision();
-        if (!cancelled && result) setUbicacion((prev) => prev ?? result);
+
+        // ✅ Ya NO pedimos ubicación precisa automática
+        // Solo dejamos la de IP o manual (se actualiza desde UbiContext)
+        const ipUbic = ubiCtx?.ubicacion;
+        if (!cancelled && ipUbic) setUbicacion((prev) => prev ?? ipUbic);
       } catch { }
     })();
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [ubiCtx]);
+
 
   useEffect(() => {
     const onStorage = (e) => {
@@ -151,7 +194,13 @@ const AuthProvider = ({ children }) => {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
+  // Evitar doble hidratación
+  const hydrateOnceGuard = useRef(false);
+
   useEffect(() => {
+    if (hydrateOnceGuard.current) return;
+    hydrateOnceGuard.current = true;
+
     let cancelled = false;
     let fetched = false;
 
@@ -160,13 +209,16 @@ const AuthProvider = ({ children }) => {
       fetched = true;
       try {
         setCargando(true);
-        const data = await getJSON(`/api/usuarios/session`, {
-          headers: {},
-          credentials: "include",
+        const base = (API_BASE || "");
+        const data = await fetchJsonWithTimeout(`${base}/api/usuarios/session`, {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+          credentials: 'include',
+          timeout: FETCH_TIMEOUT_MS,
         });
         if (!cancelled && data?.usuario) {
           const enriquecido = enriquecerUsuario(data.usuario);
-          setUsuario(enriquecerUsuario(data.usuario));
+          setUsuario(enriquecido);
           setAutenticado(true);
           try { localStorage.setItem("usuario", JSON.stringify(enriquecido)); } catch { }
         } else if (!cancelled) {
@@ -189,15 +241,79 @@ const AuthProvider = ({ children }) => {
       }
     }
 
-    checkSession();
-    return () => { cancelled = true; };
+    async function hydrateOnceIfNeeded() {
+      setCargando(true);
+
+      // 1) ¿Ya hay token?
+      let hasToken = false;
+      try {
+        const sess = typeof getAuthSession === "function" ? getAuthSession() : null;
+        hasToken = !!(sess?.accessToken) || !!localStorage.getItem("token");
+      } catch { }
+
+      if (hasToken) {
+        await checkSession();
+        if (!cancelled) setCargando(false);
+        return;
+      }
+
+      // 2) ¿Nunca inició sesión?
+      const hadLoginBefore = !!localStorage.getItem("wasLoggedIn");
+      if (!hadLoginBefore) {
+        if (!cancelled) setCargando(false);
+        return;
+      }
+
+      // 3) Intento único de refresh con cookie rid
+      try {
+        const base = API_BASE || "";
+        const url = `${base}/api/usuarios/auth/refresh`;
+        const data = await fetchJsonWithTimeout(url, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}',
+          timeout: FETCH_TIMEOUT_MS,
+        });
+        const newToken = typeof data?.token === "string" ? data.token : null;
+
+        if (newToken) {
+          try { localStorage.setItem("token", newToken); } catch { }
+          try {
+            const stored = getAuthSession?.() || {};
+            const user = stored?.user || null;
+            setAuthSession?.({ accessToken: newToken, user });
+          } catch { }
+          await checkSession();
+        }
+      } catch {
+        // silencioso
+      } finally {
+        if (!cancelled) setCargando(false);
+      }
+    }
+
+    // 🔒 Fallback definitivo: si algo se cuelga, corta el loader a los 15s
+    const __ULTIMATE_FALLBACK = setTimeout(() => { try { setCargando(false); } catch { } }, 1200);
+    hydrateOnceIfNeeded(); // ULTIMATE_FALLBACK
+    return () => { cancelled = true; try { clearTimeout(__ULTIMATE_FALLBACK); } catch { } };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+
+  // Watchdog: si "cargando" permanece más de 7.5s, lo bajamos para evitar splash infinito
+  useEffect(() => {
+    if (!cargando) return;
+    const id = setTimeout(() => {
+      try { setCargando(false); } catch { }
+    }, 1300);
+    return () => { try { clearTimeout(id); } catch { } };
+  }, [cargando]);
   const hidratarEnSegundoPlano = (token) => {
     (async () => {
       try {
-        const data = await getJSON(`/api/usuarios/session`, { headers: {}, credentials: "include" });
+        const base = (API_BASE || "");
+        const data = await fetchJsonWithTimeout(`${base}api/usuarios/session`, { method: 'GET', headers: { 'Accept': 'application/json' }, credentials: 'include', timeout: FETCH_TIMEOUT_MS });
         if (data && data.usuario) {
           const full = enriquecerUsuario(data.usuario);
           setUsuario(full);
@@ -205,11 +321,11 @@ const AuthProvider = ({ children }) => {
           try {
             setAuthSession({
               accessToken: token || localStorage.getItem("token") || null,
-              user: full
+              user: full,
             });
           } catch { }
 
-          // 👇 UNIÓN AL CANAL user:<id>
+          // Unir al canal user:<id>
           try {
             const s = getSocket();
             if (full?._id) {
@@ -222,7 +338,6 @@ const AuthProvider = ({ children }) => {
       }
     })();
   };
-
 
   const iniciarSesion = async (token, usuarioRecibido) => {
     if (!token) return;
@@ -238,7 +353,7 @@ const AuthProvider = ({ children }) => {
       setUsuario(prelim);
       setAutenticado(true);
       try { setAuthSession({ accessToken: token, user: prelim }); } catch { }
-      // Parche agregado dentro de iniciarSesion(), justo después de setAuthSession...
+      // Notificar por socket
       try {
         const socket = getSocket();
         const decoded = JSON.parse(atob(token.split(".")[1]));
@@ -297,35 +412,78 @@ const AuthProvider = ({ children }) => {
     } catch { }
   };
 
-  const login = async ({ correo, contraseña }) => {
+  // ✅ ÚNICA función login, con normalización y aliases + normalización de error 2FA
+
+  // ✅ ÚNICA función login, sin enviar 2FA en body (solo headers)
+  const login = async ({ correo, contraseña, codigo2FA }) => {
     limpiarEstadoTemporal();
     if (__loginInflight) return __loginInflight;
+
     __loginInflight = (async () => {
+      const code = (codigo2FA ?? "").toString().replace(/\s+/g, "").trim();
+      const payload = { correo, contraseña }; // NO mandamos el código en el body
+
       try {
         const res = await axios.post(
           `${API_BASE}/api/usuarios/login`,
-          { correo, contraseña },
-          { withCredentials: true, headers: { "Content-Type": "application/json" } }
+          payload,    
+          {
+            withCredentials: true,
+            headers: {
+              "Content-Type": "application/json",
+              "x-2fa-code": code || "",
+              "x-two-factor-code": code || "",
+            },
+            validateStatus: (s) => s < 500,       // seguimos manejando 4xx
+            timeout: 15000,                       // ⏱ corta requests colgados
+            transitional: { clarifyTimeoutError: true },
+          }
         );
-        await iniciarSesion(res.data?.token, res.data?.usuario);
-        return res.data;
+
+        if (res.status === 200 && res.data?.token) {
+          await iniciarSesion(res.data.token, res.data.usuario);
+          return res.data;
+        }
+
+        let body = res.data;
+        if (typeof body === "string") { try { body = JSON.parse(body); } catch { } }
+        const msg = body?.mensaje || body?.error || "";
+
+        // Errores normales de 2FA
+        if (res.status === 400 || res.status === 401) {
+          // Prioriza mensaje de código inválido/expirado
+          if (/c[oó]digo.*(inv[aá]lido|incorrecto|expirado)|invalid.*code/i.test(msg)) {
+            throw { response: { status: res.status, data: { requiere2FA: true, mensaje: "Código 2FA inválido o expirado" } } };
+          }
+          // Si el backend indica que lo requiere
+          if (body?.requiere2FA === true || /2fa|factor/i.test(msg)) {
+            throw { response: { status: res.status, data: { requiere2FA: true, mensaje: msg || "2FA requerido" } } };
+          }
+        }
+
+        throw new Error(msg || "Error al iniciar sesión");
       } catch (err) {
-        const mensaje = (err && err.response && err.response.data && err.response.data.mensaje)
-          ? err.response.data.mensaje
-          : (err && err.message)
-            ? err.message
-            : "Error al iniciar sesión";
+        // Normaliza errores de red/timeout para que el botón se libere
+        const isTimeout = err?.code === "ECONNABORTED" || /timeout/i.test(err?.message || "");
+        const isNetwork = err?.message && /Network Error/i.test(err.message);
+        if (isTimeout || isNetwork) {
+          throw new Error(isTimeout ? "Tiempo de espera agotado. Intenta de nuevo." : "Sin conexión. Revisa tu red.");
+        }
+
         try { localStorage.removeItem("token"); } catch { }
         try { localStorage.removeItem("wasLoggedIn"); } catch { }
         try { setAuthSession && setAuthSession({ accessToken: null, user: null }); } catch { }
         setAutenticado(false);
-        throw new Error(mensaje);
+        throw err;
       } finally {
-        __loginInflight = null;
+        __loginInflight = null; // ✅ asegura liberar el “inflight” aunque truene
       }
+
     })();
+
     return __loginInflight;
   };
+
 
   const registrar = async ({ nombre, correo, contraseña, nickname }) => {
     let tipo = null;
@@ -370,14 +528,12 @@ const AuthProvider = ({ children }) => {
   const actualizarPerfil = async (partial) => {
     const data = await patch(`/api/usuarios/me`, {}, partial || {});
     const actualizado = enriquecerUsuario(data?.usuario || data);
-
     setUsuario(actualizado);
     try { localStorage.setItem("usuario", JSON.stringify(actualizado)); } catch { }
     try {
       const tk = (typeof localStorage !== "undefined" && localStorage.getItem("token")) || null;
       setAuthSession && setAuthSession({ accessToken: tk, user: actualizado });
     } catch { }
-
     return actualizado;
   };
 

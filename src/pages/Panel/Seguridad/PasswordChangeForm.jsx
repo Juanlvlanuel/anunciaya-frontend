@@ -1,3 +1,4 @@
+
 import { useId, useRef, useState, useEffect, useMemo } from "react";
 import { getJSON } from "../../../services/api";
 import { useAuth } from "../../../context/AuthContext";
@@ -191,6 +192,17 @@ export default function PasswordChangeForm({ onSubmit }) {
 
   return (
     <form onSubmit={submit} className="space-y-3">
+      {/* Campo oculto de username para accesibilidad/autocompletar */}
+      <input
+        type="text"
+        name="username"
+        autoComplete="username"
+        defaultValue={usuario?.email || ""}
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden="true"
+      />
+
       {createMode ? null : (
         <InputField
           id={idActual}

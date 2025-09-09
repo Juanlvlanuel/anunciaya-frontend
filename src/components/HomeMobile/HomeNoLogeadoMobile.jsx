@@ -14,11 +14,10 @@ const limpiarEstadoRegistro = () => {
   localStorage.removeItem("perfilCuentaIntentada");
 };
 
-const HomeNoLogeadoMobile = () => {
+const HomeNoLogeadoMobile = ({ abrirModalLogin, abrirModalRegistro }) => {
   const location = useLocation();
   const navigate = useNavigate();
   // Estados y handlers necesarios
-  const [mostrarModalLogin, setMostrarModalLogin] = useState(false);
   const [allowLoginOpen, setAllowLoginOpen] = useState(true);
   const [suppressAutoLogin, setSuppressAutoLogin] = useState(false);
   const [mostrarModalRegistro, setMostrarModalRegistro] = useState(false);
@@ -89,7 +88,6 @@ const HomeNoLogeadoMobile = () => {
     setPerfilSeleccionado(null);
     setMostrarSeleccionPerfilModal(true);
     setMostrarModalRegistro(false);
-    setMostrarModalLogin(false);
   };
 
   const handleSeleccionPerfil = (perfil) => {
@@ -113,16 +111,6 @@ const HomeNoLogeadoMobile = () => {
 
   const handleCerrarRegistro = () => {
     setMostrarModalRegistro(false);
-    setPerfilSeleccionado(null);
-    limpiarEstadoRegistro();
-  };
-
-  const handleAbrirModalLogin = () => {
-    if (!allowLoginOpen) return;
-    setMostrarModalLogin(true);
-    setMostrarModalRegistro(false);
-    setMostrarSeleccionPerfilModal(false);
-    setTipoSeleccionado(null);
     setPerfilSeleccionado(null);
     limpiarEstadoRegistro();
   };
@@ -170,7 +158,7 @@ const HomeNoLogeadoMobile = () => {
     overflow-y-auto
     overscroll-none
     pt-[calc(env(safe-area-inset-top,0px)+56px)]
-    bg-[url('/src/assets/fondo-inicio-mobile.jpg')]
+    bg-[url('/src/assets/fondo-inicio-mobile.webp')]
     bg-cover
     bg-[position:70%_top]
   "
@@ -181,7 +169,7 @@ const HomeNoLogeadoMobile = () => {
 
       <div className="relative z-20">
         <HeaderNoLogeado
-          onOpenModal={handleAbrirModalLogin}
+          onOpenModal={abrirModalLogin}
           onHoverBienvenida={handleHoverBienvenida}
           onLeaveBienvenida={handleLeaveBienvenida}
           onClickBienvenida={handleClickBienvenida}
@@ -230,7 +218,7 @@ const HomeNoLogeadoMobile = () => {
           flex flex-col justify-center items-center
         ">
           <AnimatePresence>
-            {!mostrarModalRegistro && !mostrarSeleccionPerfilModal && !mostrarModalLogin && (
+            {!mostrarModalRegistro && !mostrarSeleccionPerfilModal && (
               <motion.div
                 ref={bienvenidaRef}
                 className={`
@@ -283,20 +271,10 @@ const HomeNoLogeadoMobile = () => {
 
                 {/* Botón Iniciar Sesión */}
                 <motion.button
-                  data-open-login onClick={() => { try { window.openLogin && window.openLogin(); } catch (e) { } }}
-                  className="
-                    w-full bg-blue-700 hover:bg-blue-800
-                    text-white font-bold text-base py-3 rounded-xl shadow transition-all duration-100 mb-2
-                    hover:shadow-[0_7px_32px_0_rgba(80,130,250,0.16)]
-                    hover:scale-[1.03]
-                    focus:outline-none focus:ring-2 focus:ring-blue-400
-                    relative z-10
-                  "
-                  whileHover={{
-                    scale: 1.04,
-                    boxShadow: "0 9px 32px 0 rgba(80,130,250,0.20)",
-                    transition: { duration: 0.11 }
-                  }}
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); abrirModalLogin?.(); }}
+                  className="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold text-base py-3 rounded-xl shadow transition-all duration-100 mb-2 hover:shadow-[0_7px_32px_0_rgba(80,130,250,0.16)] hover:scale-[1.03] focus:outline-none focus:ring-2 focus:ring-blue-400 relative z-10"
+                  whileHover={{ scale: 1.04, boxShadow: "0 9px 32px 0 rgba(80,130,250,0.20)", transition: { duration: 0.11 } }}
                   initial={{ opacity: 0, y: 27 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.18, duration: 0.18, type: "spring" }}

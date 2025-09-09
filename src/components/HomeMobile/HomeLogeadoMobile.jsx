@@ -46,7 +46,7 @@ const HomeLogeadoMobile = () => {
     <div
       className="
         relative min-h-screen flex flex-col
-        bg-[url('/src/assets/fondo-inicio-mobile.jpg')]
+        bg-[url('/src/assets/fondo-inicio-mobile.webp')]
         bg-cover bg-[position:70%_top]
         overflow-x-hidden
       "

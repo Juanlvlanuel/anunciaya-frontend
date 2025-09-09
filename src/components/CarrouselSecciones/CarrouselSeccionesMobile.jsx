@@ -39,17 +39,22 @@ export default function CarrouselCategoriasMobile() {
     container.scrollLeft = singleListWidth;
 
     const speed = 0.6; // velocidad del scroll (ajusta aquí)
-
-    const animate = () => {
+    let lastTime = 0;
+    const animate = (time) => {
       if (!userInteracting) {
-        if (container.scrollLeft >= singleListWidth * (REPETICIONES - 1)) {
-          container.scrollLeft = singleListWidth;
-        } else {
-          container.scrollLeft += speed;
+        const delta = time - lastTime;
+        if (delta >= 16) { // actualiza si pasaron al menos 16ms (~60fps)
+          if (container.scrollLeft >= singleListWidth * (REPETICIONES - 1)) {
+            container.scrollLeft = singleListWidth;
+          } else {
+            container.scrollLeft += speed;
+          }
+          lastTime = time;
         }
       }
       animationFrame = requestAnimationFrame(animate);
     };
+
 
     const pauseScroll = () => {
       userInteracting = true;
@@ -59,11 +64,11 @@ export default function CarrouselCategoriasMobile() {
       }, 2200);
     };
 
-    container.addEventListener("mousedown", pauseScroll);
-    container.addEventListener("touchstart", pauseScroll);
-    container.addEventListener("wheel", pauseScroll);
+    container.addEventListener("mousedown", pauseScroll, { passive: true });
+    container.addEventListener("touchstart", pauseScroll, { passive: true });
+    container.addEventListener("wheel", pauseScroll, { passive: true });
 
-    animationFrame = requestAnimationFrame(animate);
+    setTimeout(() => { animationFrame = requestAnimationFrame(animate); }, 500); // delay inicial para evitar bloquear render
 
     return () => {
       cancelAnimationFrame(animationFrame);

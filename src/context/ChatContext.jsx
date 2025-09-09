@@ -45,7 +45,7 @@ function makeNotifiers() {
   return { attach, playBeep, vibrate };
 }
 
-export default function ChatProvider({ children }) {
+export function ChatProvider({ children }) {
   const getAuthHeaders = useCallback(() => {
     let token = "";
     try { const s = (typeof getAuthSession === "function") ? getAuthSession() : null; token = s?.accessToken || ""; } catch { }
@@ -430,3 +430,6 @@ export default function ChatProvider({ children }) {
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
 }
+
+
+export default ChatProvider;

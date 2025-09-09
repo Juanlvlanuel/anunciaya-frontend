@@ -26,21 +26,24 @@ const DEFAULT_DEV_UBI = {
   estado: "Sonora",
 };
 
-async function reverseGeocode(lat, lon) {
-  // 🔐 AQUI VA TU API KEY DE OPENCAGEDATA (dejar la que ya usas)
-  const apiKey = "cc9beedb2c60405e8b1e9d3f8b9bfb6b"; // ← REEMPLAZA SI APLICA
+// Helpers de caché simple para evitar repetir IP lookups (y evitar 429)
+const cacheKey = "ubi:ip";
+const cacheTTLms = 2 * 60 * 60 * 1000; // 2h
+
+function readCache() {
   try {
-    const res = await fetch(
-      `https://api.opencagedata.com/geocode/v1/json?q=${lat}+${lon}&key=${apiKey}`
-    );
-    const data = await res.json();
-    const comp = data?.results?.[0]?.components || {};
-    const ciudad = comp.city || comp.town || comp.village || "";
-    const estado = comp.state || "";
-    return { ciudad, estado };
-  } catch {
-    return { ciudad: "", estado: "" };
-  }
+    const raw = sessionStorage.getItem(cacheKey);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    if (!obj || !obj.t || Date.now() - obj.t > cacheTTLms) return null;
+    return obj.v;
+  } catch {}
+  return null;
+}
+function writeCache(v) {
+  try {
+    sessionStorage.setItem(cacheKey, JSON.stringify({ t: Date.now(), v }));
+  } catch {}
 }
 
 export const UbiProvider = ({ children }) => {
@@ -51,6 +54,77 @@ export const UbiProvider = ({ children }) => {
     estado: undefined,
   });
   const askedOnceRef = useRef(false);
+  const ipOnceRef = useRef(false); // ✅ evita doble llamada en StrictMode
+  let _geocodeInFlight = false;
+
+  const reverseGeocode = async (lat, lon) => {
+    if (_geocodeInFlight) return null;
+    _geocodeInFlight = true;
+    try {
+      const res = await fetch(`https://api.opencagedata.com/geocode/v1/json?q=${lat}+${lon}&key=cc9beedb2c60405e8b1e9d3f8b9bfb6b`);
+      const data = await res.json();
+      const comp = data?.results?.[0]?.components || {};
+      const ciudad = comp.city || comp.town || comp.village || "";
+      const estado = comp.state || "";
+      return { ciudad, estado };
+    } catch {
+      return { ciudad: "", estado: "" };
+    } finally {
+      _geocodeInFlight = false;
+    }
+  };
+
+  const detectarUbicacionPorIP = async () => {
+    // ✅ usa caché y evita llamadas repetidas
+    if (ipOnceRef.current) return null;
+    ipOnceRef.current = true;
+
+    const cached = readCache();
+    if (cached) {
+      setUbicacion(cached);
+      return cached;
+    }
+
+    // Proveedores alternos para evitar 429
+    const providers = [
+      async () => {
+        const res = await fetch("https://ipapi.co/json/");
+        if (!res.ok) throw new Error(String(res.status));
+        return res.json();
+      },
+      async () => {
+        const res = await fetch("https://ipwho.is/");
+        if (!res.ok) throw new Error(String(res.status));
+        const j = await res.json();
+        // normaliza campos a formato parecido a ipapi
+        return {
+          city: j?.city,
+          region: j?.region,
+          latitude: j?.latitude,
+          longitude: j?.longitude,
+        };
+      },
+    ];
+
+    for (const fn of providers) {
+      try {
+        const data = await fn();
+        const ciudad = data?.city || "";
+        const estado = data?.region || "";
+        const lat = Number(data?.latitude) || null;
+        const lon = Number(data?.longitude) || null;
+        if (lat && lon) {
+          const payload = { lat, lon, ciudad, estado, source: "ip" };
+          setUbicacion(payload);
+          writeCache(payload);
+          return payload;
+        }
+      } catch {
+        // intenta siguiente proveedor
+      }
+    }
+    return null;
+  };
 
   const setFromCoords = async (lat, lon) => {
     const { ciudad, estado } = await reverseGeocode(lat, lon);
@@ -60,22 +134,18 @@ export const UbiProvider = ({ children }) => {
   };
 
   const pedirConPlugin = async () => {
-    // Solicitar permisos y obtener ubicación con Capacitor (funciona aun con live-reload)
-    try {
-      await Geolocation.requestPermissions();
-      const pos = await Geolocation.getCurrentPosition({
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 0,
-      });
-      return await setFromCoords(pos.coords.latitude, pos.coords.longitude);
-    } catch (err) {
-      throw err;
-    }
+    // Solicitar permisos y obtener ubicación con Capacitor (nunca se llama automáticamente)
+    await Geolocation.requestPermissions();
+    const pos = await Geolocation.getCurrentPosition({
+      enableHighAccuracy: true,
+      timeout: 15000,
+      maximumAge: 0,
+    });
+    return await setFromCoords(pos.coords.latitude, pos.coords.longitude);
   };
 
   const pedirConNavigator = async () => {
-    // En web/seguro (https/localhost) usar navigator.geolocation
+    // En web/seguro (https/localhost) usar navigator.geolocation bajo demanda
     return new Promise((resolve, reject) => {
       if (!("geolocation" in navigator)) {
         reject(new Error("Geolocalización no disponible"));
@@ -97,10 +167,9 @@ export const UbiProvider = ({ children }) => {
   };
 
   const solicitarUbicacionAltaPrecision = async (opts = {}) => {
-    // Evitar múltiples prompts en cascada, salvo que se force
+    // Evitar múltiples prompts en cascada salvo force
     if (!opts?.force) {
       if (askedOnceRef.current) {
-        // Si ya se preguntó, devuelve la última ubicación (puede ser null/undefined)
         return ubicacion;
       }
       askedOnceRef.current = true;
@@ -115,7 +184,7 @@ export const UbiProvider = ({ children }) => {
       if (isDevInsecureHttp) {
         const res = await Swal.fire({
           icon: "warning",
-          title: "Ubicación no disponible en modo live‑reload",
+          title: "Ubicación no disponible en modo live-reload",
           html:
             "Android/Chrome bloquea la geolocalización sobre <b>HTTP</b> externo. " +
             "Puedes continuar con una ubicación de prueba o reintentar luego.",
@@ -125,7 +194,6 @@ export const UbiProvider = ({ children }) => {
           reverseButtons: true,
         });
         if (res.isConfirmed) {
-          // Fallback de desarrollo
           const payload = { ...DEFAULT_DEV_UBI };
           setUbicacion(payload);
           return payload;
@@ -151,9 +219,9 @@ export const UbiProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    // Intentar al montar, pero sin bloquear la UI
-    solicitarUbicacionAltaPrecision().catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Solo IP en segundo plano (sin tocar geolocalización precisa).
+    // ✅ Protegido contra StrictMode (ipOnceRef) + caché
+    detectarUbicacionPorIP().catch(() => {});
   }, []);
 
   return (

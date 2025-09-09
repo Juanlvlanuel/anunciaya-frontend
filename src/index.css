@@ -1,7 +1,8 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
 
 /* === Inter Local (toda la familia) === */
 @font-face {
@@ -130,13 +131,6 @@
 html, body, #root {
   font-family: var(--app-font) !important;
 }
-
-
-/* Fallback online SOLO si no existen los archivos locales (no interfiere si están presentes) */
-@supports (font-variation-settings: normal) {
-  @import url("https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap");
-}
-
 
 /* === Twemoji autohospedado === */
 @font-face {

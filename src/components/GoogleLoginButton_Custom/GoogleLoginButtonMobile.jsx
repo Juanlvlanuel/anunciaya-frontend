@@ -1,7 +1,4 @@
-// GoogleLoginButtonMobile-1.jsx
-// Híbrido: usa plugin nativo si está disponible; si no, cae a Google Web (GSI) automáticamente.
-// Evita el error: `"GoogleAuth" plugin is not implemented on android` mostrando el botón web.
-import React, { useContext, useEffect, useMemo, useState, lazy, Suspense } from "react";
+import React, { useContext, useMemo, useState, useEffect } from "react";
 import axios from "axios";
 import Swal from "sweetalert2";
 import { Capacitor } from "@capacitor/core";
@@ -9,7 +6,6 @@ import { AuthContext } from "../../context/AuthContext";
 import { setAuthSession } from "../../utils/authStorage";
 import { API_BASE } from "../../services/api";
 
-// BASE de API seguro (evita ReferenceError si API_BASE no está disponible)
 const __API_BASE__ =
   (typeof API_BASE !== "undefined" && API_BASE)
     ? String(API_BASE).replace(/\/+$/, "")
@@ -17,35 +13,6 @@ const __API_BASE__ =
       ? String(import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL).trim().replace(/\/+$/, "")
       : "https://anunciaya-backend-production.up.railway.app";
 
-// Lazy-load del botón de Google (GSI Web)
-const GoogleLoginCmp = lazy(() =>
-  import("@react-oauth/google").then((m) => ({ default: m.GoogleLogin }))
-);
-
-// Polyfill mínimo para requestIdleCallback
-const ric =
-  (typeof window !== "undefined" && window.requestIdleCallback) ||
-  ((cb) => setTimeout(() => cb({ didTimeout: false, timeRemaining: () => 16 }), 300));
-
-// Preconnect útil para reducir TTFB hacia Google endpoints
-const ensurePreconnect = () => {
-  const hrefs = [
-    "https://accounts.google.com",
-    "https://ssl.gstatic.com",
-    "https://apis.google.com",
-  ];
-  hrefs.forEach((h) => {
-    if (!document.querySelector(`link[rel="preconnect"][href="${h}"]`)) {
-      const link = document.createElement("link");
-      link.rel = "preconnect";
-      link.href = h;
-      link.crossOrigin = "";
-      document.head.appendChild(link);
-    }
-  });
-};
-
-// Helpers de flujo
 const limpiarEstadoTemporal = () => {
   try {
     localStorage.removeItem("tipoCuentaIntentada");
@@ -79,7 +46,6 @@ const obtenerTipoYPerfil = (propTipo, propPerfil) => {
   return { tipo: t, perfil: p };
 };
 
-// Nonce por intento
 const genNonce = () => {
   const bytes = new Uint8Array(16);
   if (typeof window !== "undefined" && window.crypto && window.crypto.getRandomValues) {
@@ -101,96 +67,6 @@ const GoogleLoginButtonMobile = ({
   const [busy, setBusy] = useState(false);
   const [forceWeb, setForceWeb] = useState(false);
   const nonce = useMemo(() => genNonce(), []);
-  const gLocale = (navigator.language || "es").split("-")[0]; // "es", "en", etc.
-  // Precarga en idle del módulo del botón + preconnect DNS/TLS
-  useEffect(() => {
-    ensurePreconnect();
-    const id = ric(() => {
-      try { import("@react-oauth/google"); } catch { }
-    });
-    return () => { if (typeof id === "number") try { clearTimeout(id); } catch { } };
-  }, []);
-
-  const handleSuccess = async (credentialResponse) => {
-    setBusy(true);
-    try {
-      const { tipo: tipoEfectivo, perfil: perfilEfectivo } = obtenerTipoYPerfil(tipo, perfil);
-      const { credential } = credentialResponse || {};
-      if (!credential) throw new Error("No se recibió la credencial de Google.");
-      const body = { credential, nonce };
-
-      // Solo incluir tipo/perfil si es registro
-      if (modo === "registro") {
-        if (tipoEfectivo) body.tipo = tipoEfectivo;
-        if (perfilEfectivo?.perfil != null) body.perfil = perfilEfectivo.perfil;
-      }
-
-      // ✅ Ruta ABSOLUTA a backend en producción (evita 405 en Vercel)
-      const endpoint = modo === "link" ? "/api/usuarios/oauth/google/link" : "/api/usuarios/auth/google";
-      const res = await axios.post(`${__API_BASE__}${endpoint}`, body, {
-        withCredentials: true,
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (modo === "link") {
-        if (res.status === 200 && (res.data?.linked === true || res.data?.usuario)) {
-          onRegistroExitoso && onRegistroExitoso();
-          onClose && onClose();
-          Swal.fire({ icon: "success", title: "Google vinculado", timer: 1400, showConfirmButton: false });
-          return;
-        }
-        const mensaje = res?.data?.mensaje || "No se pudo vincular Google.";
-        Swal.fire({ icon: "warning", title: "Google", text: mensaje });
-        return;
-      }
-
-      if (res.status === 200 && res.data?.token) {
-        await iniciarSesion(res.data.token, res.data.usuario);
-        try { setAuthSession({ accessToken: res.data.token, user: res.data.usuario || null }); } catch { }
-        limpiarEstadoTemporal();
-
-        const partes = res.data.usuario?.nombre?.split(" ") || [];
-        const nombreMostrado = partes.slice(0, 2).join(" ") || "Usuario";
-        Swal.fire({
-          icon: "success",
-          title: "¡Bienvenido!",
-          text: `Hola, ${nombreMostrado}`,
-          timer: 1800,
-          showConfirmButton: false
-        });
-
-        onClose && onClose();
-        onRegistroExitoso && onRegistroExitoso();
-      } else {
-        const mensaje = res?.data?.mensaje || "No se pudo autenticar con Google.";
-        Swal.fire({ icon: "warning", title: "Google", text: mensaje });
-      }
-    } catch (err) {
-      const mensaje =
-        err?.response?.data?.mensaje ||
-        err?.message ||
-        "Error con autenticación Google";
-      const lower = String(mensaje).toLowerCase();
-      if (lower.includes("no existe")) {
-        Swal.fire({ icon: "info", title: "Aún no tienes cuenta", text: mensaje });
-      } else if (lower.includes("registrada") || lower.includes("existe")) {
-        Swal.fire({ icon: "info", title: "Cuenta ya existente", text: mensaje });
-      } else {
-        Swal.fire({ icon: "error", title: "Google Login", text: mensaje });
-      }
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleError = (msgText) => {
-    limpiarEstadoTemporal();
-    Swal.fire({
-      icon: "error",
-      title: "Google Login",
-      text: msgText || "No se pudo conectar con Google.",
-    });
-  };
 
   const handleNativeGoogle = async () => {
     setBusy(true);
@@ -199,7 +75,6 @@ const GoogleLoginButtonMobile = ({
       const { SocialLogin } = mod || {};
       if (!SocialLogin) throw new Error("SocialLogin plugin no cargó");
 
-      // Sign-In nativo con Google (Credential Manager)
       const res = await SocialLogin.signIn({
         provider: "google",
         scopes: ["profile", "email"]
@@ -217,7 +92,6 @@ const GoogleLoginButtonMobile = ({
         if (perfilEfectivo?.perfil != null) body.perfil = perfilEfectivo.perfil;
       }
 
-      // ✅ Ruta ABSOLUTA a backend en producción (evita 405 en Vercel)
       const endpoint = modo === "link" ? "/api/usuarios/oauth/google/link" : "/api/usuarios/auth/google";
       const r = await axios.post(`${__API_BASE__}${endpoint}`, body, {
         withCredentials: true,
@@ -244,7 +118,6 @@ const GoogleLoginButtonMobile = ({
       }
       Swal.fire({ icon: "warning", title: "Google", text: r?.data?.mensaje || "No se pudo autenticar con Google." });
     } catch (e) {
-      // Si no está implementado o falla, caemos a Web.
       setForceWeb(true);
       Swal.fire({
         icon: "info",
@@ -256,7 +129,31 @@ const GoogleLoginButtonMobile = ({
     }
   };
 
-
+  const WebButton = (
+    <button
+      type="button"
+      onClick={() => Swal.fire({
+        icon: "info",
+        title: "Botón desactivado",
+        text: "El login web con Google fue deshabilitado para evitar requests externos.",
+        confirmButtonColor: "#0073CF"
+      })}
+      style={{
+        height: 40,
+        borderRadius: 12,
+        border: "1px solid #e5e7eb",
+        background: "#f8fafc",
+        color: "#64748b",
+        fontSize: 15,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: "100%"
+      }}
+    >
+      Google Web deshabilitado
+    </button>
+  );
 
   const NativeButton = (
     <button
@@ -272,7 +169,8 @@ const GoogleLoginButtonMobile = ({
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        gap: 8
+        gap: 8,
+        width: "100%"
       }}
     >
       <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
@@ -287,7 +185,6 @@ const GoogleLoginButtonMobile = ({
 
   return (
     <div style={{ width: "100%", display: "grid", position: "relative" }}>
-      {/* Overlay spinner */}
       {busy && (
         <div
           style={{
@@ -315,45 +212,7 @@ const GoogleLoginButtonMobile = ({
         </div>
       )}
 
-      {/* Si estamos en APK y el plugin está OK → botón nativo. Si no, botón web */}
-      {Capacitor.isNativePlatform() && !forceWeb ? (
-        NativeButton
-      ) : (
-        <Suspense
-          fallback={
-            <button
-              type="button"
-              disabled
-              style={{
-                height: 40,
-                borderRadius: 12,
-                border: "1px solid #e5e7eb",
-                background: "#f8fafc",
-                color: "#64748b",
-                fontSize: 15,
-              }}
-            >
-              Cargando botón de Google…
-            </button>
-          }
-        >
-          <GoogleLoginCmp
-            onSuccess={handleSuccess}
-            onError={() => handleError()}
-            ux_mode="popup"
-            nonce={nonce}
-            theme="outline"
-            size="large"
-            type="standard"
-            text="signin_with"
-            shape="rectangular"
-            logo_alignment="left"
-            width={280}
-            locale={gLocale || "es"}
-          />
-
-        </Suspense>
-      )}
+      {Capacitor.isNativePlatform() && !forceWeb ? NativeButton : WebButton}
     </div>
   );
 };

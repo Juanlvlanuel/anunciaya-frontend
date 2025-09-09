@@ -19,7 +19,12 @@
           "policy would block the window.postMessage",
           // React devtools banner
           "react-devtools",
-          "Download the React DevTools"
+          "Download the React DevTools",
+          // Vite HMR client
+          "[vite] connecting",
+          "[vite] connected",
+          "[vite] hot updated",
+          "[vite] page reload",
         ];
 
         function includesAny(txt) {
@@ -27,6 +32,8 @@
           for (var i = 0; i < IGNORE_SUBSTR.length; i++) {
             if (txt.indexOf(IGNORE_SUBSTR[i]) !== -1) return true;
           }
+          // Extra: ignora cualquier mensaje que empiece con "[vite] "
+          if (/^\s*\[vite\]\s/i.test(txt)) return true;
           return false;
         }
         function toText(args) {

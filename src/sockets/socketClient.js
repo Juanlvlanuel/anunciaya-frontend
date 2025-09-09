@@ -1,4 +1,3 @@
-// src/sockets/socketClient-1.js
 import { io } from "socket.io-client";
 
 const GLOBAL_KEY = "__ANUNCIAYA_WS_SINGLETON__";
@@ -34,7 +33,6 @@ function resolveSocketBase() {
     typeof import.meta !== "undefined" && import.meta.env ? import.meta.env : {};
   if (env && env.VITE_SOCKET_BASE) return normalizeBase(env.VITE_SOCKET_BASE);
 
-  // Fallback: derivar del API_BASE si existe
   if (env && env.VITE_API_BASE) {
     try {
       const u = new URL(env.VITE_API_BASE);
@@ -43,7 +41,6 @@ function resolveSocketBase() {
     } catch {}
   }
 
-  // Último recurso: mismo host del navegador con puerto backend (5000 por defecto)
   try {
     const { protocol, hostname } = window.location;
     const httpProto = protocol === "https:" ? "https" : "http";
@@ -72,20 +69,36 @@ function createSocket() {
 
   const s = base ? io(base, opts) : io(opts);
 
-  s.on("connect", () => {
+  s.on("connect", async () => {
     try {
-      // if (import.meta.env.DEV) console.info("[socket] connect", s.id);
       s.emit("session:joinAll");
+
+      // ✅ Obtener jti y fam después del connect y hacer session:update
+      const res = await fetch("/api/usuarios/sessions", {
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const items = Array.isArray(data?.sessions)
+          ? data.sessions
+          : Array.isArray(data?.items)
+          ? data.items
+          : [];
+        const cur = items.find((s) => s?.current) || null;
+        if (cur && (cur.jti || cur.id)) {
+          const jti = cur.jti || cur.id;
+          const fam = cur.family || cur.fam || null;
+          s.emit("session:update", { jti, fam });
+        }
+      }
     } catch {}
   });
 
-  s.on("disconnect", () => {
-    // if (import.meta.env.DEV) console.warn("[socket] disconnect");
-  });
+  s.on("disconnect", () => {});
 
   s.on("connect_error", (e) => {
     const msg = (e && e.message) ? String(e.message) : "";
-    // Silenciar cuando el backend responde Unauthorized si no hay sesión
     if (msg.toLowerCase().includes("unauthorized")) return;
     if (import.meta.env.DEV) {
       try { console.warn("[socket] connect_error", msg || e); } catch {}
@@ -109,7 +122,6 @@ export function getSocket() {
   const s = ensureSingleton();
   try { s.auth = { token: getToken() }; } catch {}
 
-  // Conectar solo si hay sesión (token o cookie rid)
   if (!s.connected && !s.active) {
     if (getToken() || hasRefreshCookie()) {
       try { s.connect(); } catch {}
@@ -122,7 +134,6 @@ export function refreshSocketAuth() {
   try {
     const s = ensureSingleton();
     s.auth = { token: getToken() };
-    // Reintentar conectar si ahora ya hay sesión
     if (!s.connected && (getToken() || hasRefreshCookie())) {
       try { s.connect(); } catch {}
     }
@@ -141,7 +152,6 @@ export function destroySocket() {
   } catch {}
 }
 
-/* HMR */
 if (import.meta && import.meta.hot) {
   import.meta.hot.accept(() => {});
   import.meta.hot.dispose(() => {});

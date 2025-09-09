@@ -10,6 +10,9 @@ import LoginModal from "../modals/LoginModal";
 import AppRoutes from "../routes";
 import MobileBottomNav from "../components/NavsLogeado/MobileBottomNav";
 import { ChatPanelPortal } from "../components/Chat/ChatPanelPortal";
+import { lazy, Suspense } from "react";
+const ChatProvider = lazy(() => import("../context/ChatContext").then(m => ({ default: m.ChatProvider })));
+
 import { StatusBar, Style } from "@capacitor/status-bar";
 import { Capacitor } from "@capacitor/core";
 import { Toaster } from "react-hot-toast";
@@ -113,8 +116,13 @@ function App() {
 
   return (
     <>
-      <ForceLogoutListener />
-      <SessionPinger />
+      {autenticado && (
+        <>
+          <ForceLogoutListener />
+          <SessionPinger />
+        </>
+      )}
+
 
       {/* Franja gris semitransparente bajo los iconos del sistema */}
       <div className="statusbar-overlay" />
@@ -132,7 +140,15 @@ function App() {
         </div>
 
         <Tools />
-        <ChatPanelPortal />
+        
+{autenticado && (
+  <Suspense fallback={null}>
+    <ChatProvider>
+      <ChatPanelPortal />
+    </ChatProvider>
+  </Suspense>
+)}
+
         {typeof window !== "undefined" && (
           <LoginModal
             isOpen={modalAbierto}

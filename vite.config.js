@@ -1,24 +1,28 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import dns from "dns";
+import fs from "fs";
+import path from "path";
 
 dns.setDefaultResultOrder?.("ipv4first");
 
-const DEV_TARGET = process.env.VITE_DEV_API_TARGET || "http://127.0.0.1:5000";
+const DEV_TARGET = process.env.VITE_DEV_API_TARGET || "http://localhost:5000";
 
 export default defineConfig({
   plugins: [react()],
+  clearScreen: false,
   server: {
     host: "0.0.0.0",
     port: 5173,
     strictPort: true,
-    hmr: { overlay: false },
+    hmr: {
+      host: "localhost",
+    },
     proxy: {
       "/api": {
         target: DEV_TARGET,
         changeOrigin: true,
         secure: false,
-        ws: false,
         cookieDomainRewrite: { "*": "" },
         configure: (proxy) => {
           proxy.on("proxyRes", (proxyRes) => {
@@ -32,11 +36,9 @@ export default defineConfig({
               );
             }
           });
-          proxy.on("error", () => {});
         },
       },
-      // 👇 Quitamos por completo el proxy de /socket.io para evitar logs ECONNABORTED
     },
-    watch: { usePolling: true, interval: 300 },
   },
+  watch: { usePolling: true, interval: 300 },
 });

@@ -205,6 +205,8 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
             <form onSubmit={handleSubmit} className="space-y-3">
               <input
                 type="text"
+                name="nombre"
+                autoComplete="name"
                 placeholder="Nombre Completo"
                 className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-400"
                 value={nombre}
@@ -213,6 +215,8 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
               />
               <input
                 type="email"
+                name="email"
+                autoComplete="email"
                 placeholder="Correo Electrónico"
                 className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-400"
                 value={correo}
@@ -222,6 +226,8 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
               <div className="relative">
                 <input
                   type={mostrarPassword ? "text" : "password"}
+                  name="password"
+                  autoComplete="new-password"
                   placeholder="Contraseña"
                   className="w-full border border-gray-300 rounded-xl px-4 py-3 pr-12 text-base focus:outline-none focus:ring-2 focus:ring-blue-400"
                   value={password}

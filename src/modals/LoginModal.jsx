@@ -1,6 +1,5 @@
-// LoginModal-1.jsx
-// Usa GoogleLoginButtonMobile (híbrido nativo/web) para evitar fallas del plugin en Android.
-import React, { useState, useContext, useEffect, lazy, Suspense } from "react";
+// src/modals/LoginModal-1.jsx
+import React, { useState, useContext, useEffect, useRef, lazy } from "react";
 import { FaTimes, FaEye, FaEyeSlash } from "react-icons/fa";
 import Swal from "sweetalert2";
 const GoogleLoginButton = lazy(() => import("../components/GoogleLoginButton_Custom/GoogleLoginButtonMobile"));
@@ -9,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import facebookIcon from "../assets/facebook-icon.png";
 import { motion, AnimatePresence } from "framer-motion";
 import { setAuthSession, removeFlag } from "../utils/authStorage";
+import GoogleLoginButtonWeb from "../components/GoogleLoginButton_Custom/GoogleLoginButtonWeb";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -18,7 +18,7 @@ const overlayVariants = {
   exit: { opacity: 0, transition: { duration: 0.3 } },
 };
 
-const limpiarEstadoTemporal = () => { try { removeFlag("tipoCuentaIntentada"); removeFlag("perfilCuentaIntentada"); } catch {} };
+const limpiarEstadoTemporal = () => { try { removeFlag("tipoCuentaIntentada"); removeFlag("perfilCuentaIntentada"); } catch { } };
 
 const STORAGE_KEY = "loginData";
 
@@ -26,21 +26,31 @@ const LoginModal = ({ isOpen, onClose }) => {
   const [correo, setCorreo] = useState("");
   const [contraseña, setContraseña] = useState("");
   const [mostrarPassword, setMostrarPassword] = useState(false);
-  const [recordarDatos, setRecordarDatos] = useState(false);
+  const [codigo2FA, setCodigo2FA] = useState("");
+  const [mostrarCampo2FA, setMostrarCampo2FA] = useState(false);
 
-  const { login , iniciarSesion } = useContext(AuthContext);
+  const [recordarDatos, setRecordarDatos] = useState(false);
+  const input2FARef = useRef(null);
+
+  useEffect(() => {
+    if (mostrarCampo2FA) {
+      input2FARef.current?.focus();
+    }
+  }, [mostrarCampo2FA]);
+
+  const { login, iniciarSesion } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const resetForm = () => {
     setCorreo("");
     setContraseña("");
+    setCodigo2FA("");
     setMostrarPassword(false);
+    setMostrarCampo2FA(false);
   };
 
-  // Helper centralizado para guardar datos
   const saveLoginData = (correoVal, contraseñaVal) => {
     try {
-      // Guarda solo si hay algún dato (evita persistir strings vacíos)
       const hasAny = (correoVal && correoVal.trim() !== "") || (contraseñaVal && contraseñaVal !== "");
       if (!hasAny) return;
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ correo: correoVal, contraseña: contraseñaVal }));
@@ -51,7 +61,6 @@ const LoginModal = ({ isOpen, onClose }) => {
     if (isOpen) {
       limpiarEstadoTemporal();
       resetForm();
-      // Cargar datos guardados si existen
       try {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
@@ -69,8 +78,6 @@ const LoginModal = ({ isOpen, onClose }) => {
     return () => limpiarEstadoTemporal();
   }, [isOpen]);
 
-  // ⬇️ Nuevo: si el toggle está activo y el usuario escribe después,
-  // guardamos en vivo los cambios al localStorage.
   useEffect(() => {
     if (recordarDatos) {
       saveLoginData(correo, contraseña);
@@ -79,6 +86,7 @@ const LoginModal = ({ isOpen, onClose }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     const v = (correo || '').trim();
     if (v.includes('@') && !EMAIL_RE.test(v)) {
       Swal.fire({
@@ -89,26 +97,62 @@ const LoginModal = ({ isOpen, onClose }) => {
       });
       return;
     }
+
     try {
-      await login({ correo, contraseña });
+      // ✅ Validación 2FA si el campo ya se mostró
+      if (mostrarCampo2FA && (!codigo2FA || codigo2FA.trim().length < 6)) {
+        Swal.fire({
+          icon: "warning",
+          title: "Código 2FA incompleto",
+          text: "Escribe los 6 dígitos y vuelve a presionar Entrar.",
+          confirmButtonColor: "#0073CF",
+        });
+        return;
+      }
+
+      await login({ correo, contraseña, codigo2FA });
+
       limpiarEstadoTemporal();
-      resetForm();
-      onClose && onClose();
+
       Swal.fire({
         icon: "success",
         title: "¡Bienvenido!",
         text: "Sesión iniciada correctamente",
         confirmButtonColor: "#0073CF",
+      }).then(() => {
+        resetForm();
+        onClose && onClose();
       });
+
     } catch (error) {
-      const mensaje =
-        error?.response?.data?.mensaje ||
-        error?.message ||
-        "Credenciales inválidas";
+      // Soporta respuestas string u objeto
+      let data = error?.response?.data;
+      let parsed = data;
+      let textBody = typeof data === 'string' ? data : '';
+      if (typeof data === 'string') {
+        try { parsed = JSON.parse(data); } catch {}
+      }
+      const msg = parsed?.mensaje || textBody || error?.message || "Credenciales inválidas";
+
+      const necesita2FA = parsed?.requiere2FA === true || /2fa/i.test(String(msg));
+
+      if (necesita2FA) {
+        setMostrarCampo2FA(true);
+        Swal.fire({
+          icon: "info",
+          title: "Código 2FA requerido",
+          text: "Ingresa el código de tu app autenticadora y vuelve a presionar Entrar.",
+          confirmButtonColor: "#0073CF",
+        }).then(() => {
+          requestAnimationFrame(() => input2FARef.current?.focus());
+        });
+        return;
+      }
+
       Swal.fire({
         icon: "error",
         title: "Error",
-        text: mensaje,
+        text: msg,
         confirmButtonColor: "#A40E0E",
       });
     }
@@ -188,27 +232,6 @@ const LoginModal = ({ isOpen, onClose }) => {
 
   const toggleId = "recordarDatosToggle";
 
-  const handleToggle = () => {
-    const nuevoValor = !recordarDatos;
-    setRecordarDatos(nuevoValor);
-    if (nuevoValor) {
-      // Guardar datos actuales (si existen) e informar al usuario
-      saveLoginData(correo, contraseña);
-      Swal.fire({
-        toast: true,
-        position: "top-end",
-        icon: "info",
-        title: "Tus datos se guardarán en este dispositivo.\nNo uses esta opción en equipos compartidos.",
-        showConfirmButton: false,
-        timer: 3500,
-        timerProgressBar: true
-      });
-    } else {
-      // Borrar datos
-      try { localStorage.removeItem(STORAGE_KEY); } catch {}
-    }
-  };
-
   return (
     <AnimatePresence>
       {isOpen && (
@@ -217,7 +240,13 @@ const LoginModal = ({ isOpen, onClose }) => {
             fixed inset-0 bg-black bg-opacity-50 z-50 px-1 flex items-start justify-center pt-6 sm:pt-0 sm:items-center
             lg:justify-start
           "
-          onClick={() => { limpiarEstadoTemporal(); resetForm(); onClose && onClose(); }}
+          onClick={() => {
+            if (!mostrarCampo2FA) {
+              limpiarEstadoTemporal();
+              resetForm();
+              onClose && onClose();
+            }
+          }}
           variants={overlayVariants}
           initial="hidden"
           animate="visible"
@@ -238,7 +267,12 @@ const LoginModal = ({ isOpen, onClose }) => {
             style={{ boxShadow: "0 6px 32px 0 rgba(16,30,54,0.13)" }}
           >
             <button
-              onClick={() => { limpiarEstadoTemporal(); resetForm(); onClose && onClose(); }}
+              onClick={() => {
+                if (mostrarCampo2FA) return; // no cerrar si falta 2FA
+                limpiarEstadoTemporal();
+                resetForm();
+                onClose && onClose();
+              }}
               className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 bg-gray-100 rounded-full p-2 transition"
               aria-label="Cerrar"
             >
@@ -253,6 +287,8 @@ const LoginModal = ({ isOpen, onClose }) => {
             <form onSubmit={handleSubmit}>
               <input
                 type="text"
+                name="email"
+                autoComplete="email"
                 placeholder="Correo electrónico"
                 value={correo}
                 onChange={(e) => setCorreo(e.target.value)}
@@ -262,6 +298,8 @@ const LoginModal = ({ isOpen, onClose }) => {
               <div className="relative w-full mb-3">
                 <input
                   type={mostrarPassword ? "text" : "password"}
+                  name="password"
+                  autoComplete="current-password"
                   placeholder="Contraseña"
                   value={contraseña}
                   onChange={(e) => setContraseña(e.target.value)}
@@ -278,7 +316,20 @@ const LoginModal = ({ isOpen, onClose }) => {
                 </button>
               </div>
 
-              {/* Toggle: Recordar mis datos */}
+              {mostrarCampo2FA && (
+                <input
+                  ref={input2FARef}
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  placeholder="Código 2FA (6 dígitos)"
+                  value={codigo2FA}
+                  onChange={(e) => setCodigo2FA(e.target.value.replace(/\s+/g, ""))}
+                  className="w-full border border-gray-300 rounded-xl px-4 py-3 mb-3 text-base"
+                />
+              )}
+
+              {/* Toggle Recordar datos */}
               <div className="mb-3">
                 <div className="w-full flex items-center justify-between gap-4 select-none">
                   <label htmlFor={toggleId} className="text-gray-800 text-[0.98rem] font-medium cursor-pointer">
@@ -289,19 +340,34 @@ const LoginModal = ({ isOpen, onClose }) => {
                       id={toggleId}
                       type="checkbox"
                       checked={recordarDatos}
-                      onChange={handleToggle}
+                      onChange={() => {}}
                       className="sr-only"
                     />
                     <div
-                      className={`w-[52px] h-[30px] rounded-full relative transition-colors duration-200 shadow-inner ${
-                        recordarDatos ? "bg-[#1745CF]" : "bg-gray-200"
-                      }`}
-                      onClick={handleToggle}
+                      className={`w-[52px] h-[30px] rounded-full relative transition-colors duration-200 shadow-inner ${recordarDatos ? "bg-[#1745CF]" : "bg-gray-200"
+                        }`}
+                      onClick={() => {
+                        const nuevo = !recordarDatos;
+                        setRecordarDatos(nuevo);
+                        if (nuevo) {
+                          saveLoginData(correo, contraseña);
+                          Swal.fire({
+                            toast: true,
+                            position: "top-end",
+                            icon: "info",
+                            title: "Tus datos se guardarán en este dispositivo.\nNo uses esta opción en equipos compartidos.",
+                            showConfirmButton: false,
+                            timer: 3500,
+                            timerProgressBar: true
+                          });
+                        } else {
+                          try { localStorage.removeItem(STORAGE_KEY); } catch {}
+                        }
+                      }}
                     >
                       <div
-                        className={`absolute top-1/2 -translate-y-1/2 w-[22px] h-[22px] bg-white rounded-full shadow transition-all duration-200 ${
-                          recordarDatos ? "left-7" : "left-1"
-                        }`}
+                        className={`absolute top-1/2 -translate-y-1/2 w-[22px] h-[22px] bg-white rounded-full shadow transition-all duration-200 ${recordarDatos ? "left-7" : "left-1"
+                          }`}
                       />
                     </div>
                   </div>
@@ -315,24 +381,88 @@ const LoginModal = ({ isOpen, onClose }) => {
                 Entrar
               </button>
             </form>
+
             <div className="my-3 border-t border-gray-200" />
+
             <div className="flex flex-col gap-2">
-              <Suspense
-                fallback={
-                  <button
-                    type="button"
-                    disabled
-                    className="relative flex items-center justify-center bg-white border border-gray-300 text-gray-400 text-base py-3 px-4 rounded-xl w-full"
-                  >
-                    Cargando Google…
-                  </button>
-                }
-              >
-                <GoogleLoginButton modo="login" onClose={() => { limpiarEstadoTemporal(); resetForm(); onClose && onClose(); }} />
-              </Suspense>
+              <GoogleLoginButtonWeb
+                modo="login"
+                onClose={() => {
+                  limpiarEstadoTemporal();
+                  resetForm();
+                  onClose && onClose();
+                }}
+                onRegistroExitoso={() => {}}
+              />
 
               <button
-                onClick={handleFacebookLogin}
+                onClick={() => {
+                  if (!window.FB) {
+                    Swal.fire({
+                      icon: "error",
+                      title: "Error",
+                      text: "Facebook SDK no se cargó correctamente.",
+                      confirmButtonColor: "#A40E0E",
+                    });
+                    return;
+                  }
+                  window.FB.login(async function (response) {
+                    if (response.authResponse) {
+                      const accessToken = response.authResponse.accessToken;
+                      try {
+                        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/usuarios/facebook`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ token: accessToken, tipo: "login" }),
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                          try {
+                            if (iniciarSesion) {
+                              await iniciarSesion(data.token, data.usuario);
+                            } else if (data?.token) {
+                              setAuthSession({ accessToken: data.token, user: data.usuario || null });
+                            }
+                          } catch {}
+                          Swal.fire({
+                            icon: "success",
+                            title: `¡Bienvenido, ${data.usuario.nickname}!`,
+                            text: "Sesión iniciada con Facebook",
+                            confirmButtonColor: "#0073CF",
+                          });
+                          limpiarEstadoTemporal();
+                          resetForm();
+                          onClose && onClose();
+                          navigate("/");
+                        } else {
+                          Swal.fire({
+                            icon: "error",
+                            title: "Error",
+                            text: data.mensaje || "No se pudo continuar con Facebook",
+                            confirmButtonColor: "#A40E0E",
+                          });
+                          limpiarEstadoTemporal();
+                        }
+                      } catch {
+                        Swal.fire({
+                          icon: "error",
+                          title: "Error de red",
+                          text: "No se pudo conectar con el servidor.",
+                          confirmButtonColor: "#A40E0E",
+                        });
+                        limpiarEstadoTemporal();
+                      }
+                    } else {
+                      Swal.fire({
+                        icon: "info",
+                        title: "Cancelado",
+                        text: "No se autorizó el inicio de sesión con Facebook.",
+                        confirmButtonColor: "#A40E0E",
+                      });
+                      limpiarEstadoTemporal();
+                    }
+                  }, { scope: "email,public_profile" });
+                }}
                 className="relative flex items-center justify-center bg-white border border-gray-300 text-gray-900 text-base py-3 px-4 rounded-xl hover:bg-gray-100 transition w-full"
                 type="button"
               >

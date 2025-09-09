@@ -6,6 +6,9 @@
 
 import { getAuthSession, setAuthSession } from "../utils/authStorage";
 
+// Tiempo máximo para cortar requests colgados (evita splash infinito tras refresh)
+const DEFAULT_TIMEOUT_MS = 12000;
+
 
 function normalizeBase(s = "") {
   return s ? s.trim().replace(/\/+$/, "") : "";
@@ -35,7 +38,7 @@ if (isLocalLike && env.DEV) {
 
 // Fallback extra en prod si no hay variable: usa mismo origen (no recomendado pero evita 405 inmediatos)
 if (!isLocalLike && !API_BASE) {
-  try { API_BASE = `${window.location.protocol}//${window.location.host}`; } catch {}
+  try { API_BASE = `${window.location.protocol}//${window.location.host}`; } catch { }
 }
 
 export { API_BASE };
@@ -62,21 +65,21 @@ async function refreshAccessToken() {
       headers: { "Content-Type": "application/json" },
       body: "{}",
     });
-    if (!res.ok) {
+    if (!res || !res.ok) {
       let msg = "";
-      try { const j = await res.json(); msg = j?.mensaje || j?.error || ""; } catch {}
+      try { const j = await res.json(); msg = j?.mensaje || j?.error || ""; } catch { }
       _refreshingPromise = null;
       throw new Error(msg || `refresh_failed ${res.status}`);
     }
     const data = await res.json().catch(() => ({}));
     const newToken = typeof data?.token === "string" ? data.token : null;
     if (newToken) {
-      try { localStorage.setItem("token", newToken); } catch {}
+      try { localStorage.setItem("token", newToken); } catch { }
       try {
         const sess = typeof getAuthSession === "function" ? getAuthSession() : null;
         const user = sess && typeof sess === "object" ? sess.user : null;
         if (typeof setAuthSession === "function") setAuthSession({ accessToken: newToken, user });
-      } catch {}
+      } catch { }
     }
     _refreshingPromise = null;
     return newToken;
@@ -94,7 +97,7 @@ function withAuthHeader(headers = {}) {
         sess?.accessToken ||
         (typeof localStorage !== "undefined" ? localStorage.getItem("token") : null);
       if (token) h["Authorization"] = `Bearer ${token}`;
-    } catch {}
+    } catch { }
   }
   return h;
 }
@@ -117,7 +120,7 @@ async function _json(path, opts = {}) {
       (sess && sess.accessToken) ||
       (typeof localStorage !== "undefined" ? localStorage.getItem("token") : null);
     if (t) __hadTokenBefore = true;
-  } catch {}
+  } catch { }
   let headers = withAuthHeader({ ...baseHeaders, ...incoming });
 
   const url = `${API_BASE}${path}`;
@@ -134,10 +137,27 @@ async function _json(path, opts = {}) {
     }
   }
 
-  const doFetch = async (hdrs) =>
-    fetch(url, { method, ...opts, credentials: cred, headers: hdrs });
+  const doFetch = async (hdrs, signal) => {
 
-  let res = await doFetch(headers);
+return fetch(url, { method, ...opts, credentials: cred, headers: hdrs, signal });
+};
+
+
+  let res;
+  let controller = null;
+let timeoutId = null;
+try {
+  if (!opts.signal && typeof AbortController !== 'undefined') {
+    controller = new AbortController();
+    const ms = typeof opts.timeout === 'number' ? opts.timeout : DEFAULT_TIMEOUT_MS;
+    timeoutId = setTimeout(() => {
+      try { controller.abort(); } catch {}
+    }, ms);
+  }
+  res = await doFetch(headers, (opts.signal || (controller && controller.signal)));
+
+
+} finally { try { if (timeoutId) clearTimeout(timeoutId); } catch {} }
 
   // ✅ Manejo robusto de 401 en /session: intenta refresh y reintenta una vez
   if (isSessionCall && res.status === 401) {
@@ -145,9 +165,9 @@ async function _json(path, opts = {}) {
       const newToken = await refreshAccessToken();
       if (newToken) {
         const hdrs2 = { ...headers, Authorization: `Bearer ${newToken}` };
-        res = await doFetch(hdrs2);
+        res = await doFetch(hdrs2, (opts.signal || (controller && controller.signal))) ;
       }
-    } catch {}
+    } catch { }
     if (res.status === 401) {
       clearSessionCache();
       return {};
@@ -160,12 +180,12 @@ async function _json(path, opts = {}) {
       const newToken = await refreshAccessToken();
       if (newToken) {
         const hdrs2 = { ...headers, Authorization: `Bearer ${newToken}` };
-        res = await doFetch(hdrs2);
+        res = await doFetch(hdrs2, (opts.signal || (controller && controller.signal))) ;
       }
-    } catch {}
+    } catch { }
   }
 
-  if (!res.ok) {
+  if (!res || !res.ok) {
     let errText = "";
     try {
       const maybeJson = await res.json();
@@ -203,7 +223,9 @@ export const postJSON = (p, b, h = {}) =>
 export const del = (p, h = {}) => _json(p, { method: "DELETE", headers: h });
 export const patch = (p, h = {}, b = undefined) => {
   const isForm = typeof FormData !== "undefined" && b instanceof FormData;
-  return _json(p, {
+
+
+return _json(p, {
     method: "PATCH",
     headers: h,
     body: isForm ? b : b ? JSON.stringify(b) : undefined,

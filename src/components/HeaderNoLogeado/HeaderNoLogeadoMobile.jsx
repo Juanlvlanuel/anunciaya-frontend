@@ -15,14 +15,18 @@ const HeaderNoLogeadoMobile = () => {
   const [logoPressed, setLogoPressed] = useState(false);
   const handleLogoTouch = () => setLogoPressed(true);
 
-  // Pide ubicación de alta precisión al montar si no la tenemos aún
+
   React.useEffect(() => {
     const hasCity = !!(ubicacion && ubicacion.ciudad);
-    if (!hasCity && typeof solicitarUbicacionAltaPrecision === "function") {
-      solicitarUbicacionAltaPrecision().catch(() => { });
+    if (!hasCity && typeof navigator !== "undefined" && "permissions" in navigator) {
+      navigator.permissions.query({ name: "geolocation" }).then((result) => {
+        if (result.state === "granted" && typeof solicitarUbicacionAltaPrecision === "function") {
+          solicitarUbicacionAltaPrecision().catch(() => {});
+        }
+      }).catch(() => {});
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
 
   return (
     <>

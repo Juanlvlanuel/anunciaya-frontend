@@ -1,59 +1,54 @@
-// src/components/security/ForceLogoutListener-1.jsx
 import React, { useEffect, useRef } from "react";
 import { getSocket } from "../../sockets/socketClient";
 import { useAuth } from "../../context/AuthContext";
 
-async function syncRoomsOnce() {
-  try {
-    const s = getSocket();
-    try { s.emit("session:joinAll"); } catch {}
-
-    const res = await fetch("/api/usuarios/sessions", {
-      credentials: "include",
-      headers: { "Accept": "application/json" },
-    });
-    const data = await res.json();
-    const items = Array.isArray(data?.sessions) ? data.sessions
-                 : Array.isArray(data?.items) ? data.items : [];
-    const cur = items.find((x) => x?.current) || null;
-    if (cur && (cur.jti || cur.id)) {
-      const jti = cur.jti || cur.id;
-      const fam = cur.family || cur.fam || null;
-      s.emit("session:update", { jti, fam });
-    }
-  } catch (e) {
-    console.warn("[FORCE LOGOUT] Error en syncRoomsOnce", e);
-  }
-}
+/**
+ * Versión corregida:
+ * - Se une al canal user:<id> al iniciar sesión.
+ * - Escucha correctamente el evento "session:forceLogout".
+ * - Llama cerrarSesion inmediatamente.
+ */
 
 export default function ForceLogoutListener() {
   const { cerrarSesion, usuario } = useAuth();
   const hasJoinedRef = useRef(false);
+  const isLoggedIn = !!usuario?._id;
 
   useEffect(() => {
-    const s = getSocket();
-    syncRoomsOnce();
+    if (!isLoggedIn || typeof window === "undefined") return;
+    if (typeof window.__AUTH_LOADING !== "undefined" && window.__AUTH_LOADING) return;
 
-    const onForceLogout = async (payload) => {
+    const s = getSocket();
+
+    const onForceLogout = async () => {
       try {
         await cerrarSesion();
-      } catch (e) {
-      }
+      } catch {}
     };
 
-    s.on("force-logout", onForceLogout);
+    try {
+      s.on("session:forceLogout", onForceLogout); // 🔄 Escucha correcto
+    } catch {}
+
     return () => {
-      try { s.off("force-logout", onForceLogout); } catch {}
+      try {
+        s.off("session:forceLogout", onForceLogout);
+      } catch {}
     };
-  }, [cerrarSesion]);
+  }, [isLoggedIn, cerrarSesion]);
 
   useEffect(() => {
-    const s = getSocket();
-    if (usuario?._id && !hasJoinedRef.current) {
-      s.emit("join", { usuarioId: usuario._id });
+    if (!isLoggedIn || hasJoinedRef.current) return;
+    try {
+      const s = getSocket();
+      s.emit("join", { usuarioId: usuario._id }); // ✅ Se une a canal user:<id>
       hasJoinedRef.current = true;
-    }
-  }, [usuario?._id]);
+    } catch {}
+  }, [isLoggedIn, usuario?._id]);
+
+  useEffect(() => {
+    if (!isLoggedIn) hasJoinedRef.current = false;
+  }, [isLoggedIn]);
 
   return null;
 }
