@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { patch, negocios } from "../../services/api";
 import CrearNegocioModal from "../../components/Negocios/CrearNegocioModal";
 import NegocioMediaUploader from "../../components/Negocios/NegocioMediaUploader";
+import { showError, showSuccess, showConfirm } from "../../utils/alerts";
 
 
 function toThumb(u) {
@@ -81,14 +82,18 @@ export default function MisNegocios() {
   };
 
   const onDelete = async (id) => {
-    const confirmar = window.confirm("¿Seguro que deseas borrar este negocio? Esta acción no se puede deshacer.");
+    const confirmar = await showConfirm(
+      "Confirmar borrado",
+      "¿Seguro que deseas borrar este negocio? Esta acción no se puede deshacer."
+    );
     if (!confirmar) return;
     try {
       setDeleting(id);
       await deleteNegocio(id);
       await cargar();
+      showSuccess("Negocio borrado", "El negocio fue eliminado correctamente.");
     } catch (e) {
-      alert(e.message || "No se pudo borrar el negocio.");
+      showError("Error al borrar", e.message || "No se pudo borrar el negocio.");
     } finally {
       setDeleting(null);
     }
@@ -243,8 +248,8 @@ export default function MisNegocios() {
                       onClick={() => onToggle(n._id)}
                       disabled={toggling === n._id}
                       className={`ml-auto inline-flex items-center gap-2 px-3 py-2 rounded-lg border transition ${n.activo
-                          ? "border-amber-500 bg-amber-50 text-amber-700"
-                          : "border-emerald-600 bg-emerald-600 text-white"
+                        ? "border-amber-500 bg-amber-50 text-amber-700"
+                        : "border-emerald-600 bg-emerald-600 text-white"
                         } disabled:opacity-60`}
                       title={n.activo ? "Desactivar" : "Activar"}
                     >

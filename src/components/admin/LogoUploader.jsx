@@ -1,10 +1,8 @@
 // ✅ src/components/admin/LogoUploader.jsx
 import { useState, useEffect } from "react";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
-import { toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
 import trashIcon from "../../assets/trash-icon.png";
-import Swal from 'sweetalert2';
+import { showError, showSuccess, showWarning, showConfirm } from "../../utils/alerts";
 
 const LogoUploader = () => {
   const [nombre, setNombre] = useState("");
@@ -18,7 +16,7 @@ const LogoUploader = () => {
       const data = await res.json();
       setLogos(data);
     } catch (error) {
-      toast.error("❌ No se pudieron cargar los logos.");
+      showError("Error", "No se pudieron cargar los logos.");
     }
   };
 
@@ -39,30 +37,30 @@ const LogoUploader = () => {
     e.preventDefault();
 
     if (!nombre.trim()) {
-      toast.warning("⚠️ El nombre del logo es obligatorio.");
+      showWarning("Campo requerido", "El nombre del logo es obligatorio.");
       return;
     }
 
     if (!archivo) {
-      toast.warning("⚠️ Debes seleccionar una imagen.");
+      showWarning("Campo requerido", "Debes seleccionar una imagen.");
       return;
     }
 
     const ordenNum = Number(orden);
 
     if (!orden || isNaN(ordenNum)) {
-      toast.warning("⚠️ Ingresa un número válido para la posición.");
+      showWarning("Dato inválido", "Ingresa un número válido para la posición.");
       return;
     }
 
     if (!Number.isInteger(ordenNum) || ordenNum < 1) {
-      toast.warning("⚠️ La posición debe ser un número entero mayor o igual a 1.");
+      showWarning("Dato inválido", "La posición debe ser un número entero mayor o igual a 1.");
       return;
     }
 
     const posicionOcupada = logos.some((logo) => logo.orden === ordenNum);
     if (posicionOcupada) {
-      toast.error(`❌ La posición ${ordenNum} ya está ocupada. Elige otra.`);
+      showError("Posición ocupada", `La posición ${ordenNum} ya está en uso. Elige otra.`);
       return;
     }
 
@@ -84,28 +82,18 @@ const LogoUploader = () => {
         setOrden(0);
         setArchivo(null);
         obtenerLogos();
-        toast.success("✅ Logo subido exitosamente");
+        showSuccess("Logo subido", "El logo fue subido exitosamente.");
       } else {
-        toast.error(data?.mensaje || "❌ Error al subir el logo.");
+        showError("Error al subir", data?.mensaje || "No se pudo subir el logo.");
       }
     } catch (error) {
-      toast.error("❌ Error inesperado al subir el logo.");
+      showError("Error inesperado", "Ocurrió un error al subir el logo.");
     }
   };
 
   const eliminarLogo = async (id) => {
-    const resultado = await Swal.fire({
-      title: "¿Eliminar este logo?",
-      text: "No podrás deshacer esta acción",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#A40E0E",   // Rojo oscuro (personalizado)
-      cancelButtonColor: "#3085d6",
-      confirmButtonText: "Sí, eliminar",
-      cancelButtonText: "Cancelar"
-    });
-
-    if (!resultado.isConfirmed) return;
+    const confirmado = await showConfirm("¿Eliminar este logo?", "No podrás deshacer esta acción.");
+    if (!confirmado) return;
 
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/logos-carousel/${id}`, {
@@ -114,12 +102,12 @@ const LogoUploader = () => {
 
       if (res.ok) {
         obtenerLogos();
-        Swal.fire("Eliminado", "El logo fue eliminado correctamente", "success");
+        showSuccess("Eliminado", "El logo fue eliminado correctamente.");
       } else {
-        Swal.fire("Error", "No se pudo eliminar el logo", "error");
+        showError("Error", "No se pudo eliminar el logo.");
       }
     } catch (error) {
-      Swal.fire("Error", "Ocurrió un error al conectar con el servidor", "error");
+      showError("Error de conexión", "No se pudo conectar con el servidor.");
     }
   };
 
@@ -134,14 +122,13 @@ const LogoUploader = () => {
 
       if (res.ok) {
         obtenerLogos();
-        toast.success(
-          estadoNuevo ? "✅ Logo activado correctamente" : "✅ Logo desactivado correctamente"
-        );
+        showSuccess("Estado actualizado", estadoNuevo ? "Logo activado correctamente." : "Logo desactivado correctamente.");
+
       } else {
-        toast.error("❌ No se pudo cambiar el estado del logo.");
+        showError("Error", "No se pudo cambiar el estado del logo.");
       }
     } catch (error) {
-      toast.error("❌ Error al conectar con el servidor.");
+      showError("Error de conexión", "No se pudo conectar con el servidor.");
     }
   };
 

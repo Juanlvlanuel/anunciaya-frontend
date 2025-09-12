@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getJSON } from "../../services/api";
+import { showError } from "../../utils/alerts";
 
 export default function NegocioDetalle() {
   const { id } = useParams();
@@ -21,6 +22,7 @@ export default function NegocioDetalle() {
         if (!alive) return;
         const msg = e?.message || "Error";
         setError(msg);
+        showError("Error al cargar negocio", msg);
       } finally {
         if (alive) setLoading(false);
       }

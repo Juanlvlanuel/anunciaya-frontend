@@ -1,14 +1,16 @@
 // src/modals/LoginModal-1.jsx
-import React, { useState, useContext, useEffect, useRef, lazy } from "react";
+import React, { useState, useContext, useEffect, useRef } from "react";
 import { FaTimes, FaEye, FaEyeSlash } from "react-icons/fa";
-import Swal from "sweetalert2";
-const GoogleLoginButton = lazy(() => import("../components/GoogleLoginButton_Custom/GoogleLoginButtonMobile"));
 import { AuthContext } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import facebookIcon from "../assets/facebook-icon.png";
 import { motion, AnimatePresence } from "framer-motion";
 import { setAuthSession, removeFlag } from "../utils/authStorage";
+import GoogleLoginButtonMobile from "../components/GoogleLoginButton_Custom/GoogleLoginButtonMobile";
 import GoogleLoginButtonWeb from "../components/GoogleLoginButton_Custom/GoogleLoginButtonWeb";
+import { Capacitor } from "@capacitor/core";
+import { twoFA, backup } from "../services/api";
+import { showError, showSuccess, showInfo, showWarning, showToast } from "../utils/alerts";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -18,44 +20,54 @@ const overlayVariants = {
   exit: { opacity: 0, transition: { duration: 0.3 } },
 };
 
-const limpiarEstadoTemporal = () => { try { removeFlag("tipoCuentaIntentada"); removeFlag("perfilCuentaIntentada"); } catch { } };
+const limpiarEstadoTemporal = () => {
+  try {
+    removeFlag("tipoCuentaIntentada");
+    removeFlag("perfilCuentaIntentada");
+  } catch { }
+};
 
 const STORAGE_KEY = "loginData";
+
+// === Prefijo API robusto ===
+const RAW = (import.meta.env.VITE_API_URL || "").trim().replace(/\/+$/, "");
+const API_USERS = /\/api\/usuarios$/.test(RAW) ? RAW : `${RAW}/api/usuarios`;
 
 const LoginModal = ({ isOpen, onClose }) => {
   const [correo, setCorreo] = useState("");
   const [contraseña, setContraseña] = useState("");
   const [mostrarPassword, setMostrarPassword] = useState(false);
+
+  // 2FA
   const [codigo2FA, setCodigo2FA] = useState("");
   const [mostrarCampo2FA, setMostrarCampo2FA] = useState(false);
-
-  const [recordarDatos, setRecordarDatos] = useState(false);
   const input2FARef = useRef(null);
 
-  useEffect(() => {
-    if (mostrarCampo2FA) {
-      input2FARef.current?.focus();
-    }
-  }, [mostrarCampo2FA]);
+  // Verificación de correo en Login
+  const [mostrarVerificacion, setMostrarVerificacion] = useState(false);
+  const [codigoEmail, setCodigoEmail] = useState("");
+  const codigoEmailRef = useRef(null);
+  const [verificandoEmail, setVerificandoEmail] = useState(false);
+  const [reenviando, setReenviando] = useState(false);
+  const [reintentoEn, setReintentoEn] = useState(0);
 
-  const { login, iniciarSesion } = useContext(AuthContext);
+  // “Recordar mis datos”
+  const [recordarDatos, setRecordarDatos] = useState(false);
+
+  // Reset/App perdida + backup codes
+  const otpRef = useRef(null);
+  const backupRef = useRef(null);
+  const [showReset2FA, setShowReset2FA] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [resetBusy, setResetBusy] = useState(false);
+  const [showBackup, setShowBackup] = useState(false);
+  const [backupCode, setBackupCode] = useState("");
+
+  const { iniciarSesion } = useContext(AuthContext);
   const navigate = useNavigate();
 
-  const resetForm = () => {
-    setCorreo("");
-    setContraseña("");
-    setCodigo2FA("");
-    setMostrarPassword(false);
-    setMostrarCampo2FA(false);
-  };
-
-  const saveLoginData = (correoVal, contraseñaVal) => {
-    try {
-      const hasAny = (correoVal && correoVal.trim() !== "") || (contraseñaVal && contraseñaVal !== "");
-      if (!hasAny) return;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ correo: correoVal, contraseña: contraseñaVal }));
-    } catch {}
-  };
+  useEffect(() => { if (mostrarCampo2FA) input2FARef.current?.focus(); }, [mostrarCampo2FA]);
+  useEffect(() => { if (mostrarVerificacion) setTimeout(() => codigoEmailRef.current?.focus(), 150); }, [mostrarVerificacion]);
 
   useEffect(() => {
     if (isOpen) {
@@ -71,7 +83,7 @@ const LoginModal = ({ isOpen, onClose }) => {
             setRecordarDatos(true);
           }
         }
-      } catch {}
+      } catch { }
     } else {
       resetForm();
     }
@@ -79,173 +91,292 @@ const LoginModal = ({ isOpen, onClose }) => {
   }, [isOpen]);
 
   useEffect(() => {
-    if (recordarDatos) {
-      saveLoginData(correo, contraseña);
-    }
+    if (!recordarDatos) return;
+    try {
+      const hasAny = (correo && correo.trim() !== "") || (contraseña && contraseña !== "");
+      if (hasAny) localStorage.setItem(STORAGE_KEY, JSON.stringify({ correo, contraseña }));
+    } catch { }
   }, [correo, contraseña, recordarDatos]);
+
+  useEffect(() => {
+    if (reintentoEn <= 0) return;
+    const t = setInterval(() => setReintentoEn((s) => (s > 0 ? s - 1 : 0)), 1000);
+    return () => clearInterval(t);
+  }, [reintentoEn]);
+
+  const resetForm = () => {
+    setCorreo("");
+    setContraseña("");
+    setCodigo2FA("");
+    setMostrarPassword(false);
+    setMostrarCampo2FA(false);
+    setMostrarVerificacion(false);
+    setCodigoEmail("");
+    setVerificandoEmail(false);
+    setReenviando(false);
+    setReintentoEn(0);
+    setShowReset2FA(false);
+    setOtp("");
+    setShowBackup(false);
+    setBackupCode("");
+  };
+
+  /* ========== LOGIN SILENCIOSO (sin alert genérico) ========== */
+  async function loginSilent({ correo, contraseña, codigo2FA }) {
+    const payload = {
+      correo: (correo || "").trim().toLowerCase(),
+      contraseña: (contraseña || "").trim(),
+    };
+    const headers = { "Content-Type": "application/json" };
+    if ((codigo2FA || "").trim()) headers["x-2fa-code"] = (codigo2FA || "").trim();
+
+    const res = await fetch(`${API_USERS}/login`, {
+      method: "POST",
+      headers,
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = new Error(data?.mensaje || "Error al iniciar sesión");
+      err.response = { status: res.status, data };
+      throw err;
+    }
+    return data;
+  }
+
+  async function enviarCodigoVerificacion(autoToast = true) {
+    const mail = (correo || "").trim().toLowerCase();
+    if (!EMAIL_RE.test(mail)) {
+      showInfo("Correo requerido", "Escribe un correo válido para enviar el código.");
+      return;
+    }
+    setReenviando(true);
+    try {
+      const res = await fetch(`${API_USERS}/reenviar-verificacion`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ correo: mail }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.mensaje || "No se pudo enviar el código");
+      if (autoToast) showInfo("Código enviado", `Revisa tu correo: ${mail}`);
+      setReintentoEn(60);
+    } catch (e) {
+      showError("Error", e?.message || "No se pudo enviar el código");
+    } finally {
+      setReenviando(false);
+    }
+  }
+
+  async function verificarCodigoEmailYEntrar() {
+    const mail = (correo || "").trim().toLowerCase();
+    const code = (codigoEmail || "").trim();
+    if (code.length < 6) {
+      showWarning("Código incompleto", "Ingresa los 6 dígitos.");
+      return;
+    }
+    setVerificandoEmail(true);
+    try {
+      const res = await fetch(`${API_USERS}/verificar-codigo`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ correo: mail, codigo: code }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.mensaje || "Código inválido o expirado");
+
+      showSuccess("¡Correo verificado!", "Intentaremos iniciar tu sesión ahora.");
+      const out = await loginSilent({ correo, contraseña, codigo2FA });
+      try {
+        if (iniciarSesion) await iniciarSesion(out.token, out.usuario);
+        else setAuthSession({ accessToken: out.token, user: out.usuario || null });
+      } catch { }
+      limpiarEstadoTemporal();
+      showSuccess("¡Bienvenido!", "Sesión iniciada correctamente").then(() => {
+        resetForm();
+        onClose && onClose();
+      });
+    } catch (e) {
+      const payload = e?.response?.data;
+      const necesita2FA =
+        payload?.requiere2FA === true || /2fa/i.test(String(payload?.mensaje || e.message || ""));
+      if (necesita2FA) {
+        setMostrarCampo2FA(true);
+        showInfo("Código 2FA requerido", "Ingresa el código de tu app autenticadora.")
+          .then(() => requestAnimationFrame(() => input2FARef.current?.focus()));
+        return;
+      }
+      showError("No se pudo verificar", e?.message || "Intenta de nuevo.");
+    } finally {
+      setVerificandoEmail(false);
+    }
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    const v = (correo || '').trim();
-    if (v.includes('@') && !EMAIL_RE.test(v)) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Correo inválido',
-        text: 'Ingresa un correo electrónico válido (ej. usuario@dominio.com).',
-        confirmButtonColor: '#A40E0E',
-      });
+    const v = (correo || "").trim();
+    if (v.includes("@") && !EMAIL_RE.test(v)) {
+      showError("Correo inválido", "Ingresa un correo electrónico válido.");
+      return;
+    }
+    if (mostrarCampo2FA && (!codigo2FA || codigo2FA.trim().length < 6)) {
+      showWarning("Código 2FA incompleto", "Escribe los 6 dígitos y vuelve a presionar Entrar.");
       return;
     }
 
     try {
-      // ✅ Validación 2FA si el campo ya se mostró
-      if (mostrarCampo2FA && (!codigo2FA || codigo2FA.trim().length < 6)) {
-        Swal.fire({
-          icon: "warning",
-          title: "Código 2FA incompleto",
-          text: "Escribe los 6 dígitos y vuelve a presionar Entrar.",
-          confirmButtonColor: "#0073CF",
-        });
-        return;
-      }
-
-      await login({ correo, contraseña, codigo2FA });
-
+      const out = await loginSilent({ correo, contraseña, codigo2FA });
+      try {
+        if (iniciarSesion) await iniciarSesion(out.token, out.usuario);
+        else setAuthSession({ accessToken: out.token, user: out.usuario || null });
+      } catch { }
       limpiarEstadoTemporal();
-
-      Swal.fire({
-        icon: "success",
-        title: "¡Bienvenido!",
-        text: "Sesión iniciada correctamente",
-        confirmButtonColor: "#0073CF",
-      }).then(() => {
+      showSuccess("¡Bienvenido!", "Sesión iniciada correctamente").then(() => {
         resetForm();
         onClose && onClose();
       });
-
     } catch (error) {
-      // Soporta respuestas string u objeto
-      let data = error?.response?.data;
-      let parsed = data;
-      let textBody = typeof data === 'string' ? data : '';
-      if (typeof data === 'string') {
-        try { parsed = JSON.parse(data); } catch {}
-      }
-      const msg = parsed?.mensaje || textBody || error?.message || "Credenciales inválidas";
+      const data = error?.response?.data;
+      const msg = data?.mensaje || error?.message || "Error al iniciar sesión";
 
-      const necesita2FA = parsed?.requiere2FA === true || /2fa/i.test(String(msg));
-
-      if (necesita2FA) {
-        setMostrarCampo2FA(true);
-        Swal.fire({
-          icon: "info",
-          title: "Código 2FA requerido",
-          text: "Ingresa el código de tu app autenticadora y vuelve a presionar Entrar.",
-          confirmButtonColor: "#0073CF",
-        }).then(() => {
-          requestAnimationFrame(() => input2FARef.current?.focus());
-        });
+      if (error?.response?.status === 403 && /no está verificada|EMAIL_NOT_VERIFIED|verific/i.test(msg)) {
+        setMostrarVerificacion(true);
+        enviarCodigoVerificacion(false);
+        showInfo("Verificación requerida", `Te enviamos un código a ${(correo || "").trim().toLowerCase()}.`);
         return;
       }
 
-      Swal.fire({
-        icon: "error",
-        title: "Error",
-        text: msg,
-        confirmButtonColor: "#A40E0E",
-      });
+      const necesita2FA = data?.requiere2FA === true || /2fa/i.test(String(msg));
+      if (necesita2FA) {
+        setMostrarCampo2FA(true);
+        showInfo("Código 2FA requerido", "Ingresa el código de tu app autenticadora y vuelve a presionar Entrar.")
+          .then(() => requestAnimationFrame(() => input2FARef.current?.focus()));
+        return;
+      }
+
+      showError("Error", msg);
     }
   };
 
   const handleFacebookLogin = () => {
     if (!window.FB) {
-      Swal.fire({
-        icon: "error",
-        title: "Error",
-        text: "Facebook SDK no se cargó correctamente.",
-        confirmButtonColor: "#A40E0E",
-      });
+      showError("Error", "Facebook SDK no se cargó correctamente.");
       return;
     }
-
     window.FB.login(async function (response) {
       if (response.authResponse) {
         const accessToken = response.authResponse.accessToken;
         try {
-          const res = await fetch(`${import.meta.env.VITE_API_URL}/api/usuarios/facebook`, {
+          const res = await fetch(`${API_USERS}/facebook`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ token: accessToken, tipo: "login" }),
           });
-
           const data = await res.json();
-
           if (res.ok) {
             try {
-              if (iniciarSesion) {
-                await iniciarSesion(data.token, data.usuario);
-              } else if (data?.token) {
-                setAuthSession({ accessToken: data.token, user: data.usuario || null });
-              }
-            } catch {}
-
-            Swal.fire({
-              icon: "success",
-              title: `¡Bienvenido, ${data.usuario.nickname}!`,
-              text: "Sesión iniciada con Facebook",
-              confirmButtonColor: "#0073CF",
-            });
+              if (iniciarSesion) await iniciarSesion(data.token, data.usuario);
+              else if (data?.token) setAuthSession({ accessToken: data.token, user: data.usuario || null });
+            } catch { }
+            showSuccess(`¡Bienvenido, ${data.usuario.nickname}!`, "Sesión iniciada con Facebook");
             limpiarEstadoTemporal();
             resetForm();
             onClose && onClose();
             navigate("/");
           } else {
-            Swal.fire({
-              icon: "error",
-              title: "Error",
-              text: data.mensaje || "No se pudo continuar con Facebook",
-              confirmButtonColor: "#A40E0E",
-            });
+            showError("Error", data.mensaje || "No se pudo continuar con Facebook");
             limpiarEstadoTemporal();
           }
-        } catch (error) {
-          Swal.fire({
-            icon: "error",
-            title: "Error de red",
-            text: "No se pudo conectar con el servidor.",
-            confirmButtonColor: "#A40E0E",
-          });
+        } catch {
+          showError("Error de red", "No se pudo conectar con el servidor.");
           limpiarEstadoTemporal();
         }
       } else {
-        Swal.fire({
-          icon: "info",
-          title: "Cancelado",
-          text: "No se autorizó el inicio de sesión con Facebook.",
-          confirmButtonColor: "#A40E0E",
-        });
+        showInfo("Cancelado", "No se autorizó el inicio de sesión con Facebook.");
         limpiarEstadoTemporal();
       }
     }, { scope: "email,public_profile" });
   };
 
+  const startReset2FA = async () => {
+    if (!correo || !contraseña) {
+      showInfo("Completa tus datos", "Escribe tu correo y contraseña y vuelve a intentar.");
+      return;
+    }
+    setResetBusy(true);
+    try {
+      await twoFA.resetStart(correo, contraseña);
+      setShowReset2FA(true);
+      showInfo("Código enviado", "Revisa tu correo e ingresa el código de 6 dígitos.");
+      setTimeout(() => otpRef.current?.focus(), 200);
+    } catch (e) {
+      showError("No se pudo enviar el código", e?.message || "Intenta más tarde.");
+    } finally {
+      setResetBusy(false);
+    }
+  };
+
+  const verifyReset2FA = async () => {
+    if (!otp || otp.trim().length < 6) {
+      showInfo("Código incompleto", "Escribe los 6 dígitos.");
+      return;
+    }
+    setResetBusy(true);
+    try {
+      await twoFA.resetVerify(correo, otp.trim());
+      showSuccess("2FA desactivado", "Ahora puedes iniciar sesión normalmente.");
+      setShowReset2FA(false);
+      setMostrarCampo2FA(false);
+      setCodigo2FA("");
+    } catch (e) {
+      showError("Código inválido o expirado", e?.message || "Intenta otra vez.");
+    } finally {
+      setResetBusy(false);
+    }
+  };
+
+  const useBackupNow = async () => {
+    if (!correo || !contraseña || !backupCode) {
+      showInfo("Completa tus datos", "Correo, contraseña y un código de respaldo.");
+      return;
+    }
+    try {
+      await backup.use(correo, contraseña, backupCode);
+      showSuccess("Código aceptado", "2FA fue desactivado. Entra normalmente y reconfigúralo luego en Seguridad.");
+      setShowBackup(false);
+      setMostrarCampo2FA(false);
+      setCodigo2FA("");
+      setBackupCode("");
+      onClose && onClose();
+    } catch (e) {
+      showError("Código inválido o ya usado", e?.message || "Intenta con otro código.");
+    }
+  };
+
   const toggleId = "recordarDatosToggle";
+
+  // ===== Overlay centrado cuando hay verificación =====
+  const overlayClass = `fixed inset-0 bg-black bg-opacity-50 z-50 px-1 flex ${mostrarVerificacion ? "items-center justify-center" : "items-start justify-center pt-16 sm:pt-0 sm:items-center lg:justify-start"
+    }`;
+
+  // Card: quitamos márgenes cuando se centra
+  const cardClass = `
+    w-[calc(100vw-60px)] mx-[30px] max-w-[390px] bg-white rounded-2xl px-5 py-8 shadow-2xl
+    flex flex-col justify-center relative gap-3 sm:w-[420px] sm:mx-auto sm:px-8
+    ${mostrarVerificacion ? "" : "mt-[103px] sm:mt-0 lg:ml-[65px] lg:mt-[51px]"}
+  `;
 
   return (
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="
-            fixed inset-0 bg-black bg-opacity-50 z-50 px-1 flex items-start justify-center pt-6 sm:pt-0 sm:items-center
-            lg:justify-start
-          "
+          className={overlayClass}
           onClick={() => {
-            if (!mostrarCampo2FA) {
-              limpiarEstadoTemporal();
-              resetForm();
-              onClose && onClose();
-            }
+            if (mostrarCampo2FA || showReset2FA || showBackup || mostrarVerificacion) return;
+            limpiarEstadoTemporal();
+            resetForm();
+            onClose && onClose();
           }}
           variants={overlayVariants}
           initial="hidden"
@@ -253,12 +384,7 @@ const LoginModal = ({ isOpen, onClose }) => {
           exit="exit"
         >
           <motion.div
-            className="
-              w-[calc(100vw-60px)] mx-[30px] max-w-[390px] bg-white rounded-2xl px-5 py-8 shadow-2xl flex flex-col justify-center relative gap-3
-              sm:w-[420px] sm:mx-auto sm:px-8
-              mt-[103px] sm:mt-0
-              lg:ml-[65px]   lg:mt-[51px]
-            "
+            className={cardClass}
             initial={{ y: 50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 40, opacity: 0 }}
@@ -268,7 +394,7 @@ const LoginModal = ({ isOpen, onClose }) => {
           >
             <button
               onClick={() => {
-                if (mostrarCampo2FA) return; // no cerrar si falta 2FA
+                if (mostrarCampo2FA || showReset2FA || showBackup || mostrarVerificacion) return;
                 limpiarEstadoTemporal();
                 resetForm();
                 onClose && onClose();
@@ -279,7 +405,7 @@ const LoginModal = ({ isOpen, onClose }) => {
               <FaTimes size={22} />
             </button>
 
-            <div className="text-center -mb-1 ">
+            <div className="text-center -mb-1">
               <h2 className="text-3xl font-extrabold text-black -mb-1">¡Hola de Nuevo!</h2>
               <p className="text-gray-700 text-xl font-medium mb-2">Ingresa tus Datos</p>
             </div>
@@ -292,10 +418,10 @@ const LoginModal = ({ isOpen, onClose }) => {
                 placeholder="Correo electrónico"
                 value={correo}
                 onChange={(e) => setCorreo(e.target.value)}
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 mb-2 text-base focus:outline-none focus:ring-2 focus:ring-blue-400"
+                className="w-full h-[40px] border border-gray-300 rounded-lg px-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-400 mb-2"
                 required
               />
-              <div className="relative w-full mb-3">
+              <div className="relative w-full">
                 <input
                   type={mostrarPassword ? "text" : "password"}
                   name="password"
@@ -303,177 +429,198 @@ const LoginModal = ({ isOpen, onClose }) => {
                   placeholder="Contraseña"
                   value={contraseña}
                   onChange={(e) => setContraseña(e.target.value)}
-                  className="w-full border border-gray-300 rounded-xl px-4 py-3 pr-12 text-base focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  className="w-full h-[40px] border border-gray-300 rounded-lg pl-3 pr-10 text-base focus:outline-none focus:ring-2 focus:ring-blue-400"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setMostrarPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xl text-gray-500 hover:text-blue-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-blue-600"
                   tabIndex={-1}
                 >
-                  {mostrarPassword ? <FaEyeSlash /> : <FaEye />}
+                  {mostrarPassword ? <FaEyeSlash className="w-5 h-5" /> : <FaEye className="w-5 h-5" />}
                 </button>
               </div>
 
-              {mostrarCampo2FA && (
-                <input
-                  ref={input2FARef}
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  placeholder="Código 2FA (6 dígitos)"
-                  value={codigo2FA}
-                  onChange={(e) => setCodigo2FA(e.target.value.replace(/\s+/g, ""))}
-                  className="w-full border border-gray-300 rounded-xl px-4 py-3 mb-3 text-base"
-                />
+              {mostrarCampo2FA && !showReset2FA && (
+                <>
+                  <input
+                    ref={input2FARef}
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    placeholder="Código 2FA (6 dígitos)"
+                    value={codigo2FA}
+                    onChange={(e) => setCodigo2FA(e.target.value.replace(/\s+/g, ""))}
+                    className="w-full border border-gray-300 rounded-xl px-4 py-3 mb-2 text-base"
+                  />
+                  <button type="button" onClick={startReset2FA} disabled={resetBusy} className="text-xs text-blue-700 hover:underline mb-2">
+                    {resetBusy ? "Enviando código…" : "¿Perdiste tu autenticador? Reconfigurar 2FA"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowBackup((v) => !v);
+                      setTimeout(() => backupRef.current?.focus(), 200);
+                    }}
+                    className="text-xs text-blue-700 hover:underline mb-2"
+                  >
+                    {showBackup ? "Ocultar código de respaldo" : "Usar un código de respaldo"}
+                  </button>
+                  {showBackup && (
+                    <div className="mb-3 border rounded-lg p-3 bg-gray-50">
+                      <input
+                        ref={backupRef}
+                        type="text"
+                        placeholder="Ej. AB7K-9Q3M"
+                        value={backupCode}
+                        onChange={(e) => setBackupCode(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))}
+                        className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm mb-2"
+                      />
+                      <small className="block text-[11px] text-gray-500 mb-2">Formato sugerido: ABCD-1234 (un solo uso)</small>
+                      <div className="flex gap-2">
+                        <button type="button" onClick={useBackupNow} className="text-sm px-3 py-2 bg-blue-600 text-white rounded">
+                          Usar código de respaldo
+                        </button>
+                        <button type="button" onClick={() => setShowBackup(false)} className="text-sm px-3 py-2 border rounded">
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {showReset2FA && (
+                <div className="mb-3 border rounded-lg p-3 bg-gray-50">
+                  <p className="text-sm text-gray-700 mb-2">Te enviamos un código al correo. Escríbelo para desactivar temporalmente tu 2FA.</p>
+                  <input
+                    ref={otpRef}
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    placeholder="Código de 6 dígitos"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\s+/g, ""))}
+                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm mb-2"
+                  />
+                  <div className="flex gap-2">
+                    <button type="button" onClick={verifyReset2FA} disabled={resetBusy} className="text-sm px-3 py-2 bg-blue-600 text-white rounded">
+                      {resetBusy ? "Verificando…" : "Verificar código"}
+                    </button>
+                    <button type="button" onClick={() => setShowReset2FA(false)} className="text-sm px-3 py-2 border rounded">
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
               )}
 
               {/* Toggle Recordar datos */}
-              <div className="mb-3">
+              <div className="mb-3 mt-2">
                 <div className="w-full flex items-center justify-between gap-4 select-none">
-                  <label htmlFor={toggleId} className="text-gray-800 text-[0.98rem] font-medium cursor-pointer">
-                    Recordar mis datos
-                  </label>
+                  <label htmlFor={toggleId} className="text-gray-800 text-[0.98rem] font-medium cursor-pointer">Recordar mis datos</label>
                   <div className="inline-flex items-center">
-                    <input
-                      id={toggleId}
-                      type="checkbox"
-                      checked={recordarDatos}
-                      onChange={() => {}}
-                      className="sr-only"
-                    />
+                    <input id={toggleId} type="checkbox" checked={recordarDatos} onChange={() => { }} className="sr-only" />
                     <div
-                      className={`w-[52px] h-[30px] rounded-full relative transition-colors duration-200 shadow-inner ${recordarDatos ? "bg-[#1745CF]" : "bg-gray-200"
-                        }`}
+                      className={`w-[52px] h-[30px] rounded-full relative transition-colors duration-200 shadow-inner ${recordarDatos ? "bg-[#1745CF]" : "bg-gray-200"}`}
                       onClick={() => {
                         const nuevo = !recordarDatos;
                         setRecordarDatos(nuevo);
                         if (nuevo) {
-                          saveLoginData(correo, contraseña);
-                          Swal.fire({
-                            toast: true,
-                            position: "top-end",
-                            icon: "info",
-                            title: "Tus datos se guardarán en este dispositivo.\nNo uses esta opción en equipos compartidos.",
-                            showConfirmButton: false,
-                            timer: 3500,
-                            timerProgressBar: true
-                          });
+                          try {
+                            localStorage.setItem(STORAGE_KEY, JSON.stringify({ correo, contraseña }));
+                            showToast("info", "Tus datos se guardarán en este dispositivo.\nNo uses esta opción en equipos compartidos.");
+                          } catch { }
                         } else {
-                          try { localStorage.removeItem(STORAGE_KEY); } catch {}
+                          try { localStorage.removeItem(STORAGE_KEY); } catch { }
                         }
                       }}
                     >
-                      <div
-                        className={`absolute top-1/2 -translate-y-1/2 w-[22px] h-[22px] bg-white rounded-full shadow transition-all duration-200 ${recordarDatos ? "left-7" : "left-1"
-                          }`}
-                      />
+                      <div className={`absolute top-1/2 -translate-y-1/2 w-[22px] h-[22px] bg-white rounded-full shadow transition-all duration-200 ${recordarDatos ? "left-7" : "left-1"}`} />
                     </div>
                   </div>
                 </div>
               </div>
 
-              <button
-                type="submit"
-                className="w-full bg-[#1745CF] hover:bg-[#123da3] text-white font-semibold py-3 rounded-xl mt-1 text-lg shadow transition"
-              >
+              <button type="submit" className="w-full h-[40px] bg-[#1745CF] hover:bg-[#123da3] text-white font-medium rounded-lg text-base shadow transition">
                 Entrar
               </button>
             </form>
 
+            {/* === Bloque “Verifica tu correo” dentro del Login === */}
+            {mostrarVerificacion && (
+              <div className="mt-4 border border-gray-200 rounded-xl p-4 bg-gray-50">
+                <h3 className="text-lg font-semibold text-gray-900 mb-1">Verifica tu correo</h3>
+                <p className="text-sm text-gray-700">
+                  Ingresa el código de 6 dígitos enviado a <b>{(correo || "").trim().toLowerCase()}</b>
+                </p>
+
+                {/* Input + Botón EN LA MISMA FILA, sin desbordarse */}
+                <div className="mt-3 flex items-center gap-2">
+                  <input
+                    ref={codigoEmailRef}
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    placeholder="Código de verificación"
+                    value={codigoEmail}
+                    onChange={(e) => setCodigoEmail(e.target.value.replace(/\s+/g, ""))}
+                    className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 h-[40px]"
+                  />
+                  <button
+                    type="button"
+                    onClick={verificarCodigoEmailYEntrar}
+                    disabled={verificandoEmail}
+                    className="h-[40px] px-3 whitespace-nowrap shrink-0 bg-[#1745CF] hover:bg-[#123da3] text-white rounded-lg"
+                  >
+                    {verificandoEmail ? "Verificando…" : "Enviar"}
+                  </button>
+                </div>
+
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    onClick={() => enviarCodigoVerificacion(true)}
+                    disabled={reenviando || reintentoEn > 0}
+                    className="text-xs text-blue-700 hover:underline disabled:opacity-50"
+                  >
+                    {reenviando ? "Enviando…" : reintentoEn > 0 ? `Reenviar código en ${reintentoEn}s` : "Reenviar código"}
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="my-3 border-t border-gray-200" />
 
             <div className="flex flex-col gap-2">
-              <GoogleLoginButtonWeb
-                modo="login"
-                onClose={() => {
-                  limpiarEstadoTemporal();
-                  resetForm();
-                  onClose && onClose();
-                }}
-                onRegistroExitoso={() => {}}
-              />
-
+              {Capacitor.isNativePlatform() ? (
+                <GoogleLoginButtonMobile
+                  modo="login"
+                  onClose={() => { limpiarEstadoTemporal(); resetForm(); onClose && onClose(); }}
+                  onRegistroExitoso={() => { }}
+                  tipo={null}
+                  perfil={null}
+                />
+              ) : (
+                <GoogleLoginButtonWeb
+                  modo="login"
+                  onClose={() => { limpiarEstadoTemporal(); resetForm(); onClose && onClose(); }}
+                  onRegistroExitoso={() => { }}
+                  onRequire2FA={(payload) => {
+                    if (payload?.usuario?.correo) setCorreo(payload.usuario.correo);
+                    setMostrarCampo2FA(true);
+                    setTimeout(() => input2FARef.current?.focus(), 150);
+                  }}
+                  getTwoFactorCode={() => (codigo2FA || "").trim()}
+                />
+              )}
               <button
-                onClick={() => {
-                  if (!window.FB) {
-                    Swal.fire({
-                      icon: "error",
-                      title: "Error",
-                      text: "Facebook SDK no se cargó correctamente.",
-                      confirmButtonColor: "#A40E0E",
-                    });
-                    return;
-                  }
-                  window.FB.login(async function (response) {
-                    if (response.authResponse) {
-                      const accessToken = response.authResponse.accessToken;
-                      try {
-                        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/usuarios/facebook`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ token: accessToken, tipo: "login" }),
-                        });
-                        const data = await res.json();
-                        if (res.ok) {
-                          try {
-                            if (iniciarSesion) {
-                              await iniciarSesion(data.token, data.usuario);
-                            } else if (data?.token) {
-                              setAuthSession({ accessToken: data.token, user: data.usuario || null });
-                            }
-                          } catch {}
-                          Swal.fire({
-                            icon: "success",
-                            title: `¡Bienvenido, ${data.usuario.nickname}!`,
-                            text: "Sesión iniciada con Facebook",
-                            confirmButtonColor: "#0073CF",
-                          });
-                          limpiarEstadoTemporal();
-                          resetForm();
-                          onClose && onClose();
-                          navigate("/");
-                        } else {
-                          Swal.fire({
-                            icon: "error",
-                            title: "Error",
-                            text: data.mensaje || "No se pudo continuar con Facebook",
-                            confirmButtonColor: "#A40E0E",
-                          });
-                          limpiarEstadoTemporal();
-                        }
-                      } catch {
-                        Swal.fire({
-                          icon: "error",
-                          title: "Error de red",
-                          text: "No se pudo conectar con el servidor.",
-                          confirmButtonColor: "#A40E0E",
-                        });
-                        limpiarEstadoTemporal();
-                      }
-                    } else {
-                      Swal.fire({
-                        icon: "info",
-                        title: "Cancelado",
-                        text: "No se autorizó el inicio de sesión con Facebook.",
-                        confirmButtonColor: "#A40E0E",
-                      });
-                      limpiarEstadoTemporal();
-                    }
-                  }, { scope: "email,public_profile" });
-                }}
-                className="relative flex items-center justify-center bg-white border border-gray-300 text-gray-900 text-base py-3 px-4 rounded-xl hover:bg-gray-100 transition w-full"
+                onClick={handleFacebookLogin}
+                className="w-full bg-white border border-gray-300 text-gray-900 text-sm py-2.5 px-3 rounded-lg hover:bg-gray-100 transition font-medium flex items-center justify-center gap-2 shadow"
                 type="button"
               >
-                <img
-                  src={facebookIcon}
-                  alt="Facebook"
-                  className="absolute left-3 top-1/2 transform -translate-y-1/2 w-[18px] h-[18px]"
-                />
-                <span className="pl-7 text-[0.98rem] font-normal">
-                  Acceder con Facebook
-                </span>
+                <img src={facebookIcon} alt="Facebook" className="w-5 h-5" />
+                <span className="text-sm font-medium">Acceder con Facebook</span>
               </button>
             </div>
           </motion.div>

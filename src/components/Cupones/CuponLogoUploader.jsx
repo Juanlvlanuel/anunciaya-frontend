@@ -1,5 +1,6 @@
 // src/components/Cupones/CuponLogoUploader.jsx
 import React, { useRef, useState, useEffect } from "react";
+import { showError, showWarning } from "../../utils/alerts";
 
 /**
  * Uploader de LOGO del cupón (pequeño, cuadrado, con posible remover fondo en Cloudinary).
@@ -27,7 +28,11 @@ export default function CuponLogoUploader({ negocioId, onUploaded, registerOpen,
   }
 
   async function pickFile() {
-    if (!negocioId) { alert("Selecciona primero el Negocio"); return; }
+    if (!negocioId) {
+      showWarning("Negocio requerido", "Selecciona primero el Negocio (Negocio ID)");
+      return;
+    }
+
     inputRef.current?.click();
   }
 
@@ -84,8 +89,9 @@ export default function CuponLogoUploader({ negocioId, onUploaded, registerOpen,
     });
     const data = await res.json();
     if (!res.ok || !data?.uploadUrl || !data?.fields) {
-      throw new Error(data?.mensaje || data?.error || "No autenticado");
+      throw new Error(data?.mensaje || data?.error || "Error de autenticación");
     }
+
     return data; // { uploadUrl, fields }
   }
 
@@ -120,8 +126,10 @@ export default function CuponLogoUploader({ negocioId, onUploaded, registerOpen,
       onUploaded?.(uploaded);
     } catch (err) {
       console.error("CuponLogoUploader Error:", err);
-      alert(err.message || "No autenticado");
-    } finally {
+      showError("Error de autenticación", err?.message || "No autenticado");
+    }
+
+    finally {
       setBusy(false);
       if (inputRef.current) inputRef.current.value = "";
     }
@@ -131,15 +139,15 @@ export default function CuponLogoUploader({ negocioId, onUploaded, registerOpen,
     <div className="space-y-2">
       <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={onFile} />
       {!hideTrigger && (
-      <button
-        type="button"
-        onClick={pickFile}
-        disabled={busy}
-        className="px-3 py-2 text-[13px] font-semibold rounded-lg border border-[#e6e9f0] bg-white active:scale-[0.98]"
-        title="Subir logo"
-      >
-        {busy ? "Subiendo..." : "Subir logo"}
-      </button>
+        <button
+          type="button"
+          onClick={pickFile}
+          disabled={busy}
+          className="px-3 py-2 text-[13px] font-semibold rounded-lg border border-[#e6e9f0] bg-white active:scale-[0.98]"
+          title="Subir logo"
+        >
+          {busy ? "Subiendo..." : "Subir logo"}
+        </button>
       )}
     </div>
   );

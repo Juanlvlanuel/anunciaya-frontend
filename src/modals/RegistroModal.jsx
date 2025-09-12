@@ -1,12 +1,15 @@
 // RegistroModal-1.jsx
 // Usa GoogleLoginButtonMobile (híbrido nativo/web) para evitar fallas del plugin en Android.
-import React, { useState, useEffect, useContext, lazy, Suspense } from "react";
+import React, { useState, useEffect, useContext, lazy, Suspense, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FaTimes, FaEye, FaEyeSlash } from "react-icons/fa";
-import Swal from "sweetalert2";
+import { showError, showSuccess, showWarning, showInfo } from "../utils/alerts";
 import axios from "axios";
 import { API_BASE } from "../services/api";
-const GoogleLoginButton = lazy(() => import("../components/GoogleLoginButton_Custom/GoogleLoginButtonMobile"));
+import { Capacitor } from "@capacitor/core";
+import GoogleLoginButtonWeb from "../components/GoogleLoginButton_Custom/GoogleLoginButtonWeb";
+const GoogleLoginButtonMobile = lazy(() => import("../components/GoogleLoginButton_Custom/GoogleLoginButtonMobile"));
+
 import FacebookLoginButton from "../components/FacebookLoginButton";
 import { AuthContext } from "../context/AuthContext";
 import { getFlag, removeFlag } from "../utils/authStorage";
@@ -21,7 +24,7 @@ const limpiarEstadoTemporal = () => {
     removeFlag("perfilCuentaRegistro");
     removeFlag("tipoCuentaIntentada");
     removeFlag("perfilCuentaIntentada");
-  } catch {}
+  } catch { }
 };
 
 // Obtiene tipo/perfil desde props, luego desde flags (authStorage) y, por compatibilidad, desde localStorage
@@ -61,7 +64,7 @@ const obtenerTipoYPerfil = (propTipo, propPerfil) => {
         }
       }
     }
-  } catch {}
+  } catch { }
 
   // Normaliza a objeto {perfil: ...}
   if (p && typeof p === "string") p = { perfil: p };
@@ -80,6 +83,35 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
   const [password, setPassword] = useState("");
   const [mostrarPassword, setMostrarPassword] = useState(false);
 
+  const [mostrarVerificacion, setMostrarVerificacion] = useState(false);
+  const [codigoVerificacion, setCodigoVerificacion] = useState("");
+  const [correoPendiente, setCorreoPendiente] = useState("");
+  // --- Verificación (estilo LoginModal)
+  const [verificandoEmail, setVerificandoEmail] = useState(false);
+  const [reenviando, setReenviando] = useState(false);
+  const [reintentoEn, setReintentoEn] = useState(0);
+  const codigoEmailRef = useRef(null);
+  const nombreRef = useRef(null);
+
+  useEffect(() => {
+    if (isOpen && !mostrarVerificacion) {
+      setTimeout(() => nombreRef.current?.focus(), 150);
+    }
+  }, [isOpen, mostrarVerificacion]);
+
+
+  useEffect(() => {
+    if (reintentoEn <= 0) return;
+    const t = setInterval(() => setReintentoEn((s) => (s > 0 ? s - 1 : 0)), 1000);
+    return () => clearInterval(t);
+  }, [reintentoEn]);
+
+  useEffect(() => {
+    if (mostrarVerificacion) setTimeout(() => codigoEmailRef.current?.focus(), 150);
+  }, [mostrarVerificacion]);
+
+
+
   const { iniciarSesion } = useContext(AuthContext);
 
   const resetForm = () => {
@@ -87,13 +119,19 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
     setCorreo("");
     setPassword("");
     setMostrarPassword(false);
+    setMostrarVerificacion(false);
+    setCodigoVerificacion("");
+    setCorreoPendiente("");
+    setVerificandoEmail(false);
+    setReenviando(false);
+    setReintentoEn(0);
   };
 
   // Precarga en idle del módulo del botón (mejora la primera apertura)
   useEffect(() => {
     if (!isOpen) return;
-    const id = ric(() => { try { import("../components/GoogleLoginButton_Custom/GoogleLoginButtonMobile"); } catch {} });
-    return () => { if (typeof id === "number") try { clearTimeout(id); } catch {} };
+    const id = ric(() => { try { import("../components/GoogleLoginButton_Custom/GoogleLoginButtonMobile"); } catch { } });
+    return () => { if (typeof id === "number") try { clearTimeout(id); } catch { } };
   }, [isOpen]);
 
   useEffect(() => {
@@ -119,7 +157,7 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
     const passOk = (password || "").trim();
 
     if (!nombreOk || !correoOk || !passOk || !tipoEfectivo || !perfilEfectivo || !perfilEfectivo.perfil) {
-      Swal.fire({ icon: "warning", title: "Datos incompletos", text: "Por favor completa todos los campos y selecciona un perfil." });
+      showWarning("Datos incompletos", "Por favor completa todos los campos y selecciona un perfil.");
       return;
     }
 
@@ -133,8 +171,15 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
       const ok = (res.status === 200 || res.status === 201) && res.data?.token && res.data?.usuario;
 
       if (ok) {
+        if (!res.data.usuario.emailVerificado) {
+          setMostrarVerificacion(true);
+          setCorreoPendiente(res.data.usuario.correo);
+          setReintentoEn(60); // inicia el "Reenviar código en 60s"
+          return;
+        }
+
         iniciarSesion(res.data.token, res.data.usuario);
-        await Swal.fire({ icon: "success", title: "¡Cuenta creada!", text: "Tu cuenta ha sido registrada y ya iniciaste sesión." });
+        await showSuccess("¡Cuenta creada!", "Tu cuenta ha sido registrada y ya iniciaste sesión.");
         limpiarEstadoTemporal();
         resetForm();
         if (onClose) onClose();
@@ -151,13 +196,71 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
         return;
       }
 
-      Swal.fire({ icon: "warning", title: "Error en el registro", text: "No se recibió respuesta válida del servidor." });
+      showWarning("Error en el registro", "No se recibió respuesta válida del servidor.");
     } catch (err) {
       const data = err?.response?.data || {};
       const mensaje = data?.mensaje || data?.error?.mensaje || data?.error?.message || err?.message || "Error desconocido";
-      Swal.fire({ icon: "warning", title: "Error en el registro", text: String(mensaje) });
+      showWarning("Error en el registro", String(mensaje));
     }
   };
+
+  async function enviarCodigoVerificacion(autoToast = true) {
+    const email = (correoPendiente || correo || "").trim().toLowerCase();
+    if (!email) return;
+    setReenviando(true);
+    try {
+      await axios.post(
+        `${API_BASE}/api/usuarios/reenviar-verificacion`,
+        { correo: email },
+        { withCredentials: true, headers: { "Content-Type": "application/json" } }
+      );
+      if (autoToast) showInfo("Código enviado", `Revisa tu correo: ${email}`);
+      setReintentoEn(60);
+    } catch (e) {
+      showError("Error", e?.response?.data?.mensaje || "No se pudo enviar el código.");
+    } finally {
+      setReenviando(false);
+    }
+  }
+
+  const handleVerificarCodigo = async () => {
+    const codigo = (codigoVerificacion || "").trim();
+    const email = (correoPendiente || correo || "").trim().toLowerCase();
+
+    if (!codigo || codigo.length !== 6) {
+      showWarning("Código inválido", "Ingresa los 6 dígitos del código enviado a tu correo.");
+      return;
+    }
+
+    setVerificandoEmail(true);
+    try {
+      const res = await axios.post(`${API_BASE}/api/usuarios/verificar-codigo`, {
+        correo: email,
+        codigo,
+      }, {
+        withCredentials: true,
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (res.data?.usuario && res.data?.ok && res.data?.token) {
+        await iniciarSesion(res.data.token, res.data.usuario);
+        await showSuccess("¡Bienvenido!", "Tu cuenta ha sido creada y activada con éxito.");
+        limpiarEstadoTemporal();
+        resetForm();
+        if (onClose) onClose();
+        if (onRegistroExitoso) onRegistroExitoso();
+        return;
+      } else {
+        showError("Error", "No se pudo verificar tu correo. Faltan datos.");
+      }
+    } catch (err) {
+      const msg = err?.response?.data?.mensaje || "Código incorrecto o expirado.";
+      showError("Error al verificar", msg);
+    } finally {
+      setVerificandoEmail(false);
+    }
+  };
+
 
   const { tipo: tipoEfectivoBtn, perfil: perfilEfectivoBtn } = obtenerTipoYPerfil(tipo, perfil);
 
@@ -173,12 +276,12 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
         >
           <motion.div
             className="
-              w-[calc(100vw-60px)] mx-[30px] bg-white rounded-3xl shadow-2xl
-              px-5 py-7 relative flex flex-col justify-center gap-4
-              sm:w-[420px] sm:px-8 sm:mx-0
-              mx-auto  lg:-ml-[1360px] lg:-mb-[55px]
-              mt-[-130px] sm:mt-0
+              w-full max-w-[calc(100vw-70px)] bg-white rounded-[1.2rem] shadow-2xl
+              px-4 py-5 sm:px-5 relative flex flex-col gap-4
+              max-h-[90vh] overflow-y-auto
             "
+
+
             initial={{ y: 50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 40, opacity: 0 }}
@@ -195,30 +298,33 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
               <FaTimes size={22} />
             </button>
 
-            <h2 className="text-4xl font-extrabold text-black text-center -mb-7 leading-tight">
-              ¡Bienvenido!
-            </h2>
-            <div className="text-[24px] font-bold text-center -mb-0">
-              a <span className="text-blue-700 font-bold">Anuncia</span><span className="text-red-600 font-bold">YA</span>
+            <div className="text-center -mt-2 -mb-1 leading-none">
+              <h2 className="text-[28px] font-extrabold text-black leading-tight">¡Bienvenido!</h2>
+              <p className="text-[20px] font-medium text-gray-800 leading-tight">
+                a <span className="text-blue-700 font-bold">Anuncia</span><span className="text-red-600 font-bold">YA</span>
+              </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-3">
               <input
+                ref={nombreRef}
                 type="text"
                 name="nombre"
                 autoComplete="name"
                 placeholder="Nombre Completo"
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-400"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-400"
                 value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
                 required
               />
+
               <input
                 type="email"
                 name="email"
                 autoComplete="email"
                 placeholder="Correo Electrónico"
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-400"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 pr-12 text-base focus:outline-none focus:ring-2 focus:ring-blue-400"
+
                 value={correo}
                 onChange={(e) => setCorreo(e.target.value)}
                 required
@@ -229,7 +335,8 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
                   name="password"
                   autoComplete="new-password"
                   placeholder="Contraseña"
-                  className="w-full border border-gray-300 rounded-xl px-4 py-3 pr-12 text-base focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-400"
+
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -240,19 +347,17 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
                   onClick={() => setMostrarPassword((prev) => !prev)}
                   tabIndex={-1}
                 >
-                  {mostrarPassword ? <FaEyeSlash /> : <FaEye />}
+                  {mostrarPassword ? <FaEyeSlash className="w-5 h-5" /> : <FaEye className="w-5 h-5" />}
                 </button>
               </div>
 
               <button
                 type="submit"
-                className="w-full bg-[#1745CF] hover:bg-[#123da3] text-white font-semibold py-3 rounded-xl mt-1 text-lg shadow transition"
+                className="w-full bg-[#1745CF] hover:bg-[#123da3] text-white font-medium py-2.5 rounded-lg text-sm shadow transition"
               >
                 Crear Cuenta
               </button>
             </form>
-
-            <div className="my-3 border-t border-gray-200" />
 
             <div className="space-y-2">
               <Suspense
@@ -260,22 +365,90 @@ const RegistroModal = ({ isOpen, onClose, onRegistroExitoso, tipo, perfil }) => 
                   <button
                     type="button"
                     disabled
-                    className="relative flex items-center justify-center bg-white border border-gray-300 text-gray-400 text-base py-3 px-4 rounded-xl w-full"
+                    className="relative flex items-center justify-center bg-white border border-gray-300 text-gray-400 text-sm py-2.5 px-3 rounded-lg w-full"
                   >
                     Cargando Google…
                   </button>
                 }
               >
-                <GoogleLoginButton
-                  onClose={handleClose}
-                  onRegistroExitoso={onRegistroExitoso}
-                  modo="registro"
-                  tipo={tipoEfectivoBtn}
-                  perfil={perfilEfectivoBtn}
-                />
+                {Capacitor.isNativePlatform() ? (
+                  <GoogleLoginButtonMobile
+                    onClose={handleClose}
+                    onRegistroExitoso={onRegistroExitoso}
+                    modo="registro"
+                    tipo={tipoEfectivoBtn}
+                    perfil={perfilEfectivoBtn}
+                  />
+                ) : (
+                  <GoogleLoginButtonWeb
+                    onClose={handleClose}
+                    onRegistroExitoso={onRegistroExitoso}
+                    modo="registro"
+                    tipo={tipoEfectivoBtn}
+                    perfil={perfilEfectivoBtn?.perfil ?? perfilEfectivoBtn}
+                  />
+                )}
               </Suspense>
               <FacebookLoginButton />
             </div>
+            <AnimatePresence>
+              {mostrarVerificacion && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="overflow-hidden mt-4"
+                >
+                  <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-1">Verifica tu correo</h3>
+                    <p className="text-sm text-gray-700">
+                      Ingresa el código de 6 dígitos enviado a{" "}
+                      <b>{(correoPendiente || correo).toLowerCase()}</b>
+                    </p>
+
+                    <div className="mt-3 flex items-center gap-2">
+                      <input
+                        ref={codigoEmailRef}
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={6}
+                        autoComplete="one-time-code"
+                        placeholder="Código de verificación"
+                        value={codigoVerificacion}
+                        onChange={(e) =>
+                          setCodigoVerificacion(e.target.value.replace(/\D/g, ""))
+                        }
+                        className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 h-[40px]"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleVerificarCodigo}
+                        disabled={verificandoEmail}
+                        className="h-[40px] px-3 whitespace-nowrap shrink-0 bg-[#1745CF] hover:bg-[#123da3] text-white rounded-lg"
+                      >
+                        {verificandoEmail ? "Verificando…" : "Verificar"}
+                      </button>
+                    </div>
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        onClick={() => enviarCodigoVerificacion(true)}
+                        disabled={reenviando || reintentoEn > 0}
+                        className="text-xs text-blue-700 hover:underline disabled:opacity-50"
+                      >
+                        {reenviando
+                          ? "Enviando…"
+                          : reintentoEn > 0
+                            ? `Reenviar código en ${reintentoEn}s`
+                            : "Reenviar código"}
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         </motion.div>
       )}

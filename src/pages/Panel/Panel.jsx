@@ -27,7 +27,7 @@ export default function Panel() {
   const navigate = useNavigate();
   useEffect(() => {
     if (!cargando && autenticado === false) {
-      try { setSuppressLoginOnce(true); } catch {}
+      try { setSuppressLoginOnce(true); } catch { }
       navigate("/", { replace: true, state: { showLogin: false } });
     }
   }, [cargando, autenticado, navigate]);
@@ -53,7 +53,7 @@ export default function Panel() {
         navigate("/logout");
       }
     } finally {
-      try { window.dispatchEvent(new Event("panel:closeSidebar")); } catch {}
+      try { window.dispatchEvent(new Event("panel:closeSidebar")); } catch { }
     }
   };
 
@@ -92,7 +92,7 @@ export default function Panel() {
             onLogout={handleLogout}
           />
 
-          <main className="flex-1 rounded-2xl border border-black/5 bg-white/80 backdrop-blur-sm shadow-sm">
+          <div className="flex-1">
             {active === "inicio" && (
               <InicioSection
                 user={safeUser}
@@ -103,13 +103,22 @@ export default function Panel() {
                 onIrSoporte={onIrSoporte}
               />
             )}
-            {active === "perfil" && <PerfilSection key={safeUser?._id || "fallback"} user={safeUser} onSave={actualizarPerfil} />}
+            {active === "perfil" && (
+              <PerfilSection
+                key={safeUser?._id || "fallback"}
+                user={safeUser}
+                onSave={actualizarPerfil}
+              />
+            )}
             {active === "seguridad" && <SeguridadSection />}
-            {active === "historial" && <PublicacionesSection user={safeUser} onUpgrade={goUpgrade} />}
+            {active === "historial" && (
+              <PublicacionesSection user={safeUser} onUpgrade={goUpgrade} />
+            )}
             {active === "notificaciones" && <NotificacionesSection />}
             {active === "plan" && <PlanSection user={safeUser} />}
             {active === "soporte" && <SoporteSection />}
-          </main>
+          </div>
+
         </div>
       </div>
     </div>

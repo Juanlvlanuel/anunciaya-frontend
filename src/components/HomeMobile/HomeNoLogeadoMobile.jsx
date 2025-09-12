@@ -2,12 +2,14 @@ import React, { useState, useRef, useEffect, useContext } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import HeaderNoLogeado from "../HeaderNoLogeado";
 import RegistroModal from "../../modals/RegistroModal";
+import RecuperarCuentaModal from "../../modals/RecuperarCuentaModal";
 import PerfilModal from "../../modals/PerfilModal";
 import CarrouselSecciones from "../CarrouselSecciones";
 import { motion, AnimatePresence } from "framer-motion";
 import { UbiContext } from "../../context/UbiContext"; // Ajusta la ruta si es diferente
 import { AuthContext } from "../../context/AuthContext";
 import { getSuppressLoginOnce, clearSuppressLoginOnce } from "../../utils/authStorage";
+
 
 const limpiarEstadoRegistro = () => {
   localStorage.removeItem("tipoCuentaIntentada");
@@ -21,6 +23,7 @@ const HomeNoLogeadoMobile = ({ abrirModalLogin, abrirModalRegistro }) => {
   const [allowLoginOpen, setAllowLoginOpen] = useState(true);
   const [suppressAutoLogin, setSuppressAutoLogin] = useState(false);
   const [mostrarModalRegistro, setMostrarModalRegistro] = useState(false);
+  const [mostrarModalRecuperar, setMostrarModalRecuperar] = useState(false);
   const [mostrarSeleccionPerfilModal, setMostrarSeleccionPerfilModal] = useState(false);
   const [tipoSeleccionado, setTipoSeleccionado] = useState(null);
   const [perfilSeleccionado, setPerfilSeleccionado] = useState(null);
@@ -77,8 +80,8 @@ const HomeNoLogeadoMobile = ({ abrirModalLogin, abrirModalRegistro }) => {
   }, []);
 
   const boxVariants = {
-    hidden: { opacity: 0, y: 30, scale: 0.98 },
-    visible: { opacity: 1, y: 0, scale: 1 },
+    hidden: { opacity: 0, x: 30, scale: 0.98 },
+    visible: { opacity: 1, x: 0, scale: 1 },
     exit: { opacity: 0, y: -30, scale: 0.96, transition: { duration: 0.25 } },
   };
 
@@ -149,7 +152,7 @@ const HomeNoLogeadoMobile = ({ abrirModalLogin, abrirModalRegistro }) => {
   }, []);
 
   return (
-     <div className="relative min-h-[100svh] flex flex-col overflow-x-hidden">
+    <div className="relative min-h-[100svh] flex flex-col overflow-x-hidden">
       {/* Imagen de fondo optimizada */}
       <img
         src="/fondo-inicio-mobile.webp"
@@ -178,8 +181,8 @@ const HomeNoLogeadoMobile = ({ abrirModalLogin, abrirModalRegistro }) => {
       {/* 1. Caja ÚNETE a la plataforma */}
       <motion.div
         className="w-full flex justify-center mt-36 mb-3 relative z-10"
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0, x: 30 }}
+        animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 1.2 }}
       >
         <div className="
@@ -188,7 +191,7 @@ const HomeNoLogeadoMobile = ({ abrirModalLogin, abrirModalRegistro }) => {
           px-7 py-4
           pt-1 pb-0
           shadow-[0_10px_44px_0_rgba(80,130,250,0.13)]
-          text-center max-w-[360px] w-full mx-2
+          text-center max-w-[calc(100vw-70px)] w-full mx-2
           border border-white/60
           backdrop-blur-[9px]
         ">
@@ -209,37 +212,25 @@ const HomeNoLogeadoMobile = ({ abrirModalLogin, abrirModalRegistro }) => {
         items-center
         justify-start
         w-full
-        relative z-10
+        relative
       "><samp></samp>
         <div className="
           w-full 
           max-w-xs mx-auto 
           flex flex-col justify-center items-center
         ">
-          <AnimatePresence>
+          <AnimatePresence mode="wait">
             {!mostrarModalRegistro && !mostrarSeleccionPerfilModal && (
               <motion.div
                 ref={bienvenidaRef}
-                className={`
-                  w-[calc(100vw-40px)] mx-[20px]
-                  bg-white/50
-                  rounded-[1.2rem]
-                  p-5 pt-1 pb-2
-                  shadow-[0_7px_32px_0_rgba(80,130,250,0.15)]
-                  flex flex-col items-center justify-center
-                  gap-0.5
-                  relative
-                  transition-all duration-300
-                  backdrop-blur-[20px]
-                  border border-white/50
-                  overflow-hidden
-                `}
-                key="botones"
-                initial={{ x: -90, opacity: 0, scale: 0.98 }}
-                animate={{ x: 0, opacity: 1, scale: 1 }}
-                exit={{ x: -90, opacity: 0, scale: 0.95, transition: { duration: 0.23 } }}
+                className="w-[calc(100vw-70px)] mx-[20px] bg-white/50 rounded-[1.2rem] p-5 pt-1 pb-2 shadow-[0_7px_32px_0_rgba(80,130,250,0.15)] flex flex-col items-center justify-center gap-0.5 relative backdrop-blur-[20px] border border-white/50 overflow-hidden will-change-transform"
+                initial={{ x: -90 }}
+                animate={{ x: 0 }}
+                exit={{ x: -90 }}
+                transition={{ duration: 0.25, ease: "easeOut" }}
                 style={{ minHeight: "315px" }}
               >
+
                 {/* Pattern fondo ULTRA sutil */}
                 <div
                   className="absolute inset-0 pointer-events-none z-0"
@@ -274,27 +265,38 @@ const HomeNoLogeadoMobile = ({ abrirModalLogin, abrirModalRegistro }) => {
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); abrirModalLogin?.(); }}
                   className="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold text-base py-3 rounded-xl shadow transition-all duration-100 mb-2 hover:shadow-[0_7px_32px_0_rgba(80,130,250,0.16)] hover:scale-[1.03] focus:outline-none focus:ring-2 focus:ring-blue-400 relative z-10"
                   whileHover={{ scale: 1.04, boxShadow: "0 9px 32px 0 rgba(80,130,250,0.20)", transition: { duration: 0.11 } }}
-                  initial={{ opacity: 0, y: 27 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.18, duration: 0.18, type: "spring" }}
+                  initial={{ x: 40 }}
+                  animate={{ x: 0 }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
                 >
                   Iniciar Sesión
                 </motion.button>
 
+                <motion.button
+                  type="button"
+                  onClick={() => setMostrarModalRecuperar(true)}
+                  className="text-sm text-blue-700 hover:underline mb-2 z-10"
+                  initial={{ x: 40 }}
+                  animate={{ x: 0 }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
+                >
+                  ¿Eliminaste tu cuenta? Recuperarla
+                </motion.button>
+
                 <motion.div
                   className="text-lg font-semibold text-gray-700 text-center mb-1 z-10"
-                  initial={{ opacity: 0, y: 23 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.29, duration: 0.14 }}
+                  initial={{ x: 40 }}
+                  animate={{ x: 0 }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
                 >
                   ¿No tienes Cuenta?
                 </motion.div>
 
                 <motion.div
                   className="mb-2 text-base text-gray-800 text-center font-medium z-10"
-                  initial={{ opacity: 0, y: 23 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.38, duration: 0.14 }}
+                  initial={{ x: 40 }}
+                  animate={{ x: 0 }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
                 >
                   Regístrate <span className="text-blue-700 font-bold">GRATIS</span>
                   <br />
@@ -312,9 +314,9 @@ const HomeNoLogeadoMobile = ({ abrirModalLogin, abrirModalRegistro }) => {
                       hover:shadow-[0_3px_14px_0_rgba(80,130,250,0.11)]
                       relative z-10
                     "
-                    initial={{ opacity: 0, y: 23 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.49, duration: 0.13, type: "spring" }}
+                    initial={{ x: 40 }}
+                    animate={{ x: 0 }}
+                    transition={{ duration: 0.3, ease: "easeOut" }}
                     whileHover={{
                       boxShadow: "0 8px 28px 0 rgba(80,130,250,0.13)",
                       scale: 1.04,
@@ -332,9 +334,9 @@ const HomeNoLogeadoMobile = ({ abrirModalLogin, abrirModalRegistro }) => {
                       hover:shadow-[0_3px_14px_0_rgba(5,150,105,0.13)]
                       relative z-10
                     "
-                    initial={{ opacity: 0, y: 23 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.58, duration: 0.13, type: "spring" }}
+                    initial={{ x: 40 }}
+                    animate={{ x: 0 }}
+                    transition={{ duration: 0.3, ease: "easeOut" }}
                     whileHover={{
                       boxShadow: "0 8px 28px 0 rgba(5,150,105,0.13)",
                       scale: 1.04,
@@ -347,9 +349,9 @@ const HomeNoLogeadoMobile = ({ abrirModalLogin, abrirModalRegistro }) => {
 
                 <motion.div
                   className="text-[15px] text-gray-600 text-center w-full mt-1 tracking-wide z-10"
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.70, duration: 0.13 }}
+                  initial={{ x: 40 }}
+                  animate={{ x: 0 }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
                 >
                   *Descubre <span className="font-bold text-black">Usuario PRO</span>
                   <br />
@@ -367,6 +369,12 @@ const HomeNoLogeadoMobile = ({ abrirModalLogin, abrirModalRegistro }) => {
             tipo={tipoSeleccionado}
             perfil={perfilSeleccionado}
           />
+
+          <RecuperarCuentaModal
+            isOpen={mostrarModalRecuperar}
+            onClose={() => setMostrarModalRecuperar(false)}
+          />
+
           <PerfilModal
             isOpen={mostrarSeleccionPerfilModal}
             tipoCuenta={tipoSeleccionado}

@@ -8,7 +8,7 @@ import HeaderLogeadoMobile from "../../components/HeaderLogeado/HeaderLogeadoMob
 import HeroLobbyCurvo from "../../components/Negocios/HeroLobbyCurvo";
 import CarrouselSubNegocios from "../../components/Negocios/CarrouselSubNegocios";
 import ExpiringCuponesCarousel from "../../components/Cupones/ExpiringCuponesCarousel";
-import { toast } from "react-hot-toast"; // si ya usas react-hot-toast
+import { showError, showSuccess } from "../../utils/alerts";
 
 const CATS = [
   { key: "comida", label: "Comida", icon: "/icons/CategoriasNegocios/alimentos.webp" },
@@ -54,11 +54,11 @@ export default function Fase1Lobby() {
   const handleUseCupon = async (c) => {
     try {
       const r = await cupones.redeem(c.id); // POST /api/cupones/:id/redeem
-      toast.success(`Cupón canjeado ✅ Código: ${r.codigo}`);
+      showSuccess("Cupón canjeado", `Código: ${r.codigo}`);
       // opcional: redirigir a una vista de detalle
       // window.location.assign(`/cupon/${c.id}/codigo/${r.codigo}`);
     } catch (e) {
-      toast.error(e.message || "No se pudo canjear el cupón");
+     showError("Error al canjear", e.message || "No se pudo canjear el cupón");
     }
   };
 

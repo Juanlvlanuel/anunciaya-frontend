@@ -511,3 +511,45 @@ main,
     padding-top: max(env(safe-area-inset-top, 40px), var(--statusbar-h));
   }
 }
+
+
+/* =========================================================
+   SweetAlert2 — Premium Fixes (toasts compactos y modales)
+   ========================================================= */
+
+/* Evita que los TOAST se estiren por CSS heredado */
+.swal2-popup.swal2-toast {
+  width: auto !important;
+  max-width: 340px !important;
+  padding: 0 !important;                /* Tailwind controla el padding via customClass */
+  box-sizing: border-box !important;
+}
+
+/* Mejora de interacción: el contenedor no captura eventos excepto el popup */
+.swal2-container.swal2-top,
+.swal2-container.swal2-top-end,
+.swal2-container.swal2-top-right,
+.swal2-container.swal2-top-left {
+  pointer-events: none;
+}
+.swal2-container.swal2-top .swal2-popup,
+.swal2-container.swal2-top-end .swal2-popup,
+.swal2-container.swal2-top-right .swal2-popup,
+.swal2-container.swal2-top-left .swal2-popup {
+  pointer-events: all;
+}
+
+/* Clases únicas para aislar nuestros estilos premium */
+.ay-toast { width: 320px; }
+.ay-modal { width: 340px; max-width: 90vw; }
+
+/* Tamaño del icono en toasts (más elegante y proporcional) */
+.swal2-popup.swal2-toast .swal2-icon {
+  width: 26px !important;
+  height: 26px !important;
+  margin: 0 !important;
+}
+.swal2-popup.swal2-toast .swal2-icon .swal2-x-mark,
+.swal2-popup.swal2-toast .swal2-icon .swal2-success-ring {
+  transform: scale(0.85);
+}

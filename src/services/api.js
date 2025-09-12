@@ -6,6 +6,18 @@
 
 import { getAuthSession, setAuthSession } from "../utils/authStorage";
 
+// 🔇 Silenciar logs de fetch (solo dejamos errores)
+if (typeof console !== "undefined") {
+  const origLog = console.log;
+  console.log = function (...args) {
+    if (args && args[0] && typeof args[0] === "string" && args[0].includes("fetch")) {
+      return; // ignora logs de fetch
+    }
+    origLog.apply(console, args);
+  };
+}
+
+
 // Tiempo máximo para cortar requests colgados (evita splash infinito tras refresh)
 const DEFAULT_TIMEOUT_MS = 12000;
 
@@ -14,18 +26,17 @@ function normalizeBase(s = "") {
   return s ? s.trim().replace(/\/+$/, "") : "";
 }
 
-// === Base de API (dev: relativo /api por proxy; prod: absoluto) ===
 const env = (import.meta && import.meta.env) ? import.meta.env : {};
+
 const baseCandidates = [
   env.VITE_API_BASE,
   env.VITE_API_URL,
   env.VITE_BACKEND_URL,
-  env.VITE_SOCKET_URL, // por si sólo configuraste el socket
+  env.VITE_SOCKET_URL,
 ];
 const baseProd = normalizeBase(baseCandidates.find(Boolean) || "");
 let API_BASE = baseProd;
 
-// Forzar mismo origen en dev (Vite proxy)
 const isBrowser = typeof window !== "undefined";
 const origin = isBrowser ? window.location.origin : "";
 const isLocalLike =
@@ -33,13 +44,18 @@ const isLocalLike =
   /^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$/i.test(origin);
 
 if (isLocalLike && env.DEV) {
-  API_BASE = ""; // usa /api vía proxy → cookie HttpOnly viaja
+  API_BASE = ""; // usa /api vía proxy en PC
 }
 
-// Fallback extra en prod si no hay variable: usa mismo origen (no recomendado pero evita 405 inmediatos)
+// 👇 Nuevo: si NO estás en localhost y tienes LAN configurada, úsala
+if (isBrowser && window.location.hostname !== "localhost" && env.VITE_API_BASE_LAN) {
+  API_BASE = normalizeBase(env.VITE_API_BASE_LAN);
+}
+
 if (!isLocalLike && !API_BASE) {
   try { API_BASE = `${window.location.protocol}//${window.location.host}`; } catch { }
 }
+
 
 export { API_BASE };
 
@@ -139,25 +155,25 @@ async function _json(path, opts = {}) {
 
   const doFetch = async (hdrs, signal) => {
 
-return fetch(url, { method, ...opts, credentials: cred, headers: hdrs, signal });
-};
+    return fetch(url, { method, ...opts, credentials: cred, headers: hdrs, signal });
+  };
 
 
   let res;
   let controller = null;
-let timeoutId = null;
-try {
-  if (!opts.signal && typeof AbortController !== 'undefined') {
-    controller = new AbortController();
-    const ms = typeof opts.timeout === 'number' ? opts.timeout : DEFAULT_TIMEOUT_MS;
-    timeoutId = setTimeout(() => {
-      try { controller.abort(); } catch {}
-    }, ms);
-  }
-  res = await doFetch(headers, (opts.signal || (controller && controller.signal)));
+  let timeoutId = null;
+  try {
+    if (!opts.signal && typeof AbortController !== 'undefined') {
+      controller = new AbortController();
+      const ms = typeof opts.timeout === 'number' ? opts.timeout : DEFAULT_TIMEOUT_MS;
+      timeoutId = setTimeout(() => {
+        try { controller.abort(); } catch { }
+      }, ms);
+    }
+    res = await doFetch(headers, (opts.signal || (controller && controller.signal)));
 
 
-} finally { try { if (timeoutId) clearTimeout(timeoutId); } catch {} }
+  } finally { try { if (timeoutId) clearTimeout(timeoutId); } catch { } }
 
   // ✅ Manejo robusto de 401 en /session: intenta refresh y reintenta una vez
   if (isSessionCall && res.status === 401) {
@@ -165,7 +181,7 @@ try {
       const newToken = await refreshAccessToken();
       if (newToken) {
         const hdrs2 = { ...headers, Authorization: `Bearer ${newToken}` };
-        res = await doFetch(hdrs2, (opts.signal || (controller && controller.signal))) ;
+        res = await doFetch(hdrs2, (opts.signal || (controller && controller.signal)));
       }
     } catch { }
     if (res.status === 401) {
@@ -180,7 +196,7 @@ try {
       const newToken = await refreshAccessToken();
       if (newToken) {
         const hdrs2 = { ...headers, Authorization: `Bearer ${newToken}` };
-        res = await doFetch(hdrs2, (opts.signal || (controller && controller.signal))) ;
+        res = await doFetch(hdrs2, (opts.signal || (controller && controller.signal)));
       }
     } catch { }
   }
@@ -225,7 +241,7 @@ export const patch = (p, h = {}, b = undefined) => {
   const isForm = typeof FormData !== "undefined" && b instanceof FormData;
 
 
-return _json(p, {
+  return _json(p, {
     method: "PATCH",
     headers: h,
     body: isForm ? b : b ? JSON.stringify(b) : undefined,
@@ -321,7 +337,6 @@ export const cupones = {
       const res = await getJSON(`/api/cupones/expiring?${qs.toString()}`, { headers: {} });
       return res; // { serverNow, items: [...] }
     } catch (err) {
-      console.error("Error cupones.listExpiring", err);
       return { serverNow: Date.now(), items: [] };
     }
   },
@@ -335,4 +350,20 @@ export const cupones = {
   async use(couponId) {
     return postJSON(`/api/cupones/use`, { couponId });
   },
+};
+
+// === 2FA Reset (sin AuthContext) ===
+export const twoFA = {
+  resetStart: (email, password) =>
+    postJSON(`/api/usuarios/2fa/reset/start`, { email, password }),
+  resetVerify: (email, otp) =>
+    postJSON(`/api/usuarios/2fa/reset/verify`, { email, otp }),
+};
+
+// === 2FA: Backup codes ===
+export const backup = {
+  generate: () => postJSON(`/api/usuarios/2fa/backup/generate`, {}),
+  regenerate: () => postJSON(`/api/usuarios/2fa/backup/regenerate`, {}),
+  use: (email, password, code) =>
+    postJSON(`/api/usuarios/2fa/backup/use`, { email, password, code }),
 };

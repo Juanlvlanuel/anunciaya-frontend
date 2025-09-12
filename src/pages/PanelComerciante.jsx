@@ -101,11 +101,11 @@ const PanelComerciante = () => {
       setOpen(false);
       try {
         // feedback mínimo sin depender de librerías
-        window?.alert?.("✅ Negocio publicado correctamente.");
-      } catch {}
+        showSuccess("Negocio publicado", "Tu negocio fue publicado correctamente.");
+      } catch { }
     } catch (e) {
       const msg = e?.message || "Error al publicar el negocio";
-      try { window?.alert?.("❌ " + msg); } catch {}
+      try { showError("Error al publicar negocio", msg); } catch { }
     }
   };
 
@@ -136,13 +136,23 @@ const PanelComerciante = () => {
             <Action onClick={() => navigate("/panel/mis-negocios")}>
               🧾 Mis negocios
             </Action>
-            <Action disabled={!canPromo} onClick={() => alert("Abrir flujo: crear promoción")}>
+            <Action disabled={!canPromo} onClick={() => showInfo("En desarrollo", "Aquí podrás crear promociones pronto.")}>
               🎯 Crear promoción {promosActive != null ? `(máx. ${promosActive} activas)` : ""}
             </Action>
-            <Action disabled={!canFeature} onClick={() => alert("Abrir gestión: destacados")}>
+            <Action
+              disabled={!canFeature}
+              onClick={() =>
+                showInfo("En desarrollo", "Aquí podrás administrar tus negocios destacados pronto.")
+              }
+            >
               ⭐ Administrar destacados {maxFeatured != null ? `(máx. ${maxFeatured})` : ""}
             </Action>
-            <Action disabled={!canVideo} onClick={() => alert("Agregar video al negocio")}>
+            <Action
+              disabled={!canVideo}
+              onClick={() =>
+                showInfo("En desarrollo", "Pronto podrás agregar videos a tus negocios.")
+              }
+            >
               🎥 Agregar video al negocio
             </Action>
           </div>

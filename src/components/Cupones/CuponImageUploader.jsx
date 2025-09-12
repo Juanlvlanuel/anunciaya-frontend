@@ -1,5 +1,6 @@
 // src/components/Cupones/CuponImageUploader.jsx
 import React, { useRef, useState, useEffect } from "react";
+import { showError, showWarning } from "../../utils/alerts";
 
 /**
  * Subida de imagen para cupón con compresión en cliente y upload firmado a Cloudinary.
@@ -29,7 +30,7 @@ export default function CuponImageUploader({ negocioId, onUploaded, onPreviewUrl
   }
 
   async function pickFile() {
-    if (!negocioId) { alert("Selecciona primero el Negocio (Negocio ID)"); return; }
+    if (!negocioId) { showWarning("Negocio requerido", "Selecciona primero el Negocio (Negocio ID)"); return; }
     inputRef.current?.click();
   }
 
@@ -86,8 +87,9 @@ export default function CuponImageUploader({ negocioId, onUploaded, onPreviewUrl
     });
     const data = await res.json();
     if (!res.ok || !data?.uploadUrl || !data?.fields) {
-      throw new Error(data?.mensaje || data?.error || "No autenticado");
+      throw new Error(data?.mensaje || data?.error || "Error de autenticación");
     }
+
     return data; // { uploadUrl, fields }
   }
 
@@ -127,8 +129,10 @@ export default function CuponImageUploader({ negocioId, onUploaded, onPreviewUrl
       onUploaded?.(uploaded);
     } catch (err) {
       console.error("CuponImageUploader Error:", err);
-      alert(err.message || "No autenticado");
-    } finally {
+      showError("Error de autenticación", err?.message || "No autenticado");
+    }
+
+    finally {
       setBusy(false);
       if (inputRef.current) inputRef.current.value = "";
     }
@@ -138,15 +142,15 @@ export default function CuponImageUploader({ negocioId, onUploaded, onPreviewUrl
     <div className="space-y-2">
       <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={onFile} />
       {!hideTrigger && (
-      <button
-        type="button"
-        onClick={pickFile}
-        disabled={busy}
-        className="px-3 py-2 text-[13px] font-semibold rounded-lg border border-[#e6e9f0] bg-white active:scale-[0.98]"
-        title="Subir imagen del cupón"
-      >
-        {busy ? "Subiendo..." : "Subir imagen del cupón"}
-      </button>
+        <button
+          type="button"
+          onClick={pickFile}
+          disabled={busy}
+          className="px-3 py-2 text-[13px] font-semibold rounded-lg border border-[#e6e9f0] bg-white active:scale-[0.98]"
+          title="Subir imagen del cupón"
+        >
+          {busy ? "Subiendo..." : "Subir imagen del cupón"}
+        </button>
       )}
     </div>
   );

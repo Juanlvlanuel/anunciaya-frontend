@@ -1,9 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
+  <!-- Permite tráfico en tu IP LAN -->
   <domain-config cleartextTrafficPermitted="true">
     <domain includeSubdomains="true">192.168.1.70</domain>
   </domain-config>
+
+  <!-- Permite tráfico en localhost -->
   <domain-config cleartextTrafficPermitted="true">
     <domain includeSubdomains="true">localhost</domain>
+  </domain-config>
+
+  <!-- Permite tráfico en 127.0.0.1 -->
+  <domain-config cleartextTrafficPermitted="true">
+    <domain includeSubdomains="true">127.0.0.1</domain>
   </domain-config>
 </network-security-config>

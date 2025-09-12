@@ -62,7 +62,7 @@ const Dashboard = () => {
             <div className="flex flex-col gap-3">
               <button
                 className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold shadow hover:bg-blue-700"
-                onClick={() => alert("Pronto podrás publicar anuncios, rifas, promociones, etc.")}
+                onClick={() => showInfo("En desarrollo", "Pronto podrás publicar anuncios, rifas, promociones, etc.")}
               >
                 Crear publicación
               </button>

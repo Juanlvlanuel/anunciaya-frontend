@@ -27,7 +27,6 @@ const RegalaODona = lazy(() => import("./pages/RegalaODona"));
 const Empleos = lazy(() => import("./pages/Empleos"));
 const Panel = lazy(() => import("./pages/Panel/Panel.jsx"));
 const ChatPage = lazy(() => import("./pages/ChatPage.jsx"));
-const VerificarCorreo = lazy(() => import("./pages/VerificarCorreo"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const GoogleCallback = lazy(() => import("./pages/GoogleCallback"));
 const LoginAdmin = lazy(() => import("./components/admin/LoginAdmin"));
@@ -71,7 +70,6 @@ const AppRoutes = ({ abrirModalLogin, abrirModalRegistro }) => (
       <Route path="/rifas" element={<Rifas />} />
       <Route path="/regala-o-dona" element={<RegalaODona />} />
       <Route path="/empleos" element={<Empleos />} />
-
       {/* ===== Mi Cuenta protegida ===== */}
       <Route
         path="/mi-cuenta"

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getJSON } from "../../../services/api";
+import { showError } from "../../../utils/alerts";
 
 export default function FAQList({ items = [] }) {
   const [loading, setLoading] = useState(false);
@@ -20,7 +21,11 @@ export default function FAQList({ items = [] }) {
         const data = Array.isArray(res) ? res : Array.isArray(res?.items) ? res.items : [];
         if (!cancelled && data.length) setList(data);
       } catch (e) {
-        if (!cancelled) setError(e?.message || "No se pudieron cargar las FAQs.");
+        if (!cancelled) {
+          const msg = e?.message || "No se pudieron cargar las FAQs.";
+          setError(msg);
+          showError("Error al cargar FAQs", msg);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }

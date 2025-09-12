@@ -2,6 +2,8 @@
 import { useId, useRef, useState, useEffect, useMemo } from "react";
 import { getJSON } from "../../../services/api";
 import { useAuth } from "../../../context/AuthContext";
+import { showError, showSuccess } from "../../../utils/alerts";
+import { Lock, CheckCircle, AlertCircle, ChevronDown } from "lucide-react";
 
 /** Tooltip (estable, fuera del componente) */
 function Tooltip({ show, message }) {
@@ -14,6 +16,8 @@ function Tooltip({ show, message }) {
 }
 
 /** Input (estable, fuera del componente) */
+import { Eye, EyeOff } from "lucide-react";
+
 function InputField({ id, label, inputRef, isShown, onToggle, autoComplete, error, onInput, initValue }) {
   return (
     <div className="block">
@@ -26,7 +30,10 @@ function InputField({ id, label, inputRef, isShown, onToggle, autoComplete, erro
           id={id}
           ref={inputRef}
           type={isShown ? "text" : "password"}
-          className={`w-full px-3 py-2 rounded-lg border bg-white pr-14 ${error ? "border-red-500" : "border-[#e6e9f0]"}`}
+          className={`w-full px-3 py-2 rounded-lg border-2 bg-white pr-10
+            focus:border-blue-700 focus:ring-0 outline-none
+            ${error ? "border-red-500" : "border-gray-300"}`}
+
           autoComplete={autoComplete}
           inputMode="text"
           spellCheck={false}
@@ -37,14 +44,15 @@ function InputField({ id, label, inputRef, isShown, onToggle, autoComplete, erro
           type="button"
           onMouseDown={(e) => e.preventDefault()}
           onClick={onToggle}
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-500"
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500"
         >
-          {isShown ? "Ocultar" : "Ver"}
+          {isShown ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
         </button>
       </div>
     </div>
   );
 }
+
 
 /**
  * PasswordChangeForm (UNIFICADO con toggle)
@@ -55,11 +63,13 @@ function InputField({ id, label, inputRef, isShown, onToggle, autoComplete, erro
  */
 export default function PasswordChangeForm({ onSubmit }) {
   const { autenticado, usuario } = useAuth() || {};
-  const [show, setShow] = useState({ a: false, n: false, c: false });
+  const [show, setShow] = useState({ a: true, n: true, c: true });
   const [loading, setLoading] = useState(false);
   const [ok, setOk] = useState(false);
   const [errors, setErrors] = useState({ actual: "", nueva: "", confirmar: "", global: "" });
   const [forceCreate, setForceCreate] = useState(false);
+  const [open, setOpen] = useState(false); // cerrado por defecto
+
 
   // Flag del backend (true/false) si existe; undefined en caso contrario
   const backendHasPassword = useMemo(() => {
@@ -115,7 +125,7 @@ export default function PasswordChangeForm({ onSubmit }) {
         try {
           el2.focus();
           if (caret && caret.s != null && caret.e != null) el2.setSelectionRange(caret.s, caret.e);
-        } catch {}
+        } catch { }
       }
     });
   };
@@ -164,6 +174,7 @@ export default function PasswordChangeForm({ onSubmit }) {
         credentials: "include",
       });
       setOk(true);
+      showSuccess("Contraseña actualizada", createMode ? "Contraseña creada correctamente." : "Contraseña actualizada correctamente.");
       // Limpiar SOLO en éxito
       if (refActual.current) refActual.current.value = "";
       if (refNueva.current) refNueva.current.value = "";
@@ -182,7 +193,7 @@ export default function PasswordChangeForm({ onSubmit }) {
       } else if (msg.includes("no autenticado") || msg.includes("token")) {
         setFieldError("global", "Tu sesión expiró. Vuelve a iniciar.");
       } else {
-        setFieldError("global", e2?.message || "No se pudo actualizar la contraseña.");
+        showError("Error", e2?.message || "No se pudo actualizar la contraseña.");
       }
       requestAnimationFrame(restoreAll);
     } finally {
@@ -190,83 +201,128 @@ export default function PasswordChangeForm({ onSubmit }) {
     }
   };
 
+
+
   return (
-    <form onSubmit={submit} className="space-y-3">
-      {/* Campo oculto de username para accesibilidad/autocompletar */}
-      <input
-        type="text"
-        name="username"
-        autoComplete="username"
-        defaultValue={usuario?.email || ""}
-        className="sr-only"
-        tabIndex={-1}
-        aria-hidden="true"
-      />
-
-      {createMode ? null : (
-        <InputField
-          id={idActual}
-          label="Contraseña actual"
-          inputRef={refActual}
-          isShown={show.a}
-          onToggle={() => preserveOnToggle("a")}
-          autoComplete="current-password"
-          error={errors.actual}
-          onInput={onAnyInput}
-          initValue={refValues.current.a}
-        />
-      )}
-
-      <InputField
-        id={idNueva}
-        label={createMode ? "Crear contraseña" : "Nueva contraseña"}
-        inputRef={refNueva}
-        isShown={show.n}
-        onToggle={() => preserveOnToggle("n")}
-        autoComplete="new-password"
-        error={errors.nueva}
-        onInput={onAnyInput}
-        initValue={refValues.current.n}
-      />
-      <InputField
-        id={idConfirmar}
-        label="Confirmar nueva contraseña"
-        inputRef={refConfirmar}
-        isShown={show.c}
-        onToggle={() => preserveOnToggle("c")}
-        autoComplete="new-password"
-        error={errors.confirmar}
-        onInput={onAnyInput}
-        initValue={refValues.current.c}
-      />
-
-      {errors.global ? <div className="text-xs text-red-600">{errors.global}</div> : null}
-      {ok ? <div className="text-xs text-green-600">{createMode ? "Contraseña creada correctamente." : "Contraseña actualizada correctamente."}</div> : null}
-
-      <div className="pt-2">
-        <button
-          type="submit"
-          disabled={loading}
-          className="text-sm px-3 py-2 rounded-xl bg-gray-900 text-white hover:bg-black disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          {loading ? "Guardando..." : createMode ? "Crear contraseña" : "Cambiar contraseña"}
-        </button>
-      </div>
-
-      {/* Toggle compacto para cuando el backend no envía flag */}
-      {backendHasPassword === undefined ? (
-        <div className="pt-1 text-[12px] text-gray-500">
-          {forceCreate ? (
-            <button type="button" className="underline hover:no-underline" onClick={() => setForceCreate(false)}>
-              ¿Ya tienes contraseña? Cambiarla
-            </button>
-          ) : (
-            <button type="button" className="underline hover:no-underline" onClick={() => setForceCreate(true)}>
-              ¿No tienes contraseña? Crear una
-            </button>
-          )}
+    <div className="bg-white rounded-2xl shadow-xl p-4 space-y-3">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-4 py-1 mb-2"
+      >
+        <div className="flex items-center gap-2">
+          <Lock className="w-5 h-5 text-red-600" />
+          <h2 className="text-lg font-semibold text-gray-800">
+            {createMode ? "Crear contraseña" : "Cambiar contraseña"}
+          </h2>
         </div>
-      ) : null}
-    </form>
+        <ChevronDown
+          className={`w-7 h-7 text-gray-500 transition-transform duration-300 ${open ? "rotate-180" : ""
+            }`}
+        />
+      </button>
+
+      <div
+        className={`transition-all duration-700 overflow-hidden ${open ? "max-h-[1000px] opacity-100" : "max-h-0 opacity-0"
+          }`}
+      >
+        <form onSubmit={submit} className="space-y-5">
+          {/* username oculto */}
+          <input
+            type="text"
+            name="username"
+            autoComplete="username"
+            defaultValue={usuario?.email || ""}
+            className="sr-only"
+            tabIndex={-1}
+            aria-hidden="true"
+          />
+
+          {!createMode && (
+            <InputField
+              id={idActual}
+              label="Contraseña actual"
+              inputRef={refActual}
+              isShown={show.a}
+              onToggle={() => preserveOnToggle("a")}
+              autoComplete="current-password"
+              error={errors.actual}
+              onInput={onAnyInput}
+              initValue={refValues.current.a}
+            />
+          )}
+
+          <InputField
+            id={idNueva}
+            label={createMode ? "Crear contraseña" : "Nueva contraseña"}
+            inputRef={refNueva}
+            isShown={show.n}
+            onToggle={() => preserveOnToggle("n")}
+            autoComplete="new-password"
+            error={errors.nueva}
+            onInput={onAnyInput}
+            initValue={refValues.current.n}
+          />
+          <InputField
+            id={idConfirmar}
+            label="Confirmar nueva contraseña"
+            inputRef={refConfirmar}
+            isShown={show.c}
+            onToggle={() => preserveOnToggle("c")}
+            autoComplete="new-password"
+            error={errors.confirmar}
+            onInput={onAnyInput}
+            initValue={refValues.current.c}
+          />
+
+          {errors.global && (
+            <div className="flex items-center gap-1 text-sm text-red-600">
+              <AlertCircle className="w-4 h-4" /> {errors.global}
+            </div>
+          )}
+          {ok && (
+            <div className="flex items-center gap-1 text-sm text-green-600">
+              <CheckCircle className="w-4 h-4" />{" "}
+              {createMode
+                ? "Contraseña creada correctamente."
+                : "Contraseña actualizada correctamente."}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-2.5 rounded-xl text-white font-semibold 
+             bg-gradient-to-r from-blue-500 to-blue-800
+             hover:from-blue-600 hover:to-blue-900
+             transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {loading ? "Guardando..." : createMode ? "Crear contraseña" : "Cambiar contraseña"}
+          </button>
+
+          {backendHasPassword === undefined && (
+            <div className="pt-2 text-sm text-gray-500 text-center">
+              {forceCreate ? (
+                <button
+                  type="button"
+                  className="underline hover:text-red-600"
+                  onClick={() => setForceCreate(false)}
+                >
+                  ¿Ya tienes contraseña? Cambiarla
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="underline hover:text-red-600"
+                  onClick={() => setForceCreate(true)}
+                >
+                  ¿No tienes contraseña? Crear una
+                </button>
+              )}
+            </div>
+          )}
+        </form>
+      </div>
+    </div >
   );
 }

@@ -4,7 +4,7 @@ import MessageMobile from "../Message/MessageMobile";
 import { chatAPI } from "../../../services/api";
 import { getAuthSession } from "../../../utils/authStorage";
 import ReactDOM from "react-dom";
-
+import { showError, showWarning } from "../../../utils/alerts";
 
 /* ------------------------ Generic Confirm Modal ------------------------ */
 function ConfirmModal({
@@ -282,10 +282,10 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
   const onTogglePin = async (messageId, willPin) => {
     try {
       const token = getToken();
-      if (willPin && pinned.length >= 5) { alert("Límite de 5 mensajes fijados alcanzado."); return; }
+      if (willPin && pinned.length >= 5) { showWarning("Límite alcanzado", "Límite de 5 mensajes fijados alcanzado."); return; }
       await chatAPI.togglePin(messageId, willPin, token);
       await fetchPins();
-    } catch (e) { alert(e.message || "No se pudo cambiar el estado de fijado"); }
+    } catch (e) { showError("Error al fijar mensaje", e?.message || "No se pudo cambiar el estado de fijado."); }
   };
   const [confirmDel, setConfirmDel] = useState({ open: false, msg: null });
   const askDelete = (msg) => {
@@ -300,13 +300,13 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
     const msg = confirmDel.msg; if (!msg) return;
     try {
       const mine = String(msg?.emisor?._id || msg?.emisor || msg?.emisorId || "") === String(currentUserId) || msg?.mine === true;
-      if (!mine) { alert("Solo puedes borrar tus propios mensajes."); return; }
+      if (!mine) { showWarning("Permiso denegado", "Solo puedes borrar tus propios mensajes."); return; }
       const token = getToken();
       await chatAPI.deleteMessage(msg._id, token);
       try { deleteMessageLive?.(msg._id, () => { }); } catch { }
       await loadMessages(activeChatId);
       setConfirmDel({ open: false, msg: null });
-    } catch (e) { alert(e?.message || "No se pudo borrar el mensaje"); }
+    } catch (e) { showError("Error al borrar mensaje", e?.message || "No se pudo borrar el mensaje"); }
   };
 
   const [editState, setEditState] = useState({ open: false, msg: null, initialText: "", initialImageUrl: null });
@@ -320,12 +320,15 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
       const mine =
         String(msg?.emisor?._id || msg?.emisor || msg?.emisorId || "") === String(currentUserId) ||
         msg?.mine === true;
-      if (!mine) { alert("Solo puedes editar tus propios mensajes."); return; }
+      if (!mine) { showWarning("Permiso denegado", "Solo puedes editar tus propios mensajes."); return; }
 
       const initialText = typeof msg?.texto === "string" ? msg.texto : "";
       const initialImageUrl = msg?.imagenUrl || msg?.imageUrl || null;
       setEditState({ open: true, msg, initialText, initialImageUrl });
-    } catch (e) { alert(e?.message || "No se pudo abrir la edición"); }
+    } catch (e) {
+      showError("Error al abrir edición", e?.message || "No se pudo abrir la edición");
+    }
+
   };
 
   const cancelEdit = () => setEditState({ open: false, msg: null, initialText: "", initialImageUrl: null });
@@ -353,8 +356,9 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
       await loadMessages(activeChatId);
       cancelEdit();
     } catch (e) {
-      alert(e?.message || "No se pudo editar el mensaje");
+      showError("Error al editar mensaje", e?.message || "No se pudo editar el mensaje");
     }
+
   };
 
   useEffect(() => {
@@ -576,12 +580,12 @@ export default function ChatWindowMobile({ theme = "light", bgUrl = "", height =
 
       {/* Lista de mensajes */}
       <div
-  className="relative z-10 px-3 pt-[calc(56px+env(safe-area-inset-top,0px))] space-y-2"
-  style={{
-    paddingBottom: 'var(--chat-input-h, 56px)',
-    overflowAnchor: 'none',
-  }}
->
+        className="relative z-10 px-3 pt-[calc(56px+env(safe-area-inset-top,0px))] space-y-2"
+        style={{
+          paddingBottom: 'var(--chat-input-h, 56px)',
+          overflowAnchor: 'none',
+        }}
+      >
 
         {list.map((m, idx) => {
           const id = String(m?._id || `${activeChatId}-${idx}`);

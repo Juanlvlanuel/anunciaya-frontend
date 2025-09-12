@@ -19,9 +19,22 @@
             android:launchMode="singleTask"
             android:exported="true">
 
+            <!-- Launcher -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- 👇 Google OAuth redirect -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <!-- Sustituye con tu Client ID real de Google -->
+                <data
+                    android:scheme="com.googleusercontent.apps.298518442921-kev8m9oomqm26s8b0f2b9297bhm29i8n"
+                    android:host="oauth" />
             </intent-filter>
 
         </activity>
@@ -33,7 +46,7 @@
             android:grantUriPermissions="true">
             <meta-data
                 android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths"></meta-data>
+                android:resource="@xml/file_paths" />
         </provider>
     </application>
 

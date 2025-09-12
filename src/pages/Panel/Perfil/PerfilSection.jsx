@@ -2,7 +2,6 @@
 import React from "react";
 import PerfilHeader from "./PerfilHeader";
 import PerfilDatosForm from "./PerfilDatosForm";
-import VerificacionCorreoStatus from "./VerificacionCorreoStatus";
 import ReferidosCard from "../Extras/ReferidosCard";
 
 export default function PerfilSection({ user, onSave }) {
@@ -37,7 +36,6 @@ export default function PerfilSection({ user, onSave }) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-6">
         <div className="lg:col-span-1 space-y-6">
           <PerfilHeader user={mergedUser} onUpdate={handleSave} />
-          <VerificacionCorreoStatus verificado={mergedUser.verificado} onReenviar={() => { }} />
           <ReferidosCard onInvite={() => { }} />
         </div>
 

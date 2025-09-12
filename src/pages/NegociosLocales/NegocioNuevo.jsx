@@ -3,6 +3,7 @@ import React, { useMemo, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { CATEGORIAS } from "../../config/categorias.config";
 import { negocios } from "../../services/api";
+import { showError, showSuccess } from "../../utils/alerts";
 
 export default function NegocioNuevo() {
   const navigate = useNavigate();
@@ -32,10 +33,11 @@ export default function NegocioNuevo() {
     setError("");
     try {
       await negocios.create(form); // POST /api/negocios (via wrapper)
+      showSuccess("Negocio publicado", "Tu negocio fue creado correctamente.");
       navigate("/panel/mis-negocios", { replace: true });
     } catch (err) {
       const msg = (typeof err?.message === "string" && err.message) ? err.message : "Error al publicar.";
-      setError(msg);
+      showError("Error al publicar negocio", msg);
     } finally {
       setSending(false);
     }
@@ -53,12 +55,6 @@ export default function NegocioNuevo() {
       </header>
 
       <main className="max-w-[640px] mx-auto px-4 pt-4">
-        {error && (
-          <div className="mb-3 rounded-lg border border-rose-300 bg-rose-50 text-rose-900 px-3 py-2 text-sm">
-            {error}
-          </div>
-        )}
-
         <form onSubmit={handleSubmit} className="bg-white border border-slate-200 rounded-2xl shadow-sm p-4 space-y-3">
           <div className="grid grid-cols-1 gap-3">
             {/* Nombre */}

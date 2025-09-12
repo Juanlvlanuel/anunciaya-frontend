@@ -4,6 +4,7 @@ import { negocios as negociosAPI } from "../../services/api";
 import { postJSON } from "../../services/api";
 import CuponImageUploader from "./CuponImageUploader.jsx";
 import CuponLogoUploader from "./CuponLogoUploader.jsx";
+import { showError } from "../../utils/alerts";
 
 /**
  * NuevoCuponForm (v4)
@@ -209,8 +210,10 @@ export default function NuevoCuponForm({
 
       onCreated?.(data);
     } catch (err) {
-      alert(err.message || "Error al crear el cupón");
+      console.error("Error creando cupón:", err);
+      showError("Error al crear cupón", err?.message || "No se pudo crear el cupón");
     }
+
   }
 
 

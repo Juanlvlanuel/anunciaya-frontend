@@ -8,6 +8,7 @@ import { CATEGORIAS, getIconPath, DEFAULT_ICON, getGroupCover } from "../../conf
 import PillsSubCategorias from "../../components/Negocios/PillsSubCategorias";
 import GridCategorias2x2 from "../../components/Negocios/GridCategorias2x2";
 import ListaNegociosHorizontal from "../../components/Negocios/ListaNegociosHorizontal";
+import { showError } from "../../utils/alerts";
 import { negocios } from "../../services/api";
 
 const CONTENT_W = "w-full max-w-[400px]";
@@ -114,7 +115,9 @@ export default function Fase2Categorias() {
           const arr = Array.isArray(res?.items) ? res.items : [];
           setItems(arr);
         } catch (e) {
-          setErr(e?.message || "No se pudieron cargar los negocios.");
+          const msg = e?.message || "No se pudieron cargar los negocios.";
+          setErr(msg);
+          showError("Error al cargar", msg);
           setItems([]);
         } finally {
           setLoading(false);
@@ -248,10 +251,10 @@ export default function Fase2Categorias() {
                 <div className="mt-3 mb-4">
                   <ListaNegociosHorizontal
                     items={items}
-                    onView={(it) => {}}
-                    onCall={(it) => {}}
-                    onOrder={(it) => {}}
-                    onChat={(it) => {}}
+                    onView={(it) => { }}
+                    onCall={(it) => { }}
+                    onOrder={(it) => { }}
+                    onChat={(it) => { }}
                   />
                 </div>
               )}

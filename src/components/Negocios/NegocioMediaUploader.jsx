@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { useToast } from "../../components/ToastProvider";
+import { showError, showSuccess, showWarning } from "../../utils/alerts";
 import { media, getJSON } from "../../services/api";
 
 /**
@@ -33,8 +33,6 @@ export default function NegocioMediaUploader({
   maxFotos = null,
   remainingSlots = null,
 }) {
-  const { showToast } = useToast();
-
   const [working, setWorking] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   
@@ -198,7 +196,7 @@ export default function NegocioMediaUploader({
   const handleAddFiles = async (filesList) => {
     // toast: limpiar
     if (remaining <= 0) {
-      showToast("Límite de fotos alcanzado para tu plan.", "warning");
+      showWarning("Límite alcanzado", "Has llegado al máximo de fotos permitido por tu plan.");
       return;
     }
 
@@ -213,7 +211,7 @@ export default function NegocioMediaUploader({
         ignoredCount === 1
           ? "1 archivo no se procesará (formato, tamaño o límite de tu plan)."
           : `${ignoredCount} archivos no se procesarán (formato, tamaño o límite de tu plan).`;
-      showToast(msg, "warning");
+      showWarning("Archivos ignorados", msg);
     }
 
     if (!allowed.length) return;
@@ -252,7 +250,7 @@ export default function NegocioMediaUploader({
         } catch (e) {
           // Revertir si el PATCH falla
           setLocalUrls(localUrls);
-          showToast("No se pudieron guardar las fotos en el negocio. Intenta de nuevo.", "error");
+          showError("Error al guardar", "No se pudieron guardar las fotos en el negocio. Intenta de nuevo.");
           return;
         }
       }
@@ -262,11 +260,11 @@ export default function NegocioMediaUploader({
         const firstErr = errors[firstIdx];
         const firstName = allowed[firstIdx]?.name || "Una imagen";
         const extra = failedCount > 1 ? ` y ${failedCount - 1} más` : "";
-        showToast(`${firstName}: ${firstErr}${extra}.`, "error");
+        showError("Error al subir imágenes", `${firstName}: ${firstErr}${extra}.`);
       } else if (ignoredCount > 0) {
-        showToast("Algunas imágenes no se cargaron por formato, tamaño o límite del plan.", "warning");
+        showWarning("Carga incompleta", "Algunas imágenes no se cargaron por formato, tamaño o límite del plan.");
       } else {
-        showToast("Imágenes cargadas correctamente.", "success");
+        showSuccess("Fotos subidas", "Todas las imágenes se cargaron correctamente.");
       }
     } finally {
       setWorking(false);
@@ -310,7 +308,7 @@ export default function NegocioMediaUploader({
     } catch (e) {
       // Revertir si falla PATCH
       setLocalUrls(localUrls);
-      showToast("No se pudieron quitar las fotos seleccionadas.", "error");
+      showError("Error al eliminar", "No se pudieron quitar las fotos seleccionadas.");
     } finally {
       setSelected(new Set());
       setSelectMode(false);
@@ -337,7 +335,7 @@ export default function NegocioMediaUploader({
       }
     } catch (e) {
       setLocalUrls(localUrls);
-      showToast("No se pudo quitar la foto.", "error");
+      showError("Error al eliminar", "No se pudo quitar la foto.");
     }
   };
 

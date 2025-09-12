@@ -5,9 +5,19 @@ import android.os.Build;
 import android.view.View;
 import android.view.WindowInsetsController;
 import android.webkit.WebView;
-import com.getcapacitor.BridgeActivity;
+import android.content.Intent;
+import android.util.Log;
 
-public class MainActivity extends BridgeActivity {
+import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginHandle;
+
+import ee.forgr.capacitor.social.login.ModifiedMainActivityForSocialLoginPlugin;
+import ee.forgr.capacitor.social.login.GoogleProvider;
+import ee.forgr.capacitor.social.login.SocialLoginPlugin;
+
+public class MainActivity extends BridgeActivity implements ModifiedMainActivityForSocialLoginPlugin {
+
   @Override
   public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
@@ -26,7 +36,9 @@ public class MainActivity extends BridgeActivity {
       }
     } else {
       final View decor = getWindow().getDecorView();
-      decor.setSystemUiVisibility(decor.getSystemUiVisibility() | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+      decor.setSystemUiVisibility(
+        decor.getSystemUiVisibility() | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+      );
     }
 
     // Aplica también al WebView de Capacitor
@@ -40,8 +52,33 @@ public class MainActivity extends BridgeActivity {
   public void onStart() {
     super.onStart();
     if (getBridge() != null && getBridge().getWebView() != null) {
-      // Fuerza el mismo tamaño de texto que en navegador
       getBridge().getWebView().getSettings().setTextZoom(100);
     }
   }
+
+  // >>> Integración necesaria para @capgo/capacitor-social-login
+  @Override
+  public void onActivityResult(int requestCode, int resultCode, Intent data) {
+    super.onActivityResult(requestCode, resultCode, data);
+
+    if (requestCode >= GoogleProvider.REQUEST_AUTHORIZE_GOOGLE_MIN &&
+        requestCode < GoogleProvider.REQUEST_AUTHORIZE_GOOGLE_MAX) {
+
+      PluginHandle handle = getBridge().getPlugin("SocialLogin");
+      if (handle == null) {
+        Log.i("Google Activity Result", "SocialLogin handle is null");
+        return;
+      }
+      Plugin plugin = handle.getInstance();
+      if (!(plugin instanceof SocialLoginPlugin)) {
+        Log.i("Google Activity Result", "Wrong plugin instance");
+        return;
+      }
+      ((SocialLoginPlugin) plugin).handleGoogleLoginIntent(requestCode, data);
+    }
+  }
+
+  // Requerido por la interfaz del plugin
+  @Override
+  public void IHaveModifiedTheMainActivityForTheUseWithSocialLoginPlugin() {}
 }

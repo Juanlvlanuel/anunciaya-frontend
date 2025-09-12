@@ -1,5 +1,5 @@
 @echo off
-title AnunciaYA - TODO EN UNO (Pair + Connect + Backend + APK) [FIX4]
+title AnunciaYA - TODO EN UNO (Pair + Connect + Backend + APK) [OPTIMIZADO+LOGCAT]
 setlocal EnableExtensions EnableDelayedExpansion
 
 REM ====== CONFIG (ajusta si cambian tus rutas) ======
@@ -8,29 +8,31 @@ set "BACKEND_DIR=E:\Anunciaya\anunciaya-backend"
 set "FRONTEND_DIR=E:\Anunciaya\anunciaya-frontend"
 set "RUN_BACKEND_BAT=run_backend_apk.bat"
 set "BUILD_INSTALL_BAT=wifi_build_install_autoopen.bat"
+set "APP_ID=online.anunciaya.app"
 REM ===================================================
 
 if not exist "%ADB%" (
   echo [ERROR] No se encontro ADB en: %ADB%
-  goto END
+  pause
+  exit /b 1
 )
 
 echo(
-echo === AnunciaYA - TODO EN UNO (FIX4) ===
-echo  1) Opcion rapida si ya tienes Pair+Connect hoy
-echo  2) Flujo completo (Pair + Connect + Backend + APK)
+echo === AnunciaYA - TODO EN UNO (Optimizado + Logcat) ===
+echo  [1] Solo servicios (Backend + APK) con conexion ya activa
+echo  [2] Flujo completo con Pair + Connect (Wi-Fi)
+echo  [3] Conexion USB directa (rapido)
 echo(
 
-choice /C SN /M "¿Ya estas Pair + Connect en este mismo dia?"
+choice /C 123 /M "Selecciona una opcion:"
+if errorlevel 3 goto USB_MODE
 if errorlevel 2 goto FLUJO_COMPLETO
 if errorlevel 1 goto SOLO_SERVICIOS
 
 :FLUJO_COMPLETO
 echo(
-echo Ingresa los datos del celular (Depuracion inalambrica > Vincular con codigo):
-set "PAIR_HOST="
+echo Ingresa los datos de emparejamiento Wi-Fi (Depuracion inalambrica > Vincular con codigo):
 set /p PAIR_HOST=  IP:PUERTO_PAREJA (ej. 192.168.1.77:41234): 
-set "PAIR_CODE="
 set /p PAIR_CODE=  Codigo de 6 digitos: 
 
 echo( & echo Reiniciando ADB...
@@ -40,57 +42,60 @@ echo( & echo Reiniciando ADB...
 echo( & echo [PAIR] %PAIR_HOST% (codigo %PAIR_CODE%)
 "%ADB%" pair %PAIR_HOST% %PAIR_CODE%
 if errorlevel 1 goto PAIR_FAIL
-echo [OK] Successfully paired.
+echo [OK] Pair exitoso.
 
 :ASK_CONNECT
-echo( & set "CONNECT_HOST="
-set /p CONNECT_HOST=  IP:PUERTO_CONEXION (pantalla principal, ej. 192.168.1.77:42585): 
+set /p CONNECT_HOST=  IP:PUERTO_CONEXION (ej. 192.168.1.77:42585): 
 echo( & echo [CONNECT] %CONNECT_HOST%
 "%ADB%" connect %CONNECT_HOST%
 if errorlevel 1 (
-  echo( & echo [ERROR] No se pudo conectar a %CONNECT_HOST%.
-  echo Intenta de nuevo con el puerto correcto (el de "Direccion IP y puerto").
+  echo [ERROR] No se pudo conectar a %CONNECT_HOST%. Intenta de nuevo.
   goto ASK_CONNECT
 )
+goto SERVICIOS
 
-echo( & echo Dispositivos:
+:USB_MODE
+echo(
+echo [USB] Usando conexion por cable (mas estable).
 "%ADB%" devices
 goto SERVICIOS
 
 :SOLO_SERVICIOS
 echo(
-echo Saltando Pair + Connect...
-echo Usando la conexion ya activa de hoy.
+echo Saltando Pair + Connect... usando conexion ya activa.
 goto SERVICIOS
 
 :SERVICIOS
 REM ====== BACKEND: ventana nueva persistente ======
 if exist "%BACKEND_DIR%\%RUN_BACKEND_BAT%" (
-  echo( & echo [BACKEND] Abriendo backend en ventana aparte...
-  start "AnunciaYA Backend (APK)" cmd /k "cd /d ""%BACKEND_DIR%"" && call ""%RUN_BACKEND_BAT%"""
+  echo( & echo [BACKEND] Iniciando backend en ventana aparte...
+  start "AnunciaYA Backend" cmd /k "cd /d ""%BACKEND_DIR%"" && call ""%RUN_BACKEND_BAT%"""
 ) else (
-  echo( & echo [ADVERTENCIA] No se encontro "%RUN_BACKEND_BAT%" en "%BACKEND_DIR%"
+  echo [ADVERTENCIA] No se encontro "%RUN_BACKEND_BAT%" en "%BACKEND_DIR%"
 )
 
 REM ====== APK: ventana nueva persistente ======
 if exist "%FRONTEND_DIR%\%BUILD_INSTALL_BAT%" (
-  echo( & echo [APK] Abriendo build+install en ventana aparte...
+  echo( & echo [APK] Compilando e instalando...
   start "AnunciaYA APK Build+Install" cmd /k "cd /d ""%FRONTEND_DIR%"" && call ""%BUILD_INSTALL_BAT%"""
 ) else (
-  echo( & echo [ADVERTENCIA] No se encontro "%BUILD_INSTALL_BAT%" en "%FRONTEND_DIR%"
+  echo [ADVERTENCIA] No se encontro "%BUILD_INSTALL_BAT%" en "%FRONTEND_DIR%"
 )
 
-echo(
-echo Abre chrome://inspect/#devices y pulsa "inspect" en WebView in online.anunciaya.app
+REM ====== LOGCAT: ventana nueva ======
+echo( & echo [LOGCAT] Abriendo logs filtrados para %APP_ID% ...
+start "Logcat - %APP_ID%" cmd /k ""%ADB%" -s %DEVICE_HOST% logcat | findstr %APP_ID%"
+
+
+echo.
+echo ✅ Preparativos listos. Si usas Chrome: abre chrome://inspect/#devices para inspeccionar la WebView.
 goto END
 
 :PAIR_FAIL
-echo(
-echo [ERROR] Pair fallo (el codigo expira rapido). Genera uno nuevo y reintenta.
+echo [ERROR] Pair fallo (el codigo expira rapido). Genera uno nuevo e intentalo otra vez.
 goto END
 
 :END
-echo(
-echo (Esta ventana NO se cierra sola). Presiona una tecla para salir o dejala abierta.
-pause > nul
+echo.
+pause
 exit /b 0

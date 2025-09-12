@@ -8,6 +8,7 @@ import ChatList from "../ChatList/ChatList";
 import ChatWindow from "../ChatWindow/ChatWindowMobile";
 import MessageInput from "../MessageInput/MessageInputMobile";
 import ReactDOM from "react-dom";
+import { showError, showWarning } from "../../../utils/alerts";
 
 export default function ChatPanelMobile({ onClose, panelHeight = 730, windowHeight = null }) {
   const { chats, activeChatId, currentUserId, setActiveChatId, loadChats, loadMessages, statusMap, blockChat, unblockChat, setChatBackground } = useChat();
@@ -142,7 +143,7 @@ export default function ChatPanelMobile({ onClose, panelHeight = 730, windowHeig
         await blockChat(currentChat._id);
       }
     } catch (e) {
-      alert(e?.message || "No se pudo actualizar el bloqueo");
+      showError("Error al bloquear chat", e?.message || "No se pudo actualizar el bloqueo");
     }
   }, [currentChat, isBlocked, blockChat, unblockChat]);
 
@@ -203,7 +204,7 @@ export default function ChatPanelMobile({ onClose, panelHeight = 730, windowHeig
       setTimeout(() => setPartnerHint(null), 150);
     } catch (e) {
       console.error("openWithUser:", e);
-      alert(e?.message || "No se pudo abrir el chat.");
+      showError("Error en el chat", e?.message || "No se pudo abrir el chat.");
       setPartnerHint(null);
     }
   };
@@ -299,7 +300,7 @@ export default function ChatPanelMobile({ onClose, panelHeight = 730, windowHeig
     const f = e.target.files?.[0];
     if (!f) return;
     if (!f.type.startsWith("image/")) {
-      alert("Selecciona una imagen.");
+      showWarning("Imagen requerida", "Selecciona una imagen.");
       return;
     }
 
@@ -335,7 +336,7 @@ export default function ChatPanelMobile({ onClose, panelHeight = 730, windowHeig
       }
     } catch (err) {
       console.error(err);
-      alert("No se pudo procesar la imagen seleccionada.");
+      showError("Error al procesar imagen", "No se pudo procesar la imagen seleccionada.");
     } finally {
       if (fileRef.current) fileRef.current.value = "";
     }

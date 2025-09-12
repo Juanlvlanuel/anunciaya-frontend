@@ -1,7 +1,15 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "../../../context/AuthContext";
-const API_BASE = import.meta.env.VITE_API_BASE; // ✅ Usar API_BASE
+const RAW =
+  (import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || "").trim().replace(/\/+$/, "");
+const API_BASE = /192\.168\./.test(window.location.host)
+  ? (import.meta.env.VITE_API_BASE_LAN || RAW)
+  : RAW;
+
+import { showError, showSuccess, showConfirm } from "../../../utils/alerts";
+import { Monitor } from "lucide-react";
+
 
 async function fetchJson(url, options = {}) {
   const res = await fetch(url, {
@@ -48,33 +56,31 @@ function summarizeUA(ua = "") {
   const nav = /Edg\//.test(s)
     ? "Edge"
     : /Chrome\//.test(s)
-    ? "Chrome"
-    : /Safari\//.test(s) && !/Chrome\//.test(s)
-    ? "Safari"
-    : /Firefox\//.test(s)
-    ? "Firefox"
-    : "Navegador";
+      ? "Chrome"
+      : /Safari\//.test(s) && !/Chrome\//.test(s)
+        ? "Safari"
+        : /Firefox\//.test(s)
+          ? "Firefox"
+          : "Navegador";
   const os = /Windows NT/.test(s)
     ? "Windows"
     : /Mac OS X/.test(s)
-    ? "macOS"
-    : /Android/.test(s)
-    ? "Android"
-    : /(iPhone|iPad|iPod)/.test(s)
-    ? "iOS"
-    : "SO";
+      ? "macOS"
+      : /Android/.test(s)
+        ? "Android"
+        : /(iPhone|iPad|iPod)/.test(s)
+          ? "iOS"
+          : "SO";
   return `${nav} · ${os}`;
 }
 
 export default function SessionsList({ onSignOutAll }) {
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [sessions, setSessions] = useState([]);
   const { cerrarSesion } = useAuth();
 
   const fetchSessions = useCallback(async () => {
     setLoading(true);
-    setError("");
     try {
       await fetchJson(`${API_BASE}/api/usuarios/sessions/ping`, {
         method: "POST",
@@ -85,11 +91,11 @@ export default function SessionsList({ onSignOutAll }) {
       const list = Array.isArray(data?.sessions)
         ? data.sessions
         : Array.isArray(data?.items)
-        ? data.items
-        : [];
+          ? data.items
+          : [];
       setSessions(list);
     } catch (e) {
-      setError(e?.message || "No se pudieron cargar las sesiones.");
+      showError("Sesiones", e?.message || "No se pudieron cargar las sesiones.");
       setSessions([]);
     } finally {
       setLoading(false);
@@ -107,60 +113,65 @@ export default function SessionsList({ onSignOutAll }) {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
       });
+      showSuccess("Sesión cerrada", "La sesión seleccionada se cerró correctamente.");
       await fetchSessions();
     } catch (e) {
-      setError(e?.message || "No se pudo cerrar la sesión seleccionada.");
+      showError("Sesiones", e?.message || "No se pudo cerrar la sesión seleccionada.");
     }
   };
 
   const signOutOthers = async () => {
-    if (!window.confirm("¿Cerrar todas las demás sesiones?")) return;
-    try {
-      await fetchJson(`${API_BASE}/api/usuarios/sessions/revoke-others`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
-      });
-      await fetchSessions();
-    } catch (e) {
-      setError(e?.message || "No se pudieron cerrar las otras sesiones.");
-    }
+    showConfirm("Sesiones", "¿Cerrar todas las demás sesiones?", async () => {
+      try {
+        await fetchJson(`${API_BASE}/api/usuarios/sessions/revoke-others`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        });
+        await showSuccess("Sesiones", "Se cerraron las demás sesiones correctamente.");
+        await fetchSessions();
+      } catch (e) {
+        showError("Sesiones", e?.message || "No se pudieron cerrar las otras sesiones.");
+      }
+    });
   };
 
   const signOutAll = async () => {
-    if (!window.confirm("¿Cerrar TODAS las sesiones (incluida esta)?")) return;
-    try {
-      await fetchJson(`${API_BASE}/api/usuarios/sessions/revoke-all`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
-      });
-      if (typeof onSignOutAll === "function") {
-        await onSignOutAll();
-      } else {
-        await cerrarSesion();
+    showConfirm("Sesiones", "¿Cerrar TODAS las sesiones (incluida esta)?", async () => {
+      try {
+        await fetchJson(`${API_BASE}/api/usuarios/sessions/revoke-all`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        });
+        await showSuccess("Sesiones", "Se cerraron todas las sesiones correctamente.");
+        if (typeof onSignOutAll === "function") {
+          await onSignOutAll();
+        } else {
+          await cerrarSesion();
+        }
+      } catch (e) {
+        showError("Sesiones", e?.message || "No se pudieron cerrar todas las sesiones.");
       }
-    } catch (e) {
-      setError(e?.message || "No se pudieron cerrar todas las sesiones.");
-    }
+    });
   };
 
   return (
-    <div className="space-y-3">
-      {error ? (
-        <div className="space-y-3">
-          <div className="text-sm text-red-600">{error}</div>
-          <button onClick={fetchSessions} className="text-sm px-3 py-1.5 rounded-xl border hover:bg-gray-50">
-            Reintentar
-          </button>
-        </div>
-      ) : null}
+    <div className="bg-white rounded-2xl shadow p-4 space-y-4">
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-2">
+        <Monitor className="w-5 h-5 text-blue-600" />
+        <h3 className="text-base font-semibold text-gray-800">
+          Sesiones y dispositivos
+        </h3>
+      </div>
 
-      {!error && !loading && sessions.length === 0 ? (
+      {/* Lista de sesiones */}
+      {!loading && sessions.length === 0 && (
         <div className="text-sm text-gray-500">No hay sesiones activas.</div>
-      ) : null}
+      )}
 
-      {!error && sessions.length > 0 ? (
+      {sessions.length > 0 && (
         <ul className="divide-y divide-gray-200">
           {sessions.map((s) => {
             const id = s.id || s._id || s.jti || "";
@@ -168,23 +179,27 @@ export default function SessionsList({ onSignOutAll }) {
             const label = summarizeUA(s.ua || "");
             const last = s.lastUsedAt || s.last;
             return (
-              <li key={id} className="py-2 flex items-center justify-between">
+              <li key={id} className="py-3 flex items-center justify-between">
                 <div className="text-sm">
                   <div className="font-medium flex items-center gap-2">
                     <span>{label}</span>
                     {current && (
                       <>
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-300">
                           Actual
                         </span>
-                        <span className="text-xs text-gray-500">(Este dispositivo)</span>
+                        <span className="text-xs text-gray-500">
+                          (Este dispositivo)
+                        </span>
                       </>
                     )}
                   </div>
                   <div className="text-gray-500">
                     IP {s.ip || "—"} — Último uso: {relativeTime(last)}
                   </div>
-                  <div className="text-gray-400 text-xs">Creada: {formatDate(s.createdAt)}</div>
+                  <div className="text-gray-400 text-xs">
+                    Creada: {formatDate(s.createdAt)}
+                  </div>
                 </div>
                 {!current && (
                   <button
@@ -198,16 +213,28 @@ export default function SessionsList({ onSignOutAll }) {
             );
           })}
         </ul>
-      ) : null}
+      )}
 
-      <div className="pt-3 flex items-center gap-2">
-        <button onClick={fetchSessions} className="text-sm px-3 py-2 rounded-xl border hover:bg-gray-50">
+      {/* Botones de control */}
+      <div className="pt-3 flex flex-wrap items-center gap-2">
+        <button
+          onClick={fetchSessions}
+          className="text-sm px-3 py-2 rounded-xl border hover:bg-gray-50"
+        >
           Actualizar
         </button>
-        <button onClick={signOutOthers} className="text-sm px-3 py-2 rounded-xl border hover:bg-gray-50">
+        <button
+          onClick={signOutOthers}
+          className="text-sm px-3 py-2 rounded-xl border hover:bg-gray-50"
+        >
           Cerrar otras
         </button>
-        <button onClick={signOutAll} className="text-sm px-3 py-2 rounded-xl border hover:bg-gray-50">
+        <button
+          onClick={signOutAll}
+          className="text-sm px-3 py-2 rounded-xl text-white font-semibold 
+                   bg-gradient-to-r from-red-500 to-red-700
+                   hover:from-red-600 hover:to-red-800 transition-colors"
+        >
           Cerrar todas
         </button>
       </div>

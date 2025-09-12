@@ -3,6 +3,7 @@ import { getSocket, refreshSocketAuth } from "../sockets/socketClient";
 import { getJSON, API_BASE, clearSessionCache } from "../services/api";
 import { AuthContext } from "./AuthContext";
 import { getAuthSession, setAuthSession } from "../utils/authStorage";
+import { showError} from "../utils/alerts";
 
 export const ChatContext = createContext(null);
 export function useChat() { return useContext(ChatContext); }
@@ -55,23 +56,23 @@ export function ChatProvider({ children }) {
     return headers;
   }, []);
 
-   // No llamar /auth/refresh directo.
-   // Pide /session y deja que api.js haga refresh y retry si recibe 401.
-   const tryRefresh = useCallback(async () => {
-     try {
-       const data = await getJSON("/api/usuarios/session", {
-         headers: {},
-         credentials: "include",
-       });
-       // si hay usuario, quedó rehidratado (api.js ya hizo refresh si era necesario)
-       return !!data?.usuario;
-     } catch {
-       try { localStorage.removeItem("token"); } catch {}
-       try { setAuthSession && setAuthSession({ accessToken: null, user: null }); } catch {}
-       try { clearSessionCache(); } catch {}
-       return false;
-     }
-   }, []);
+  // No llamar /auth/refresh directo.
+  // Pide /session y deja que api.js haga refresh y retry si recibe 401.
+  const tryRefresh = useCallback(async () => {
+    try {
+      const data = await getJSON("/api/usuarios/session", {
+        headers: {},
+        credentials: "include",
+      });
+      // si hay usuario, quedó rehidratado (api.js ya hizo refresh si era necesario)
+      return !!data?.usuario;
+    } catch {
+      try { localStorage.removeItem("token"); } catch { }
+      try { setAuthSession && setAuthSession({ accessToken: null, user: null }); } catch { }
+      try { clearSessionCache(); } catch { }
+      return false;
+    }
+  }, []);
 
 
 
@@ -105,7 +106,7 @@ export function ChatProvider({ children }) {
   const lastRefreshAttemptRef = useRef(0);
   useEffect(() => { notifiersRef.current.attach(); }, []);
 
-  
+
   // Socket singleton (HMR-safe). Reutiliza una sola conexión.
   useEffect(() => {
     if (!me) return;
@@ -117,18 +118,18 @@ export function ChatProvider({ children }) {
     const startedAt = Date.now();
 
     const onConnect = () => {
-      try { console.info("[chat-socket] connected", { id: s.id, sinceMs: Date.now() - startedAt }); } catch {}
-      try { s.emit("join", { usuarioId: me }); } catch {}
-      try { s.emit("chat:join", { usuarioId: me }); } catch {}
-      try { s.emit("user:join", String(me)); } catch {}
-      try { s.emit("user:status:request"); } catch {}
+      try { console.info("[chat-socket] connected", { id: s.id, sinceMs: Date.now() - startedAt }); } catch { }
+      try { s.emit("join", { usuarioId: me }); } catch { }
+      try { s.emit("chat:join", { usuarioId: me }); } catch { }
+      try { s.emit("user:join", String(me)); } catch { }
+      try { s.emit("user:status:request"); } catch { }
     };
 
-    const onDisconnect = (reason) => { try { console.warn("[chat-socket] disconnected:", reason); } catch {} };
-    const onReconnectAttempt = (n) => { if (n % 10 === 0) try { console.info("[chat-socket] reconnecting… attempt", n); } catch {} };
-    const onReconnect = (n) => { try { console.info("[chat-socket] reconnected on attempt", n); } catch {} };
-    const onReconnectError = (err) => { try { console.debug("[chat-socket] reconnect error:", err?.message || err); } catch {} };
-    const onConnectError = (err) => { try { console.debug("[chat-socket] connect error:", err?.message || err); } catch {} };
+    const onDisconnect = (reason) => { try { console.warn("[chat-socket] disconnected:", reason); } catch { } };
+    const onReconnectAttempt = (n) => { if (n % 10 === 0) try { console.info("[chat-socket] reconnecting… attempt", n); } catch { } };
+    const onReconnect = (n) => { try { console.info("[chat-socket] reconnected on attempt", n); } catch { } };
+    const onReconnectError = (err) => { try { console.debug("[chat-socket] reconnect error:", err?.message || err); } catch { } };
+    const onConnectError = (err) => { try { console.debug("[chat-socket] connect error:", err?.message || err); } catch { } };
 
     // Mensajería
     const onStatusSnapshot = (snapshot) => setStatusMap(snapshot || {});
@@ -152,7 +153,7 @@ export function ChatProvider({ children }) {
       notifiersRef.current.playBeep(); notifiersRef.current.vibrate();
     };
 
-    const onMessageNew = ({ chatId, message }) => { try { s.emit("chat:newMessage", { chatId, mensaje: message }); } catch {} };
+    const onMessageNew = ({ chatId, message }) => { try { s.emit("chat:newMessage", { chatId, mensaje: message }); } catch { } };
     const onTyping = ({ chatId, usuarioId, typing }) => { setTypingMap((t) => ({ ...t, [chatId]: typing ? usuarioId : null })); };
     const onMessageEdited = ({ chatId, mensaje }) => {
       clearReplyTarget();
@@ -182,7 +183,7 @@ export function ChatProvider({ children }) {
     s.on("chat:messageDeleted", onMessageDeleted);
 
     // En caso de que el token haya cambiado en memoria
-    try { refreshSocketAuth?.(); } catch {}
+    try { refreshSocketAuth?.(); } catch { }
 
     return () => {
       // Detach listeners solamente (no desconectar la instancia global)
@@ -200,7 +201,7 @@ export function ChatProvider({ children }) {
         s.off("chat:typing", onTyping);
         s.off("chat:messageEdited", onMessageEdited);
         s.off("chat:messageDeleted", onMessageDeleted);
-      } catch {}
+      } catch { }
       socketRef.current = null;
       setSocket(null);
     };
@@ -361,7 +362,12 @@ export function ChatProvider({ children }) {
           const realId = String(ackMsg._id); const j = next.findIndex((x) => String(x?._id) === realId);
           if (j >= 0) next[j] = ackMsg; else next.push(ackMsg);
         } else {
-          try { if (ack && ack.error) alert(ack.error); } catch { }
+          try {
+            if (ack && ack.error) {
+              showError("Error en el chat", ack.error);
+            }
+          } catch { }
+
           next.push({ ...optimistic, _temp: false, _failed: true });
         }
         return { ...m, [chatId]: next };

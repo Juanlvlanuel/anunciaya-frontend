@@ -1,6 +1,7 @@
 // src/components/Chat/HeaderActions/BlockToggleButton.jsx
 import { useMemo, useState, useCallback } from "react";
 import { useChat } from "../../../context/ChatContext";
+import { showError } from "../../../utils/alerts";
 
 function LockIcon(props) {
  return (
@@ -52,9 +53,10 @@ export default function BlockToggleButton({ className = "" }) {
  if (isBlockedByMe) await unblockChat(activeChatId);
  else await blockChat(activeChatId);
  // El contexto recarga la lista y traerá isBlocked actualizado. 
- } catch (e) {
- alert(e?.message || "No se pudo actualizar el bloqueo");
- } finally {
+} catch (e) {
+  showError("Error al bloquear chat", e?.message || "No se pudo actualizar el bloqueo");
+}
+ finally {
  setBusy(false);
  }
  }, [activeChatId, isBlockedByMe, blockChat, unblockChat, busy]);

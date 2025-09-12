@@ -599,6 +599,7 @@ const AuthProvider = ({ children }) => {
       registrar,
       actualizarPerfil,
       actualizarNickname,
+      setUsuario,
     }),
     [autenticado, usuario, cargando, ubicacion]
   );

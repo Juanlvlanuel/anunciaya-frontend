@@ -42,18 +42,19 @@ export default function CarrouselCategoriasMobile() {
     let lastTime = 0;
     const animate = (time) => {
       if (!userInteracting) {
-        const delta = time - lastTime;
-        if (delta >= 16) { // actualiza si pasaron al menos 16ms (~60fps)
-          if (container.scrollLeft >= singleListWidth * (REPETICIONES - 1)) {
-            container.scrollLeft = singleListWidth;
-          } else {
-            container.scrollLeft += speed;
-          }
+        if (time - lastTime >= 16) {
+          container.scrollLeft =
+            container.scrollLeft >= singleListWidth * (REPETICIONES - 1)
+              ? singleListWidth
+              : container.scrollLeft + speed;
+
           lastTime = time;
         }
       }
       animationFrame = requestAnimationFrame(animate);
     };
+
+
 
 
     const pauseScroll = () => {
