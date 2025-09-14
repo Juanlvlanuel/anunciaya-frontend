@@ -1,6 +1,6 @@
-// src/modals/LoginModal-1.jsx
+// src/modals/LoginModal-MEJORADO.jsx
 import React, { useState, useContext, useEffect, useRef } from "react";
-import { FaTimes, FaEye, FaEyeSlash } from "react-icons/fa";
+import { FaTimes, FaEye, FaEyeSlash, FaLock } from "react-icons/fa";
 import { AuthContext } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import facebookIcon from "../assets/facebook-icon.png";
@@ -38,10 +38,12 @@ const LoginModal = ({ isOpen, onClose }) => {
   const [contraseña, setContraseña] = useState("");
   const [mostrarPassword, setMostrarPassword] = useState(false);
 
-  // 2FA
+  // 2FA - SIMPLIFICADO
   const [codigo2FA, setCodigo2FA] = useState("");
   const [mostrarCampo2FA, setMostrarCampo2FA] = useState(false);
+  const [mensaje2FA, setMensaje2FA] = useState(""); // ✨ NUEVO: mensaje sutil
   const input2FARef = useRef(null);
+  const [error2FA, setError2FA] = useState("");
 
   // Verificación de correo en Login
   const [mostrarVerificacion, setMostrarVerificacion] = useState(false);
@@ -51,7 +53,7 @@ const LoginModal = ({ isOpen, onClose }) => {
   const [reenviando, setReenviando] = useState(false);
   const [reintentoEn, setReintentoEn] = useState(0);
 
-  // “Recordar mis datos”
+  // "Recordar mis datos"
   const [recordarDatos, setRecordarDatos] = useState(false);
 
   // Reset/App perdida + backup codes
@@ -110,6 +112,7 @@ const LoginModal = ({ isOpen, onClose }) => {
     setCodigo2FA("");
     setMostrarPassword(false);
     setMostrarCampo2FA(false);
+    setMensaje2FA(""); // ✨ NUEVO: limpiar mensaje
     setMostrarVerificacion(false);
     setCodigoEmail("");
     setVerificandoEmail(false);
@@ -119,6 +122,7 @@ const LoginModal = ({ isOpen, onClose }) => {
     setOtp("");
     setShowBackup(false);
     setBackupCode("");
+    setError2FA("");
   };
 
   /* ========== LOGIN SILENCIOSO (sin alert genérico) ========== */
@@ -203,8 +207,8 @@ const LoginModal = ({ isOpen, onClose }) => {
         payload?.requiere2FA === true || /2fa/i.test(String(payload?.mensaje || e.message || ""));
       if (necesita2FA) {
         setMostrarCampo2FA(true);
-        showInfo("Código 2FA requerido", "Ingresa el código de tu app autenticadora.")
-          .then(() => requestAnimationFrame(() => input2FARef.current?.focus()));
+        setMensaje2FA("🔐 Tu cuenta tiene 2FA activo. Ingresa el código de 6 dígitos."); // ✨ NUEVO
+        setTimeout(() => input2FARef.current?.focus(), 150);
         return;
       }
       showError("No se pudo verificar", e?.message || "Intenta de nuevo.");
@@ -220,8 +224,8 @@ const LoginModal = ({ isOpen, onClose }) => {
       showError("Correo inválido", "Ingresa un correo electrónico válido.");
       return;
     }
-    if (mostrarCampo2FA && (!codigo2FA || codigo2FA.trim().length < 6)) {
-      showWarning("Código 2FA incompleto", "Escribe los 6 dígitos y vuelve a presionar Entrar.");
+    if (mostrarCampo2FA && (!codigo2FA || codigo2FA.length !== 6)) {
+      showWarning("Código 2FA incompleto", "El código debe tener exactamente 6 dígitos.");
       return;
     }
 
@@ -249,9 +253,16 @@ const LoginModal = ({ isOpen, onClose }) => {
 
       const necesita2FA = data?.requiere2FA === true || /2fa/i.test(String(msg));
       if (necesita2FA) {
-        setMostrarCampo2FA(true);
-        showInfo("Código 2FA requerido", "Ingresa el código de tu app autenticadora y vuelve a presionar Entrar.")
-          .then(() => requestAnimationFrame(() => input2FARef.current?.focus()));
+        // Si ya estaba visible el campo 2FA, es un error de código
+        if (mostrarCampo2FA) {
+          setError2FA("Código incorrecto. Intenta de nuevo.");
+          setCodigo2FA(""); // Limpiar el campo
+          setTimeout(() => input2FARef.current?.focus(), 100);
+        } else {
+          setMostrarCampo2FA(true);
+          setMensaje2FA("🔐 Tu cuenta tiene 2FA activo. Ingresa el código de 6 dígitos.");
+          setTimeout(() => input2FARef.current?.focus(), 150);
+        }
         return;
       }
 
@@ -329,6 +340,7 @@ const LoginModal = ({ isOpen, onClose }) => {
       setShowReset2FA(false);
       setMostrarCampo2FA(false);
       setCodigo2FA("");
+      setMensaje2FA(""); // ✨ NUEVO: limpiar mensaje
     } catch (e) {
       showError("Código inválido o expirado", e?.message || "Intenta otra vez.");
     } finally {
@@ -336,25 +348,50 @@ const LoginModal = ({ isOpen, onClose }) => {
     }
   };
 
+  // ✨ NUEVO: Función mejorada para usar backup code Y hacer login
   const useBackupNow = async () => {
     if (!correo || !contraseña || !backupCode) {
       showInfo("Completa tus datos", "Correo, contraseña y un código de respaldo.");
       return;
     }
     try {
-      await backup.use(correo, contraseña, backupCode);
-      showSuccess("Código aceptado", "2FA fue desactivado. Entra normalmente y reconfigúralo luego en Seguridad.");
-      setShowBackup(false);
-      setMostrarCampo2FA(false);
-      setCodigo2FA("");
-      setBackupCode("");
+      // ✨ MEJORA: Usar backup code pero SIN desactivar 2FA
+      const res = await fetch(`${API_USERS}/2fa/backup/use-and-login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          correo: correo.trim().toLowerCase(),
+          contraseña: contraseña.trim(),
+          backupCode: backupCode.trim()
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.mensaje || "Código inválido o ya usado");
+      }
+
+      // ✨ LOGIN EXITOSO con backup code
+      try {
+        if (iniciarSesion) await iniciarSesion(data.token, data.usuario);
+        else setAuthSession({ accessToken: data.token, user: data.usuario || null });
+      } catch { }
+
+      showSuccess("¡Acceso autorizado!", "Código de respaldo usado correctamente. Tu 2FA sigue activo.");
+      limpiarEstadoTemporal();
+      resetForm();
       onClose && onClose();
+
     } catch (e) {
       showError("Código inválido o ya usado", e?.message || "Intenta con otro código.");
     }
   };
 
   const toggleId = "recordarDatosToggle";
+
+  // ✨ MEJORA: Permitir cerrar modal cuando hay 2FA (con restricciones menores)
+  const puedeSerrarModal = !mostrarVerificacion && !showReset2FA;
 
   // ===== Overlay centrado cuando hay verificación =====
   const overlayClass = `fixed inset-0 bg-black bg-opacity-50 z-50 px-1 flex ${mostrarVerificacion ? "items-center justify-center" : "items-start justify-center pt-16 sm:pt-0 sm:items-center lg:justify-start"
@@ -373,10 +410,11 @@ const LoginModal = ({ isOpen, onClose }) => {
         <motion.div
           className={overlayClass}
           onClick={() => {
-            if (mostrarCampo2FA || showReset2FA || showBackup || mostrarVerificacion) return;
-            limpiarEstadoTemporal();
-            resetForm();
-            onClose && onClose();
+            if (puedeSerrarModal) { // ✨ MEJORA: permitir cerrar con 2FA
+              limpiarEstadoTemporal();
+              resetForm();
+              onClose && onClose();
+            }
           }}
           variants={overlayVariants}
           initial="hidden"
@@ -394,10 +432,11 @@ const LoginModal = ({ isOpen, onClose }) => {
           >
             <button
               onClick={() => {
-                if (mostrarCampo2FA || showReset2FA || showBackup || mostrarVerificacion) return;
-                limpiarEstadoTemporal();
-                resetForm();
-                onClose && onClose();
+                if (puedeSerrarModal) { // ✨ MEJORA: permitir cerrar con X
+                  limpiarEstadoTemporal();
+                  resetForm();
+                  onClose && onClose();
+                }
               }}
               className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 bg-gray-100 rounded-full p-2 transition"
               aria-label="Cerrar"
@@ -442,8 +481,23 @@ const LoginModal = ({ isOpen, onClose }) => {
                 </button>
               </div>
 
-              {mostrarCampo2FA && !showReset2FA && (
+              {/* ✨ NUEVO: Mensaje sutil + Input 2FA directamente en el modal */}
+              {mostrarCampo2FA && (
                 <>
+                  {mensaje2FA && (
+                    <div className="mt-3 p-3 bg-blue-50 border-2 border-blue-100 rounded-xl shadow-sm">
+                      <div className="flex items-center gap-3">
+                        <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
+                          <FaLock className="text-blue-600 text-xs" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-blue-900">2FA Requerido</p>
+                          <p className="text-xs text-blue-700">Código de 6 dígitos de tu autenticador</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <input
                     ref={input2FARef}
                     type="text"
@@ -451,22 +505,41 @@ const LoginModal = ({ isOpen, onClose }) => {
                     autoComplete="one-time-code"
                     placeholder="Código 2FA (6 dígitos)"
                     value={codigo2FA}
-                    onChange={(e) => setCodigo2FA(e.target.value.replace(/\s+/g, ""))}
-                    className="w-full border border-gray-300 rounded-xl px-4 py-3 mb-2 text-base"
-                  />
-                  <button type="button" onClick={startReset2FA} disabled={resetBusy} className="text-xs text-blue-700 hover:underline mb-2">
-                    {resetBusy ? "Enviando código…" : "¿Perdiste tu autenticador? Reconfigurar 2FA"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowBackup((v) => !v);
-                      setTimeout(() => backupRef.current?.focus(), 200);
+                    maxLength={6}
+                    pattern="[0-9]*"
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, "");
+                      setCodigo2FA(value);
+                      if (error2FA) setError2FA(""); // Limpiar error al escribir
                     }}
-                    className="text-xs text-blue-700 hover:underline mb-2"
-                  >
-                    {showBackup ? "Ocultar código de respaldo" : "Usar un código de respaldo"}
-                  </button>
+                    className="w-full border border-blue-300 rounded-xl px-4 py-3 mb-2 text-base focus:outline-none focus:ring-2 focus:ring-blue-400 text-center tracking-widest"
+                  />
+                  {error2FA && (
+                    <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-xs text-red-700 flex items-center gap-1">
+                        <span className="w-1 h-1 bg-red-500 rounded-full"></span>
+                        {error2FA}
+                      </p>
+                    </div>
+                  )}
+                  {!showReset2FA && (
+                    <>
+                      <button type="button" onClick={startReset2FA} disabled={resetBusy} className="text-xs text-blue-700 hover:underline mb-2">
+                        {resetBusy ? "Enviando código…" : "¿Perdiste tu autenticador? Reconfigurar 2FA"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowBackup((v) => !v);
+                          setTimeout(() => backupRef.current?.focus(), 200);
+                        }}
+                        className="text-xs text-blue-700 hover:underline mb-2"
+                      >
+                        {showBackup ? "Ocultar código de respaldo" : "Usar un código de respaldo"}
+                      </button>
+                    </>
+                  )}
+
                   {showBackup && (
                     <div className="mb-3 border rounded-lg p-3 bg-gray-50">
                       <input
@@ -547,7 +620,7 @@ const LoginModal = ({ isOpen, onClose }) => {
               </button>
             </form>
 
-            {/* === Bloque “Verifica tu correo” dentro del Login === */}
+            {/* === Bloque "Verifica tu correo" dentro del Login === */}
             {mostrarVerificacion && (
               <div className="mt-4 border border-gray-200 rounded-xl p-4 bg-gray-50">
                 <h3 className="text-lg font-semibold text-gray-900 mb-1">Verifica tu correo</h3>
@@ -609,6 +682,7 @@ const LoginModal = ({ isOpen, onClose }) => {
                   onRequire2FA={(payload) => {
                     if (payload?.usuario?.correo) setCorreo(payload.usuario.correo);
                     setMostrarCampo2FA(true);
+                    setMensaje2FA("🔐 Tu cuenta tiene 2FA activo. Ingresa el código de 6 dígitos."); // ✨ NUEVO
                     setTimeout(() => input2FARef.current?.focus(), 150);
                   }}
                   getTwoFactorCode={() => (codigo2FA || "").trim()}

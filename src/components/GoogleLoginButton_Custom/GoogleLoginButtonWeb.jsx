@@ -46,7 +46,7 @@ const GoogleLoginButtonWeb = ({
       localStorage.getItem("perfilCuentaIntentada");
     try {
       if (p) p = JSON.parse(p);
-    } catch {}
+    } catch { }
     if (p && typeof p === "string") p = { perfil: p };
     return { tipo: t, perfil: p };
   };
@@ -73,7 +73,7 @@ const GoogleLoginButtonWeb = ({
     }
 
     Object.assign(body, bodyExtra);
-    
+
     const endpoint =
       modo === "link"
         ? "/api/usuarios/oauth/google/link"
@@ -89,7 +89,7 @@ const GoogleLoginButtonWeb = ({
     let data = {};
     try {
       data = await res.json();
-    } catch {}
+    } catch { }
     return { res, data };
   }
 
@@ -141,11 +141,10 @@ const GoogleLoginButtonWeb = ({
         res.status === 401 &&
         (data?.requiere2FA || /2fa/i.test(String(data?.mensaje || "")))
       ) {
-        onRequire2FA && onRequire2FA(data);
-
         const codeRaw = (getTwoFactorCode && getTwoFactorCode()) || "";
         const code = codeRaw.replace(/\s+/g, "");
-        if (code && code.length >= 6) {
+
+        if (code && code.length === 6) {
           const retry = await postGoogle(idToken, { "x-2fa-code": code });
           if (retry.res.ok && retry.data?.token) {
             await iniciarSesion(retry.data.token, retry.data.usuario);
@@ -162,10 +161,8 @@ const GoogleLoginButtonWeb = ({
           return;
         }
 
-        showInfo(
-          "Código 2FA requerido",
-          "Ingresa el código de tu app autenticadora y vuelve a presionar el botón."
-        );
+        // Activar campo 2FA en LoginModal sin mostrar modal
+        onRequire2FA && onRequire2FA(data);
         return;
       }
 

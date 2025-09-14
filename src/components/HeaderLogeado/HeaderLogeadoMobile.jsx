@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useLayoutEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import SidebarCategoriasFijo from "../SidebarCategoriasFijo";
 
 const HeaderLogeadoMobile = () => {
   const [logoPressed, setLogoPressed] = useState(false);
   const [arrowActive, setArrowActive] = useState(false);
+  const headerRef = useRef(null);
 
   const handleLogoTouch = () => setLogoPressed(true);
 
@@ -23,6 +24,43 @@ const HeaderLogeadoMobile = () => {
   const showArrowToggle = isPanel;
   const showBack = !isHome && !isPanel;
 
+  // ✅ Definir altura total del header en CSS custom property
+  useLayoutEffect(() => {
+    const el = headerRef.current;
+    const root = document.documentElement;
+
+    const apply = () => {
+      if (!el) return;
+      
+      // Calcula la altura total: franja + header
+      const safeAreaTop = parseInt(getComputedStyle(root).getPropertyValue('--safe-area-inset-top') || '0');
+      const statusBarHeight = Math.max(safeAreaTop, 40); // Mínimo 40px para la franja gris
+      const headerHeight = 65; // Altura del header principal
+      const totalHeight = statusBarHeight + headerHeight;
+      
+      // Define las variables CSS para que otros componentes las usen
+      root.style.setProperty("--header-total-h", `${totalHeight}px`);
+      root.style.setProperty("--header-statusbar-h", `${statusBarHeight}px`);
+      root.style.setProperty("--header-main-h", `${headerHeight}px`);
+    };
+
+    apply();
+
+    // Detecta cambios en el safe area (rotación, etc.)
+    const mediaQuery = window.matchMedia('(orientation: portrait)');
+    const orientationChange = () => setTimeout(apply, 100);
+    mediaQuery.addEventListener('change', orientationChange);
+
+    return () => {
+      mediaQuery.removeEventListener('change', orientationChange);
+      try {
+        root.style.removeProperty("--header-total-h");
+        root.style.removeProperty("--header-statusbar-h");
+        root.style.removeProperty("--header-main-h");
+      } catch {}
+    };
+  }, []);
+
   const handleBack = () => {
     const segments = location.pathname.split("/").filter(Boolean);
     if (segments.length > 1) {
@@ -39,32 +77,35 @@ const HeaderLogeadoMobile = () => {
       // Feedback visual de "flecha interactiva"
       setArrowActive((v) => !v);
       setTimeout(() => setArrowActive(false), 180);
-    } catch { }
+    } catch {}
   };
 
   return (
     <>
-      {/* Franja gris semitransparente bajo los íconos del sistema */}
+      {/* ✅ Franja gris semitransparente bajo los íconos del sistema */}
       <div
         className="fixed top-0 left-0 w-full pointer-events-none"
         style={{
-          height: "max(env(safe-area-inset-top, 40px), var(--statusbar-h, 0px))",
+          height: "var(--header-statusbar-h, 40px)",
           backgroundColor: "#e6e6e6ff", // gris sólido
           zIndex: 9999,
         }}
       />
-      {/* Header principal */}
+      
+      {/* ✅ Header principal */}
       <div
-        className="fixed top-8 left-0 right-0 z-50 shadow-md"
+        ref={headerRef}
+        className="fixed left-0 right-0 z-50 shadow-md"
         style={{
-          paddingTop: "env(safe-area-inset-top, 0px)",
+          top: "var(--header-statusbar-h, 40px)",
+          height: "var(--header-main-h, 65px)",
           background: "rgba(255, 255, 255, 0.6)",
           backdropFilter: "blur(12px)",
           WebkitBackdropFilter: "blur(12px)",
           borderBottom: "1px solid rgba(0,0,0,0.06)",
         }}
       >
-        <div className="pt-3 pb-2 w-full flex items-center">
+        <div className="h-full w-full flex items-center">
           {/* Botón izquierdo: flecha interactiva (toggle) en /panel o back en el resto */}
           <div className="w-1/5 flex justify-start pl-3">
             {showArrowToggle ? (
@@ -72,7 +113,7 @@ const HeaderLogeadoMobile = () => {
                 type="button"
                 aria-label="Abrir opciones del panel"
                 onClick={togglePanelSidebar}
-                className="relative top-[-4px] ml-2 inline-flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 shadow-[4px_4px_8px_rgba(0,0,0,0.15),-4px_-4px_8px_rgba(255,255,255,0.8)] hover:shadow-[2px_2px_4px_rgba(0,0,0,0.2),-2px_-2px_4px_rgba(255,255,255,0.7)] active:scale-[0.95] transition-transform"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 shadow-[4px_4px_8px_rgba(0,0,0,0.15),-4px_-4px_8px_rgba(255,255,255,0.8)] hover:shadow-[2px_2px_4px_rgba(0,0,0,0.2),-2px_-2px_4px_rgba(255,255,255,0.7)] active:scale-[0.95] transition-transform"
               >
                 {/* flecha interactiva */}
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
@@ -86,7 +127,7 @@ const HeaderLogeadoMobile = () => {
                 type="button"
                 aria-label="Regresar"
                 onClick={handleBack}
-                className="relative top-[-4px] ml-2 inline-flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 shadow-[4px_4px_8px_rgba(0,0,0,0.15),-4px_-4px_8px_rgba(255,255,255,0.8)] hover:shadow-[2px_2px_4px_rgba(0,0,0,0.2),-2px_-2px_4px_rgba(255,255,255,0.7)] active:scale-[0.95]"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 shadow-[4px_4px_8px_rgba(0,0,0,0.15),-4px_-4px_8px_rgba(255,255,255,0.8)] hover:shadow-[2px_2px_4px_rgba(0,0,0,0.2),-2px_-2px_4px_rgba(255,255,255,0.7)] active:scale-[0.95]"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none"
                   viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}
@@ -127,11 +168,11 @@ const HeaderLogeadoMobile = () => {
         </div>
       </div>
 
-      {/* Spacer para empujar el contenido debajo del header y franja */}
+      {/* ✅ Spacer para empujar el contenido debajo del header completo */}
       <div
         aria-hidden="true"
         style={{
-          height: "calc(env(safe-area-inset-top, 0px) + 65px)",
+          height: "var(--header-total-h, 105px)",
         }}
       />
     </>

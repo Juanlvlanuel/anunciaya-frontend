@@ -1,4 +1,4 @@
-// src/components/CarrouselSeccionesMobile-1.jsx
+// src/components/CarrouselSecciones/CarrouselSeccionesMobile-1.jsx
 import React, { useRef, useEffect } from "react";
 import comercioIcon from "../../assets/icons/comercios.png";
 import marketplaceIcon from "../../assets/icons/marketplace.png";
@@ -30,53 +30,71 @@ export default function CarrouselCategoriasMobile() {
     if (!container) return;
 
     let userInteracting = false;
-    let animationFrame;
+    let intervalId;
     let pauseTimeout;
+    let isTabActive = true;
 
     const singleListWidth = container.scrollWidth / REPETICIONES;
 
     // Empieza centrado
     container.scrollLeft = singleListWidth;
 
-    const speed = 0.6; // velocidad del scroll (ajusta aquí)
-    let lastTime = 0;
-    const animate = (time) => {
-      if (!userInteracting) {
-        if (time - lastTime >= 16) {
+    const speed = 0.6; // velocidad del scroll
+
+    // Control de visibilidad de pestaña
+    const handleVisibilityChange = () => {
+      isTabActive = !document.hidden;
+      if (!isTabActive && intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      } else if (isTabActive && !userInteracting && !intervalId) {
+        startAnimation();
+      }
+    };
+
+    // Reemplazar requestAnimationFrame con setInterval para evitar CSP violations
+    const startAnimation = () => {
+      if (intervalId) clearInterval(intervalId);
+      
+      intervalId = setInterval(() => {
+        if (!userInteracting && container && isTabActive) {
           container.scrollLeft =
             container.scrollLeft >= singleListWidth * (REPETICIONES - 1)
               ? singleListWidth
               : container.scrollLeft + speed;
-
-          lastTime = time;
         }
-      }
-      animationFrame = requestAnimationFrame(animate);
+      }, 32); // Reducir a 30fps para menos carga
     };
-
-
-
 
     const pauseScroll = () => {
       userInteracting = true;
       clearTimeout(pauseTimeout);
       pauseTimeout = setTimeout(() => {
         userInteracting = false;
+        if (isTabActive) startAnimation();
       }, 2200);
     };
 
+    // Event listeners
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     container.addEventListener("mousedown", pauseScroll, { passive: true });
     container.addEventListener("touchstart", pauseScroll, { passive: true });
     container.addEventListener("wheel", pauseScroll, { passive: true });
 
-    setTimeout(() => { animationFrame = requestAnimationFrame(animate); }, 500); // delay inicial para evitar bloquear render
+    // Delay inicial para evitar bloquear render
+    setTimeout(() => {
+      if (isTabActive) startAnimation();
+    }, 800);
 
     return () => {
-      cancelAnimationFrame(animationFrame);
+      clearInterval(intervalId);
       clearTimeout(pauseTimeout);
-      container.removeEventListener("mousedown", pauseScroll);
-      container.removeEventListener("touchstart", pauseScroll);
-      container.removeEventListener("wheel", pauseScroll);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (container) {
+        container.removeEventListener("mousedown", pauseScroll);
+        container.removeEventListener("touchstart", pauseScroll);
+        container.removeEventListener("wheel", pauseScroll);
+      }
     };
   }, []);
 
@@ -116,11 +134,11 @@ export default function CarrouselCategoriasMobile() {
           >
             <div
               className="
-    flex items-center justify-center
-    mb-0.5
-    group-active:scale-95
-    transition-all duration-150
-  "
+                flex items-center justify-center
+                mb-0.5
+                group-active:scale-95
+                transition-all duration-150
+              "
             >
               <img
                 src={icono.archivo}
@@ -135,7 +153,7 @@ export default function CarrouselCategoriasMobile() {
               <span
                 className="absolute inset-0 text-center font-bold"
                 style={{
-                  WebkitTextStroke: "5px white", // grosor del contorno (ajusta 0.8–1.5)
+                  WebkitTextStroke: "5px white", // grosor del contorno
                   color: "transparent",            // sin relleno, solo borde
                   textShadow: "0 1px 0 #ffffffcf", // brillo suave opcional
                   filter: "brightness(0.98) contrast(1.12)",
@@ -148,7 +166,6 @@ export default function CarrouselCategoriasMobile() {
               <span
                 className="relative text-[16px] text-blue-800 font-bold text-center transition-all duration-150 group-active:text-blue-700"
                 style={{
-                  // sin stroke aquí, para que no tape el relleno
                   textShadow: "0 0 2px rgba(255,255,255,0.35)", // leve halo para legibilidad
                   letterSpacing: "-0.01em",
                   filter: "brightness(0.98) contrast(1.12)",
@@ -158,8 +175,6 @@ export default function CarrouselCategoriasMobile() {
                 {icono.nombre}
               </span>
             </div>
-
-
           </button>
         ))}
       </div>

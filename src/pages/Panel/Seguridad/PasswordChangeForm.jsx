@@ -1,27 +1,25 @@
-
 import { useId, useRef, useState, useEffect, useMemo } from "react";
 import { getJSON } from "../../../services/api";
 import { useAuth } from "../../../context/AuthContext";
 import { showError, showSuccess } from "../../../utils/alerts";
-import { Lock, CheckCircle, AlertCircle, ChevronDown } from "lucide-react";
+import { Lock, CheckCircle, AlertCircle, ChevronDown, Eye, EyeOff, Key } from "lucide-react";
+import { useAccordionSection } from "../../../components/AccordionController";
 
 /** Tooltip (estable, fuera del componente) */
 function Tooltip({ show, message }) {
   if (!show || !message) return null;
   return (
-    <div className="absolute -top-6 left-0 text-[11px] font-medium px-2 py-0.5 rounded bg-red-500 text-white shadow">
+    <div className="absolute -top-6 left-0 text-[11px] font-medium px-2 py-0.5 rounded bg-red-500 text-white shadow z-10">
       {message}
     </div>
   );
 }
 
-/** Input (estable, fuera del componente) */
-import { Eye, EyeOff } from "lucide-react";
-
+/** Input Field rediseñado con estilo premium */
 function InputField({ id, label, inputRef, isShown, onToggle, autoComplete, error, onInput, initValue }) {
   return (
-    <div className="block">
-      <label htmlFor={id} className="block text-xs font-medium text-gray-500 mb-1">
+    <div className="space-y-2">
+      <label htmlFor={id} className="block text-sm font-medium text-gray-700">
         {label}
       </label>
       <div className="relative">
@@ -30,21 +28,21 @@ function InputField({ id, label, inputRef, isShown, onToggle, autoComplete, erro
           id={id}
           ref={inputRef}
           type={isShown ? "text" : "password"}
-          className={`w-full px-3 py-2 rounded-lg border-2 bg-white pr-10
-            focus:border-blue-700 focus:ring-0 outline-none
-            ${error ? "border-red-500" : "border-gray-300"}`}
-
+          className={`w-full px-4 py-3 rounded-xl border-2 bg-white pr-12 text-sm
+            focus:border-blue-500 focus:ring-0 outline-none transition-colors
+            ${error ? "border-red-300 bg-red-50" : "border-gray-200 hover:border-gray-300"}`}
           autoComplete={autoComplete}
           inputMode="text"
           spellCheck={false}
           onInput={onInput}
           defaultValue={initValue}
+          placeholder="Ingresa tu contraseña"
         />
         <button
           type="button"
           onMouseDown={(e) => e.preventDefault()}
           onClick={onToggle}
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500"
+          className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors"
         >
           {isShown ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
         </button>
@@ -53,23 +51,29 @@ function InputField({ id, label, inputRef, isShown, onToggle, autoComplete, erro
   );
 }
 
-
-/**
- * PasswordChangeForm (UNIFICADO con toggle)
- * - Si el usuario NO tiene contraseña local: "Crear contraseña" (nueva + confirmar).
- * - Si SÍ tiene: "Cambiar contraseña" (actual + nueva + confirmar).
- * - Si el flag no viene del backend, el usuario puede alternar con un link: Crear/Cambiar.
- * - Conserva texto si hay errores; limpia solo en éxito; tooltips se autocierran a los 4s.
- */
 export default function PasswordChangeForm({ onSubmit }) {
   const { autenticado, usuario } = useAuth() || {};
-  const [show, setShow] = useState({ a: true, n: true, c: true });
+  const [show, setShow] = useState({ a: false, n: false, c: false });
   const [loading, setLoading] = useState(false);
   const [ok, setOk] = useState(false);
   const [errors, setErrors] = useState({ actual: "", nueva: "", confirmar: "", global: "" });
   const [forceCreate, setForceCreate] = useState(false);
-  const [open, setOpen] = useState(false); // cerrado por defecto
+  const { isOpen, toggle } = useAccordionSection('password');
+  const containerRef = useRef(null);
 
+  // Auto-scroll centrado cuando se expande
+  useEffect(() => {
+    if (isOpen && containerRef.current) {
+      const timer = setTimeout(() => {
+        containerRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+          inline: 'nearest'
+        });
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
 
   // Flag del backend (true/false) si existe; undefined en caso contrario
   const backendHasPassword = useMemo(() => {
@@ -201,128 +205,170 @@ export default function PasswordChangeForm({ onSubmit }) {
     }
   };
 
-
+  // Determinar estado para el header
+  const hasPassword = backendHasPassword === true;
+  const status = hasPassword ? "Configurada" : "Sin configurar";
+  const statusColor = hasPassword ? "text-green-600" : "text-amber-600";
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl p-4 space-y-3">
+    <div
+      ref={containerRef}
+      className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 hover:shadow-2xl hover:border-red-300 transition-all duration-300 group"
+    >
+      {/* Header Clickeable - ESTILO PREMIUM CONSISTENTE */}
       <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-4 py-1 mb-2"
+        onClick={toggle}
+        className="w-full px-4 py-4 flex items-center justify-between hover:bg-gradient-to-r hover:from-red-50/50 hover:to-red-50/30 transition-all duration-300 rounded-2xl group"
       >
-        <div className="flex items-center gap-2">
-          <Lock className="w-5 h-5 text-red-600" />
-          <h2 className="text-lg font-semibold text-gray-800">
-            {createMode ? "Crear contraseña" : "Cambiar contraseña"}
-          </h2>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl group-hover:scale-105 transition-all duration-300">
+
+            <Lock className="w-5 h-5 text-red-600" />
+          </div>
+          <div className="text-left">
+            <h3 className="font-bold text-gray-900 text-lg group-hover:text-red-700 transition-colors">
+              {createMode ? "Crear contraseña" : "Cambiar contraseña"}
+            </h3>
+            <p className="text-base font-semibold text-gray-700">
+              Estado: <span className={statusColor}>{status}</span>
+            </p>
+          </div>
         </div>
-        <ChevronDown
-          className={`w-7 h-7 text-gray-500 transition-transform duration-300 ${open ? "rotate-180" : ""
-            }`}
+        <ChevronDown className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
         />
       </button>
 
-      <div
-        className={`transition-all duration-700 overflow-hidden ${open ? "max-h-[1000px] opacity-100" : "max-h-0 opacity-0"
-          }`}
-      >
-        <form onSubmit={submit} className="space-y-5">
-          {/* username oculto */}
-          <input
-            type="text"
-            name="username"
-            autoComplete="username"
-            defaultValue={usuario?.email || ""}
-            className="sr-only"
-            tabIndex={-1}
-            aria-hidden="true"
-          />
+      {/* Contenido Expandible */}
+      {isOpen && (
+        <div className="px-4 pb-5 border-t-2 border-red-100 bg-gradient-to-r from-red-50/20 to-transparent">
+          <div className="pt-4 space-y-4">
 
-          {!createMode && (
-            <InputField
-              id={idActual}
-              label="Contraseña actual"
-              inputRef={refActual}
-              isShown={show.a}
-              onToggle={() => preserveOnToggle("a")}
-              autoComplete="current-password"
-              error={errors.actual}
-              onInput={onAnyInput}
-              initValue={refValues.current.a}
-            />
-          )}
-
-          <InputField
-            id={idNueva}
-            label={createMode ? "Crear contraseña" : "Nueva contraseña"}
-            inputRef={refNueva}
-            isShown={show.n}
-            onToggle={() => preserveOnToggle("n")}
-            autoComplete="new-password"
-            error={errors.nueva}
-            onInput={onAnyInput}
-            initValue={refValues.current.n}
-          />
-          <InputField
-            id={idConfirmar}
-            label="Confirmar nueva contraseña"
-            inputRef={refConfirmar}
-            isShown={show.c}
-            onToggle={() => preserveOnToggle("c")}
-            autoComplete="new-password"
-            error={errors.confirmar}
-            onInput={onAnyInput}
-            initValue={refValues.current.c}
-          />
-
-          {errors.global && (
-            <div className="flex items-center gap-1 text-sm text-red-600">
-              <AlertCircle className="w-4 h-4" /> {errors.global}
+            {/* Estado visual actual */}
+            <div className={`p-3 rounded-lg border ${hasPassword ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+              <div className="flex items-center gap-2">
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center ${hasPassword ? 'bg-green-100' : 'bg-amber-100'}`}>
+                  {hasPassword ? (
+                    <CheckCircle className="w-3 h-3 text-green-600" />
+                  ) : (
+                    <Key className="w-3 h-3 text-amber-600" />
+                  )}
+                </div>
+                <div>
+                  <p className={`text-sm font-medium ${hasPassword ? 'text-green-800' : 'text-amber-800'}`}>
+                    {hasPassword ? 'Contraseña configurada' : 'Sin contraseña local'}
+                  </p>
+                  <p className={`text-xs ${hasPassword ? 'text-green-600' : 'text-amber-600'}`}>
+                    {hasPassword ? 'Puedes cambiarla cuando quieras' : 'Crear una para mayor seguridad'}
+                  </p>
+                </div>
+              </div>
             </div>
-          )}
-          {ok && (
-            <div className="flex items-center gap-1 text-sm text-green-600">
-              <CheckCircle className="w-4 h-4" />{" "}
-              {createMode
-                ? "Contraseña creada correctamente."
-                : "Contraseña actualizada correctamente."}
-            </div>
-          )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2.5 rounded-xl text-white font-semibold 
-             bg-gradient-to-r from-blue-500 to-blue-800
-             hover:from-blue-600 hover:to-blue-900
-             transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {loading ? "Guardando..." : createMode ? "Crear contraseña" : "Cambiar contraseña"}
-          </button>
+            <form onSubmit={submit} className="space-y-4">
+              {/* username oculto */}
+              <input
+                type="text"
+                name="username"
+                autoComplete="username"
+                defaultValue={usuario?.email || ""}
+                className="sr-only"
+                tabIndex={-1}
+                aria-hidden="true"
+              />
 
-          {backendHasPassword === undefined && (
-            <div className="pt-2 text-sm text-gray-500 text-center">
-              {forceCreate ? (
-                <button
-                  type="button"
-                  className="underline hover:text-red-600"
-                  onClick={() => setForceCreate(false)}
-                >
-                  ¿Ya tienes contraseña? Cambiarla
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="underline hover:text-red-600"
-                  onClick={() => setForceCreate(true)}
-                >
-                  ¿No tienes contraseña? Crear una
-                </button>
+              {!createMode && (
+                <InputField
+                  id={idActual}
+                  label="Contraseña actual"
+                  inputRef={refActual}
+                  isShown={show.a}
+                  onToggle={() => preserveOnToggle("a")}
+                  autoComplete="current-password"
+                  error={errors.actual}
+                  onInput={onAnyInput}
+                  initValue={refValues.current.a}
+                />
               )}
-            </div>
-          )}
-        </form>
-      </div>
-    </div >
+
+              <InputField
+                id={idNueva}
+                label={createMode ? "Crear contraseña" : "Nueva contraseña"}
+                inputRef={refNueva}
+                isShown={show.n}
+                onToggle={() => preserveOnToggle("n")}
+                autoComplete="new-password"
+                error={errors.nueva}
+                onInput={onAnyInput}
+                initValue={refValues.current.n}
+              />
+
+              <InputField
+                id={idConfirmar}
+                label="Confirmar nueva contraseña"
+                inputRef={refConfirmar}
+                isShown={show.c}
+                onToggle={() => preserveOnToggle("c")}
+                autoComplete="new-password"
+                error={errors.confirmar}
+                onInput={onAnyInput}
+                initValue={refValues.current.c}
+              />
+
+              {/* Mensajes de estado */}
+              {errors.global && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 rounded-lg border border-red-200">
+                  <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                  <p className="text-sm text-red-700">{errors.global}</p>
+                </div>
+              )}
+
+              {ok && (
+                <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg border border-green-200">
+                  <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+                  <p className="text-sm text-green-700">
+                    {createMode ? "Contraseña creada correctamente." : "Contraseña actualizada correctamente."}
+                  </p>
+                </div>
+              )}
+
+              {/* Botón principal */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full px-4 py-3 rounded-lg text-white font-medium text-sm
+                         bg-blue-600 hover:bg-blue-700 
+                         disabled:opacity-60 disabled:cursor-not-allowed 
+                         transition-colors flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-4 h-4" />
+                    {createMode ? "Crear contraseña" : "Cambiar contraseña"}
+                  </>
+                )}
+              </button>
+
+              {/* Toggle crear/cambiar solo si backend es undefined */}
+              {backendHasPassword === undefined && (
+                <div className="text-center">
+                  <button
+                    type="button"
+                    className="text-xs text-blue-600 hover:text-blue-700 underline"
+                    onClick={() => setForceCreate(!forceCreate)}
+                  >
+                    {forceCreate ? "¿Ya tienes contraseña? Cambiarla" : "¿No tienes contraseña? Crear una"}
+                  </button>
+                </div>
+              )}
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

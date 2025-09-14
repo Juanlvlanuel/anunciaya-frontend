@@ -1,36 +1,46 @@
-
-import React, { useState } from "react";
+import React from "react";
+import { Shield } from "lucide-react";
+import PanelLayoutSections, { sectionConfigs } from "../PanelLayoutSections";
 import PasswordChangeForm from "./PasswordChangeForm";
 import OAuthConnections from "./OAuthConnections";
 import SessionsList from "./SessionsList";
 import TwoFactorSetup from "./TwoFactorSetup";
-import DangerZone from "../Seguridad/DangerZone";
+import DangerZone from "./DangerZone";
 
+// Importar el AccordionController
+import { AccordionProvider } from "../../../components/AccordionController";
 
 export default function SeguridadSection() {
-
-
   return (
-    <div className="p-3 sm:p-6 lg:p-8 grid grid-cols-1 md:grid-cols-2 gap-4 mt-10">
-      <div>
-        <PasswordChangeForm onSubmit={async () => { }} />
-      </div>
+    <PanelLayoutSections
+      icon={Shield}
+      title="Seguridad"
+      subtitle="Configura la protección de tu cuenta"
+      gradientColors={sectionConfigs.seguridad.gradientColors}
+      iconBg={sectionConfigs.seguridad.iconBg}
+      iconAnimation={sectionConfigs.seguridad.iconAnimation}
+    >
+      <AccordionProvider>
+        {/* Layout limpio con spacing uniforme - igual que PerfilSection */}
+        <div className="space-y-6">
+          
+          {/* Cambiar contraseña */}
+          <PasswordChangeForm onSubmit={async () => { }} />
 
-      <div>
-        <OAuthConnections onLink={() => { }} onUnlink={() => { }} />
-      </div>
+          {/* Verificación 2FA */}
+          <TwoFactorSetup />
 
-      <div>
-        <SessionsList onSignOutAll={() => { }} />
-      </div>
+          {/* Sesiones y dispositivos */}
+          <SessionsList onSignOutAll={() => { }} />
 
-      <div>
-        <TwoFactorSetup />
-      </div>
+          {/* Conexiones OAuth */}
+          <OAuthConnections onLink={() => { }} onUnlink={() => { }} />
 
-      <div className="md:col-span-2">
-        <DangerZone onDelete={() => { }} />
-      </div>
-    </div>
+          {/* Zona de peligro */}
+          <DangerZone onDelete={() => { }} />
+          
+        </div>
+      </AccordionProvider>
+    </PanelLayoutSections>
   );
 }

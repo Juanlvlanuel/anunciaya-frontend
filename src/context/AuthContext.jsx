@@ -71,12 +71,37 @@ const limpiarEstadoTemporal = () => {
 
 function enriquecerUsuario(base) {
   if (!base || typeof base !== "object") return base;
-  const accountType = base.accountType ?? base.tipo ?? "usuario";
-  const profileType = base.profileType ?? base.perfil ?? 1;
-  const plan = base.plan ?? "basico";
-  const features = base.features ?? FEATURES_BY_PLAN[plan] ?? {};
-  const abilities = base.abilities ?? ROLE_ABILITIES[accountType] ?? [];
-  return { ...base, accountType, profileType, plan, features, abilities };
+
+  // Solo agregar propiedades si NO existen
+  const enriquecido = { ...base }; // Preservar TODO lo original
+
+  // Solo agregar/normalizar si no existe o es undefined
+  if (!enriquecido.accountType && !enriquecido.tipo) {
+    enriquecido.accountType = "usuario";
+  } else {
+    enriquecido.accountType = enriquecido.accountType ?? enriquecido.tipo ?? "usuario";
+  }
+
+  if (!enriquecido.profileType && !enriquecido.perfil) {
+    enriquecido.profileType = 1;
+  } else {
+    enriquecido.profileType = enriquecido.profileType ?? enriquecido.perfil ?? 1;
+  }
+
+  // Plan y features - solo si no existen
+  if (!enriquecido.plan) {
+    enriquecido.plan = "basico";
+  }
+
+  if (!enriquecido.features) {
+    enriquecido.features = FEATURES_BY_PLAN[enriquecido.plan] ?? {};
+  }
+
+  if (!enriquecido.abilities) {
+    enriquecido.abilities = ROLE_ABILITIES[enriquecido.accountType] ?? [];
+  }
+
+  return enriquecido;
 }
 
 const UBIC_KEY = "AY_ubicacion";
@@ -371,7 +396,9 @@ const AuthProvider = ({ children }) => {
     try { removeFlag && removeFlag("logoutAt"); } catch { }
     hidratarEnSegundoPlano(token);
     limpiarEstadoTemporal();
+
   };
+
 
   const cerrarSesion = async () => {
     try { clearSessionCache(); } catch { }
@@ -426,7 +453,7 @@ const AuthProvider = ({ children }) => {
       try {
         const res = await axios.post(
           `${API_BASE}/api/usuarios/login`,
-          payload,    
+          payload,
           {
             withCredentials: true,
             headers: {

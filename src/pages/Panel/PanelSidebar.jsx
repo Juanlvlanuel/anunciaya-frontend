@@ -1,72 +1,249 @@
-// src/pages/Panel/PanelSidebar-1.jsx
-import React, { useEffect, useMemo, useState } from "react";
+// src/pages/Panel/PanelSidebar.jsx - Sin Banner Superior
+import React, { useEffect, useMemo, useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  Home, User, Shield, Megaphone, Store, Bell, Crown, HelpCircle,
+  LogOut, ChevronDown, Menu, Ticket, ShoppingBag, Zap, Star
+} from "lucide-react";
+import AvatarUploader from "./Perfil/AvatarUploader";
+import { AuthContext } from "../../context/AuthContext";
+import { setSuppressLoginOnce, setFlag } from "../../utils/authStorage";
 
-const ICON_BASE = "/icons/PanelUsuarios/menu-inicio";
+// Header con gradiente azul y efectos como PanelLayoutSections
+const CleanUserHeader = ({ user }) => {
+  const planType = user?.planType || user?.plan || "BÃ¡sico";
 
-function Avatar({ src, nombre = "Usuario", size = 64 }) {
-  const fallback = nombre?.[0]?.toUpperCase?.() || "U";
-  if (src) {
-    return (
-      <img
-        src={src}
-        alt={nombre}
-        width={50}
-        height={50}
-        className="rounded-full object-cover border-2 border-white shadow-md"
-        loading="lazy"
-      />
-    );
-  }
   return (
-    <div
-      style={{ width: size, height: size }}
-      className="rounded-full bg-blue-600 text-white grid place-items-center font-bold text-xl shadow-md"
-      aria-label={nombre}
-    >
-      {fallback}
+    <div className="px-3 pt-2 pb-2 relative overflow-hidden" style={{
+      background: 'linear-gradient(to right, #1e3a8a, #7c3aed, #4338ca)'
+    }}>
+      {/* Efectos de burbujas animadas - igual que PanelLayoutSections */}
+      <div className="absolute inset-0 opacity-20">
+        <div
+          className="absolute w-10 h-10 rounded-full shadow-xl border border-white/20"
+          style={{
+            top: '8px',
+            left: '10%',
+            backgroundColor: 'rgba(125, 211, 252, 0.6)',
+            animation: 'bounce 2.5s infinite'
+          }}
+        ></div>
+        <div
+          className="absolute w-8 h-8 rounded-full shadow-lg"
+          style={{
+            top: '12px',
+            right: '15%',
+            backgroundColor: 'rgba(191, 219, 254, 0.7)',
+            animation: 'pulse 1.8s infinite 0.4s'
+          }}
+        ></div>
+        <div
+          className="absolute w-6 h-6 rounded-full shadow-md"
+          style={{
+            bottom: '8px',
+            left: '60%',
+            backgroundColor: 'rgba(165, 243, 252, 0.8)',
+            animation: 'ping 2s infinite'
+          }}
+        ></div>
+      </div>
+
+      <div className="relative z-10 space-y-2">
+        <div className="flex flex-col items-center">
+          <div className="relative z-20">
+            <AvatarUploader
+              initialUrl={user?.fotoPerfil}
+              size="medium"
+              onChange={() => { }}
+            />
+          </div>
+        </div>
+
+        <div className="text-center space-y-1">
+          <div className="text-white font-bold text-sm">
+            {user?.nombre?.split(" ")?.slice(0, 2)?.join(" ") || "Usuario"}
+          </div>
+          <div className="flex items-center justify-center gap-1">
+            <div className={`text-xs px-2 py-0.5 rounded-full font-semibold ${planType === "PRO" || planType === "Empresarial"
+                ? "bg-amber-400 text-amber-900"
+                : planType === "Negocio"
+                  ? "bg-blue-400 text-blue-900"
+                  : "bg-gray-200 text-gray-800"
+              }`}>
+              {planType}
+            </div>
+            {planType !== "Básico" && <Star className="w-3 h-3 text-amber-300" />}
+          </div>
+        </div>
+      </div>
     </div>
   );
-}
+};
 
-export default function PanelSidebar({ activeKey, onSelect, user, onLogout }) {
-  // Estilos anti-animación para todo el subárbol del sidebar
-  const NoAnimStyles = () => (
-    <style>{`.no-anim, .no-anim * { transition: none !important; animation: none !important; }`}</style>
-  );
-
+export default function PanelSidebar({ activeKey, onSelect, user }) {
   const navigate = useNavigate();
+  const { cerrarSesion } = useContext(AuthContext) || {};
 
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== "undefined" ? window.matchMedia("(max-width: 767px)").matches : true
   );
+
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [openKey, setOpenKey] = useState("");
+
+  // Detectar cambios mobile
   useEffect(() => {
     if (typeof window === "undefined") return;
     const mq = window.matchMedia("(max-width: 767px)");
     const handle = (e) => setIsMobile(e.matches);
-    try { mq.addEventListener("change", handle); } catch { mq.addListener(handle); }
+
+    try {
+      mq.addEventListener("change", handle);
+    } catch {
+      mq.addListener(handle);
+    }
+
     return () => {
-      try { mq.removeEventListener("change", handle); } catch { mq.removeListener(handle); }
+      try {
+        mq.removeEventListener("change", handle);
+      } catch {
+        mq.removeListener(handle);
+      }
     };
   }, []);
 
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(() => {
-    try { return localStorage.getItem("panelSidebarCollapsed") === "1"; } catch { return false; }
-  });
+  // Contraer subcategorías cuando se cierra el drawer
   useEffect(() => {
-    try { localStorage.setItem("panelSidebarCollapsed", collapsed ? "1" : "0"); } catch {}
-  }, [collapsed]);
+    if (!drawerOpen) {
+      setOpenKey(""); // Cierra todas las subcategorías
+    }
+  }, [drawerOpen]);
 
-  const [openKey, setOpenKey] = useState("publicaciones");
+  // Función de logout funcional
+  const handleLogout = async () => {
+    try {
+      setSuppressLoginOnce(true);
+      setFlag("logoutAt", String(Date.now()));
+    } catch { }
+    try {
+      await cerrarSesion?.();
+    } catch { }
+    try {
+      navigate("/", { replace: true, state: { showLogin: false } });
+    } catch { }
+  };
 
+  // Items CON logout integrado
+  const items = useMemo(() => ([
+    {
+      key: "inicio",
+      label: "Inicio",
+      icon: Home,
+      color: "text-green-600",
+      bgColor: "bg-green-50",
+      hoverColor: "hover:bg-green-100",
+      onClick: () => onSelect?.("inicio")
+    },
+    {
+      key: "perfil",
+      label: "Perfil",
+      icon: User,
+      color: "text-blue-600",
+      bgColor: "bg-blue-50",
+      hoverColor: "hover:bg-blue-100",
+      onClick: () => onSelect?.("perfil")
+    },
+    {
+      key: "seguridad",
+      label: "Seguridad",
+      icon: Shield,
+      color: "text-red-600",
+      bgColor: "bg-red-50",
+      hoverColor: "hover:bg-red-100",
+      onClick: () => onSelect?.("seguridad")
+    },
+    {
+      key: "publicaciones",
+      label: "Publicaciones",
+      icon: Megaphone,
+      color: "text-purple-600",
+      bgColor: "bg-purple-50",
+      hoverColor: "hover:bg-purple-100",
+      children: [
+        { key: "cupones", label: "Cupones", icon: Ticket, onClick: () => onSelect?.("historial") },
+        { key: "marketplace", label: "Marketplace", icon: ShoppingBag, onClick: () => onSelect?.("historial") },
+        { key: "promociones", label: "Promociones", icon: Zap, onClick: () => onSelect?.("historial") },
+      ],
+    },
+    {
+      key: "negocios",
+      label: "Negocios",
+      icon: Store,
+      color: "text-indigo-600",
+      bgColor: "bg-indigo-50",
+      hoverColor: "hover:bg-indigo-100",
+      children: [
+        { key: "mis-negocios", label: "Mis negocios", icon: Store, onClick: () => navigate("/panel/mis-negocios") },
+        { key: "nuevo-negocio", label: "Crear negocio", icon: Store, onClick: () => navigate("/panel/mis-negocios/nuevo") },
+      ],
+    },
+    {
+      key: "notificaciones",
+      label: "Notificaciones",
+      icon: Bell,
+      color: "text-amber-600",
+      bgColor: "bg-amber-50",
+      hoverColor: "hover:bg-amber-100",
+      onClick: () => onSelect?.("notificaciones")
+    },
+    {
+      key: "plan",
+      label: "Mi Plan",
+      icon: Crown,
+      color: "text-cyan-600",
+      bgColor: "bg-cyan-50",
+      hoverColor: "hover:bg-cyan-100",
+      onClick: () => onSelect?.("plan")
+    },
+    {
+      key: "soporte",
+      label: "Soporte",
+      icon: HelpCircle,
+      color: "text-gray-600",
+      bgColor: "bg-gray-50",
+      hoverColor: "hover:bg-gray-100",
+      onClick: () => onSelect?.("soporte")
+    },
+    // LOGOUT como último item
+    {
+      key: "logout",
+      label: "Cerrar Sesión",
+      icon: LogOut,
+      color: "text-white",
+      bgColor: "bg-gradient-to-r from-red-500 to-red-600",
+      hoverColor: "hover:from-red-600 hover:to-red-700",
+      isLogout: true,
+      onClick: handleLogout
+    },
+  ]), [navigate, onSelect, handleLogout]);
+
+  const isActive = (k) => activeKey === k;
+  const run = (fn) => () => { fn?.(); if (isMobile) setDrawerOpen(false); };
+
+  // Eventos
   useEffect(() => {
-    const toggle = () => { if (isMobile) setDrawerOpen(v => !v); else setCollapsed(v => !v); };
+    const toggle = () => {
+      if (isMobile) setDrawerOpen(v => !v);
+      else setCollapsed(v => !v);
+    };
     const openS = () => (isMobile ? setDrawerOpen(true) : setCollapsed(false));
     const closeS = () => (isMobile ? setDrawerOpen(false) : setCollapsed(true));
+
     window.addEventListener("panel:toggleSidebar", toggle);
     window.addEventListener("panel:openSidebar", openS);
     window.addEventListener("panel:closeSidebar", closeS);
+
     return () => {
       window.removeEventListener("panel:toggleSidebar", toggle);
       window.removeEventListener("panel:openSidebar", openS);
@@ -74,145 +251,109 @@ export default function PanelSidebar({ activeKey, onSelect, user, onLogout }) {
     };
   }, [isMobile]);
 
-  
-  const items = useMemo(() => ([
-    { key: "inicio", label: "Inicio", icon: "inicio.png", onClick: () => onSelect?.("inicio") },
-    { key: "perfil", label: "Perfil", icon: "perfil.png", onClick: () => onSelect?.("perfil") },
-    { key: "seguridad", label: "Seguridad", icon: "seguridad.png", onClick: () => onSelect?.("seguridad") },
-    {
-      key: "publicaciones",
-      label: "Publicaciones",
-      icon: "publicaciones.png",
-      children: [
-        { key: "cupones", label: "Cupones", onClick: () => onSelect?.("historial") },
-        { key: "marketplace", label: "Marketplace", onClick: () => onSelect?.("historial") },
-        { key: "promociones", label: "Promociones", onClick: () => onSelect?.("historial") },
-      ],
-    },
-    {
-      key: "negocios",
-      label: "Negocios",
-      icon: "negocios.png",
-      children: [
-        { key: "mis-negocios", label: "Mis negocios", onClick: () => navigate("/panel/mis-negocios") },
-        { key: "nuevo-negocio", label: "Crear negocio", onClick: () => navigate("/panel/mis-negocios/nuevo") },
-      ],
-    },
-    { key: "notificaciones", label: "Notificaciones", icon: "notificaciones.png", onClick: () => onSelect?.("notificaciones") },
-    { key: "plan", label: "Mi Plan", icon: "plan.png", onClick: () => onSelect?.("plan") },
-    { key: "soporte", label: "Soporte", icon: "soporte.png", onClick: () => onSelect?.("soporte") },
-  ]), [navigate, onSelect]);
-const isActive = (k) => activeKey === k;
-  const run = (fn) => () => { fn?.(); if (isMobile) setDrawerOpen(false); };
-
-  const RowCategory = ({ item }) => {
-    const hasChildren = !!item.children?.length;
-    const isOpen = openKey === item.key;
-    return (
-      <div className="select-none">
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={() => { hasChildren ? setOpenKey(prev => prev === item.key ? "" : item.key) : run(item.onClick)(); }}
-          onKeyDown={(e) => { if (e.key === "Enter") { hasChildren ? setOpenKey(prev => prev === item.key ? "" : item.key) : run(item.onClick)(); } }}
-          className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border border-transparent cursor-pointer
-            ${isActive(item.key) ? "bg-blue-50/70" : "bg-transparent"}`}
-        >
-          <img src={`${ICON_BASE}/${item.icon}`} alt="" width={25} height={25} className="opacity-80" />
-          <div className="flex-1 min-w-0 text-sm font-medium text-slate-800 truncate">{item.label}</div>
-          {hasChildren && (
-            <svg
-              className={`w-4 h-4 text-slate-500 ${isOpen ? "rotate-180" : ""}`}
-              style={{ transition: "none" }}
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clipRule="evenodd" />
-            </svg>
-          )}
-        </div>
-
-        {/* Sublista SIEMPRE montada para evitar parpadeos por mount/unmount */}
-        {hasChildren && (
-          <ul
-            className="pl-6 py-1 space-y-1 no-anim"
-            style={{ display: isOpen ? "block" : "none" }}
-          >
-            {item.children.map((child) => (
-              <li key={child.key}>
-                <div
-                  className="pl-2 pr-1 py-1 text-[13px] text-slate-700 hover:text-blue-700 cursor-pointer rounded-md"
-                  onClick={run(child.onClick)}
-                >
-                  {child.label}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-        <div className="my-1 h-px bg-slate-100" />
-      </div>
-    );
-  };
-
-  const DrawerInner = (
-    <div className="no-anim flex flex-col h-full bg-white">
-      {/* Header: avatar y nombre centrados */}
-      <div className="px-3 pt-3 pb-2 border-b border-black/5">
-        <div className="flex items-center justify-center">
-          <div className="flex flex-col items-center gap-2">
-            <Avatar src={user?.fotoPerfil} nombre={user?.nombre || "Usuario"} />
-            <div className="text-base font-semibold leading-tight bg-gradient-to-r from-blue-700 to-violet-500 text-transparent bg-clip-text text-center">
-              {user?.nombre?.split(" ")?.slice(0,2)?.join(" ") || "Usuario"}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Lista */}
-      <div className="flex-1 overflow-y-auto p-3">
-        {items.map((it) => (
-          <RowCategory key={it.key} item={it} />
-        ))}
-      </div>
-
-      {/* "Cerrar sesión" al final */}
-      <div
-        className="px-3 pb-4 border-t border-black/5 bg-white"
-        style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)" }}
-      >
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={() => { if (onLogout) onLogout(); else navigate("/logout"); }}
-          className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-transparent text-red-700 cursor-pointer"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6A2.25 2.25 0 005.25 5.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9l3 3m0 0l-3 3m3-3H3" />
-          </svg>
-          <span className="flex-1 min-w-0 text-sm font-medium truncate">Cerrar sesión</span>
-        </div>
-      </div>
-    </div>
-  );
-
   if (isMobile) {
     return (
       <>
         {drawerOpen && (
           <>
-            <NoAnimStyles />
+            {/* Overlay */}
             <div
-              className="fixed left-0 right-0 z-30 bg-black/30 no-anim"
-              style={{ top: "108px", bottom: 0 }}
+              className="fixed left-0 right-0 z-30 bg-black/40 backdrop-blur-sm"
+              style={{ top: "105px", bottom: 0 }}
               onClick={() => setDrawerOpen(false)}
             />
+
+            {/* Sidebar principal - SIN BANNER SUPERIOR */}
             <aside
-              className="fixed left-0 z-40 w-[45vw] max-w-[260px] bg-white shadow-2xl border-r border-black/10 no-anim"
-              style={{ top: "108px", height: "76vh" }}
+              className="fixed left-0 z-40 w-[220px] bg-white shadow-2xl border-r border-gray-200 rounded-r-xl animate-in slide-in-from-left duration-300"
+              style={{
+                top: "105px", // Directamente desde el HeaderLogeadoMobile
+                height: "calc(100vh - 105px - 110px)" // Sin espacio para banner
+              }}
             >
-              {DrawerInner}
+              <div className="flex flex-col h-full">
+                <div className="flex-shrink-0">
+                  <CleanUserHeader user={user} />
+                </div>
+
+                <div className="flex-1 overflow-y-auto px-2 py-1 space-y-1">
+                  {items.map((item, index) => {
+                    const hasChildren = !!item.children?.length;
+                    const isOpen = openKey === item.key;
+                    const IconComponent = item.icon;
+                    const active = isActive(item.key);
+                    const isLogout = item.isLogout;
+                    const showSeparator = isLogout && index > 0;
+
+                    return (
+                      <div key={item.key} className="select-none">
+                        {showSeparator && (
+                          <div className="my-2 mx-2 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent opacity-60" />
+                        )}
+
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => {
+                            hasChildren ? setOpenKey(prev => prev === item.key ? "" : item.key) : run(item.onClick)();
+                          }}
+                          className={`group flex items-center gap-3 px-2 py-1.5 rounded-lg cursor-pointer transition-all duration-300 ${isLogout
+                              ? `${item.bgColor} ${item.hoverColor} shadow-lg hover:shadow-xl hover:scale-[1.02] border border-red-200`
+                              : active
+                                ? `${item.bgColor} border ${item.color.replace('text-', 'border-')} shadow-md`
+                                : `${item.hoverColor} border border-transparent`
+                            }`}
+                        >
+                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-300 ${isLogout
+                              ? 'bg-white/20 shadow-md'
+                              : item.bgColor
+                            }`}>
+                            <IconComponent className={`w-5 h-5 ${isLogout ? 'text-white' : item.color
+                              }`} />
+                          </div>
+
+                          <div className={`flex-1 min-w-0 text-base font-semibold truncate transition-colors ${isLogout
+                              ? 'text-white'
+                              : 'text-gray-800'
+                            }`}>
+                            {item.label}
+                          </div>
+
+                          {hasChildren && (
+                            <ChevronDown
+                              className={`w-5 h-5 text-gray-400 transition-all duration-300 ${isOpen ? 'rotate-180' : ''
+                                }`}
+                            />
+                          )}
+                        </div>
+
+                        {hasChildren && (
+                          <div
+                            className={`ml-8 mt-1 space-y-1 transition-all duration-300 ${isOpen ? 'opacity-100 max-h-96' : 'opacity-0 max-h-0 overflow-hidden'
+                              }`}
+                          >
+                            {item.children.map((child) => {
+                              const ChildIcon = child.icon;
+                              return (
+                                <div
+                                  key={child.key}
+                                  className="group flex items-center gap-2.5 px-2 py-1 text-gray-700 hover:text-gray-900 hover:bg-gray-50 cursor-pointer rounded-lg transition-all duration-300"
+                                  onClick={run(child.onClick)}
+                                >
+                                  <div className="w-6 h-6 bg-gray-100 rounded-md flex items-center justify-center group-hover:bg-gray-200 transition-colors">
+                                    <ChildIcon className="w-4 h-4 text-gray-500 group-hover:text-gray-700" />
+                                  </div>
+                                  <span className="font-medium text-base">{child.label}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </aside>
           </>
         )}
@@ -220,56 +361,94 @@ const isActive = (k) => activeKey === k;
     );
   }
 
-  // Desktop (sin transiciones)
+  // Desktop sin header animado superior
   return (
-    <>
-      <NoAnimStyles />
-      <aside className={`no-anim ${collapsed ? "w-[72px]" : "w-[260px]"} shrink-0`}>
-        <div className="mb-3 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setCollapsed((v) => !v)}
-            className="inline-flex items-center gap-2 rounded-xl border border-black/5 bg-white shadow-sm px-3 py-2 text-sm font-medium no-anim"
-          >
-            <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-blue-600 text-white">
-              <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor"><path d="M3 6h14M3 10h10M3 14h14"/></svg>
-            </span>
-            {!collapsed && <span>Menú</span>}
-          </button>
-        </div>
-
-        {!collapsed && (
-          <div className="px-3 pb-2 flex flex-col items-center">
-            <Avatar src={user?.fotoPerfil} nombre={user?.nombre || "Usuario"} size={56} />
-            <div className="mt-2 text-sm font-semibold text-slate-800 truncate text-center">
-              {user?.nombre?.split(" ")?.slice(0,2)?.join(" ") || "Usuario"}
-            </div>
+    <aside className="w-[220px] shrink-0">
+      <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden" style={{ height: 'calc(100vh - 100px)' }}>
+        <div className="flex flex-col h-full">
+          <div className="flex-shrink-0">
+            <CleanUserHeader user={user} />
           </div>
-        )}
 
-        <div className="px-3 pt-1">
-          {items.map((it) => (
-            <RowCategory key={it.key} item={it} />
-          ))}
-        </div>
+          <div className="flex-1 overflow-y-auto px-2 py-2 space-y-1">
+            {items.map((item, index) => {
+              const hasChildren = !!item.children?.length;
+              const isOpen = openKey === item.key;
+              const IconComponent = item.icon;
+              const active = isActive(item.key);
+              const isLogout = item.isLogout;
+              const showSeparator = isLogout && index > 0;
 
-        {!collapsed && (
-          <div className="mt-auto p-3">
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={() => { if (onLogout) onLogout(); else navigate("/logout"); }}
-              className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-transparent text-red-700 cursor-pointer"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6A2.25 2.25 0 005.25 5.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9l3 3m0 0l-3 3m3-3H3" />
-              </svg>
-              <span className="flex-1 min-w-0 text-sm font-medium truncate">Cerrar sesión</span>
-            </div>
+              return (
+                <div key={item.key} className="select-none">
+                  {showSeparator && (
+                    <div className="my-2 mx-2 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent opacity-60" />
+                  )}
+
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      hasChildren ? setOpenKey(prev => prev === item.key ? "" : item.key) : run(item.onClick)();
+                    }}
+                    className={`group flex items-center gap-3 px-2 py-1.5 rounded-lg cursor-pointer transition-all duration-300 ${isLogout
+                        ? `${item.bgColor} ${item.hoverColor} shadow-lg hover:shadow-xl hover:scale-[1.02] border border-red-200`
+                        : active
+                          ? `${item.bgColor} border ${item.color.replace('text-', 'border-')} shadow-md`
+                          : `${item.hoverColor} border border-transparent`
+                      }`}
+                  >
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-300 ${isLogout
+                        ? 'bg-white/20 shadow-md'
+                        : item.bgColor
+                      }`}>
+                      <IconComponent className={`w-5 h-5 ${isLogout ? 'text-white' : item.color
+                        }`} />
+                    </div>
+
+                    <div className={`flex-1 min-w-0 text-base font-semibold truncate transition-colors ${isLogout
+                        ? 'text-white'
+                        : 'text-gray-800'
+                      }`}>
+                      {item.label}
+                    </div>
+
+                    {hasChildren && (
+                      <ChevronDown
+                        className={`w-5 h-5 text-gray-400 transition-all duration-300 ${isOpen ? 'rotate-180' : ''
+                          }`}
+                      />
+                    )}
+                  </div>
+
+                  {hasChildren && (
+                    <div
+                      className={`ml-8 mt-1 space-y-1 transition-all duration-300 ${isOpen ? 'opacity-100 max-h-96' : 'opacity-0 max-h-0 overflow-hidden'
+                        }`}
+                    >
+                      {item.children.map((child) => {
+                        const ChildIcon = child.icon;
+                        return (
+                          <div
+                            key={child.key}
+                            className="group flex items-center gap-2.5 px-2 py-1 text-gray-700 hover:text-gray-900 hover:bg-gray-50 cursor-pointer rounded-lg transition-all duration-300"
+                            onClick={run(child.onClick)}
+                          >
+                            <div className="w-6 h-6 bg-gray-100 rounded-md flex items-center justify-center group-hover:bg-gray-200 transition-colors">
+                              <ChildIcon className="w-4 h-4 text-gray-500 group-hover:text-gray-700" />
+                            </div>
+                            <span className="font-medium text-base">{child.label}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        )}
-      </aside>
-    </>
+        </div>
+      </div>
+    </aside>
   );
 }

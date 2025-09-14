@@ -8,6 +8,8 @@
   <meta name="theme-color" content="#000000" />
 
   <!-- 🔇 Silenciador global: console + errores no capturados (desde el arranque) -->
+  <!-- Solo la sección del script silenciador, reemplaza en tu index.html -->
+
   <script>
     (function () {
       try {
@@ -27,6 +29,11 @@
           "[vite] connected",
           "[vite] hot updated",
           "[vite] page reload",
+          // setInterval violations (nuevo)
+          "setInterval",
+          "handler took",
+          "Violation",
+          "passive event listener", // touchstart/wheel violations
         ];
 
         function includesAny(txt) {
@@ -36,8 +43,11 @@
           }
           // Extra: ignora cualquier mensaje que empiece con "[vite] "
           if (/^\s*\[vite\]\s/i.test(txt)) return true;
+          // Ignora violations de performance
+          if (/^\s*\[Violation\]/i.test(txt)) return true;
           return false;
         }
+
         function toText(args) {
           try {
             return Array.prototype.map.call(args, function (a) {
@@ -84,7 +94,6 @@
 
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
   <link rel="preload" as="image" href="/logo-anunciaya.webp" />
-  <link rel="preload" as="image" href="/fondo-inicio-mobile.webp" />
   <title>AnunciaYA</title>
 
 

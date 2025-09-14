@@ -1,17 +1,11 @@
-// PerfilDatosForm-1.jsx (final)
-// - Bandera fija según selección del usuario (no cambia al escribir)
-// - Input muestra SOLO número local (lada va en el recuadro de la bandera)
-// - Guarda/usa siempre teléfono normalizado en E.164 (+<lada><número>)
-
+// src/pages/Panel/Perfil/PerfilDatosFormOptimized.jsx
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../../../context/AuthContext";
 import CiudadesAutocompleteGoogle from "../../../modals/CiudadesAutocompleteGoogle.jsx";
-import { FiMapPin, FiCheckCircle, FiAlertCircle, FiClock } from "react-icons/fi";
+import { MapPin, CheckCircle, AlertCircle, Phone, User, Save, Loader2 } from "lucide-react";
 import TelefonoVerificacionModal from "./TelefonoVerificacionModal.jsx";
 import { clearSessionCache, getJSON } from "../../../services/api";
 import { setAuthSession } from "../../../utils/authStorage";
-
-// ✅ Librería que NO cambia la bandera al teclear
 import { PhoneInput } from "react-international-phone";
 import "react-international-phone/style.css";
 
@@ -20,7 +14,7 @@ const toE164 = (s = "") => {
   return v.startsWith("+") ? v : v ? `+${v.replace(/\D/g, "")}` : "";
 };
 
-export default function PerfilDatosForm({ initial = {}, onSubmit }) {
+export default function PerfilDatosFormOptimized({ initial = {}, onSubmit, compact = false }) {
   const {
     usuario,
     ciudadPreferida,
@@ -29,9 +23,7 @@ export default function PerfilDatosForm({ initial = {}, onSubmit }) {
     forceUbicacionActual,
   } = useAuth() || {};
 
-  // Estado controlado del país para evitar cambios no deseados
   const [country, setCountry] = useState("mx");
-
   const [form, setForm] = useState({
     nombre: initial.nombre || "",
     telefono: initial.telefono || "",
@@ -44,7 +36,6 @@ export default function PerfilDatosForm({ initial = {}, onSubmit }) {
   const [phoneState, setPhoneState] = useState("idle");
   const [showPhoneModal, setShowPhoneModal] = useState(false);
 
-  // Sincronizar con AuthContext al hidratar/actualizar
   useEffect(() => {
     setForm((f) => ({
       ...f,
@@ -52,21 +43,13 @@ export default function PerfilDatosForm({ initial = {}, onSubmit }) {
       telefono: (initial.telefono ?? usuario?.telefono) || f.telefono || "",
       ciudad: (initial.ciudad ?? ciudadPreferida) || f.ciudad || "",
     }));
-    // setear país por defecto según teléfono guardado
     const tel = (initial.telefono ?? usuario?.telefono) || "";
     if (tel.startsWith("+")) {
-      // heurística simple para México/USA/España, si quieres amplía
       if (tel.startsWith("+52")) setCountry("mx");
       else if (tel.startsWith("+1")) setCountry("us");
       else if (tel.startsWith("+34")) setCountry("es");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [usuario?.nombre, usuario?.telefono, ciudadPreferida]);
-
-  useEffect(() => {
-    setForm((f) => (f.ciudad ? f : { ...f, ciudad: ciudadPreferida || "" }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ciudadPreferida]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -99,12 +82,9 @@ export default function PerfilDatosForm({ initial = {}, onSubmit }) {
         setCiudadManual && setCiudadManual(label);
         setStatus("ok");
       } else {
-        // Log ligero para depurar si alguna vez falla
-        try { console.debug("[ubicacion] sin ciudad detectada en payload/respuesta", res); } catch {}
         setStatus("fail");
       }
     } catch (e) {
-      try { console.warn("[ubicacion] error al detectar ubicación actual", e); } catch {}
       setStatus("fail");
     } finally {
       setGpsLoading(false);
@@ -130,163 +110,156 @@ export default function PerfilDatosForm({ initial = {}, onSubmit }) {
     !!usuario?.telefonoVerificado && toE164(form.telefono) === toE164(telefonoUsuario);
 
   const handleVerified = async () => {
-    try { clearSessionCache(); } catch { }
+    try { clearSessionCache(); } catch {}
     try {
       const s = await getJSON(`/api/usuarios/session`, { headers: {}, credentials: "include" });
       const u = s?.usuario;
       if (u) {
-        try { localStorage.setItem("usuario", JSON.stringify(u)); } catch { }
+        try { localStorage.setItem("usuario", JSON.stringify(u)); } catch {}
         try {
           const token = (typeof localStorage !== "undefined" && localStorage.getItem("token")) || null;
           setAuthSession && setAuthSession({ accessToken: token, user: u });
-        } catch { }
+        } catch {}
         setForm((f) => ({ ...f, telefono: u.telefono || f.telefono }));
       }
-    } catch { }
+    } catch {}
     setPhoneState("verified");
     setShowPhoneModal(false);
   };
 
+  const fieldSpacing = compact ? "space-y-3" : "space-y-4";
+  const inputHeight = compact ? "h-10" : "h-12";
+
   return (
-    <div className="relative">
-      <div className="p-[1px] rounded-2xl bg-gradient-to-r from-sky-400/25 via-fuchsia-400/25 to-amber-400/25">
-        <div className="rounded-2xl bg-white/70 backdrop-blur-md border border-white/50 ring-1 ring-black/5 shadow-[0_10px_30px_rgba(16,24,40,0.08)]">
-          <form onSubmit={submit} className="p-5 sm:p-6 space-y-5">
-            {/* Nombre */}
-            <div className="grid gap-2">
-              <label className="text-[14px] font-semibold text-black">Nombre</label>
-              <input
-                type="text"
-                name="nombre"
-                value={form.nombre}
-                onChange={handleChange}
-                className="w-full rounded-xl border border-white/70 bg-white/70 backdrop-blur-sm px-3 py-3 text-[15.5px] text-slate-900 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-sky-300 focus:border-sky-300"
+    <div className={fieldSpacing}>
+      <form onSubmit={submit} className={fieldSpacing}>
+        {/* Nombre */}
+        <div className="space-y-1">
+          <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
+            <User className="w-3 h-3" />
+            Nombre completo
+          </label>
+          <input
+            type="text"
+            name="nombre"
+            value={form.nombre}
+            onChange={handleChange}
+            className={`w-full px-3 py-2 ${inputHeight} border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm`}
+            placeholder="Tu nombre completo"
+          />
+        </div>
+
+        {/* Teléfono compacto */}
+        <div className="space-y-1">
+          <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
+            <Phone className="w-3 h-3" />
+            Teléfono
+          </label>
+          <div className="flex items-center gap-2">
+            <div className="flex-1">
+              <PhoneInput
+                defaultCountry="mx"
+                countrySelectorScrollable
+                separateDialCode
+                value={form.telefono}
+                onChange={(value) => {
+                  setForm((f) => ({ ...f, telefono: toE164(value) }));
+                  setPhoneState("idle");
+                }}
+                onCountryChange={(c) => setCountry(c)}
+                preferredCountries={["mx", "us", "es"]}
+                className="!w-full"
+                inputClassName={`!w-full !${inputHeight} !border !border-gray-200 !rounded-lg !px-3 !text-sm !text-gray-900 !focus:ring-2 !focus:ring-blue-500 !focus:border-blue-500`}
+                countrySelectorStyleProps={{
+                  buttonClassName: `!${inputHeight} !border !border-gray-200 !rounded-lg !px-2 !text-sm`,
+                  dropdownClassName: "!rounded-lg !shadow-lg !border !border-gray-200 !text-sm",
+                }}
+                placeholder="Número sin lada"
               />
             </div>
 
-            {/* Teléfono */}
-            <div className="grid gap-2">
-              <label className="text-[14px] font-semibold text-black">Teléfono</label>
-              <div className="flex items-center gap-2.5">
-                {/* Bandera fija; input solo número local; valor en E.164 */}
-                <div className="flex-1">
-                  <PhoneInput
-                    defaultCountry="mx"
-                    countrySelectorScrollable
-                    separateDialCode
-                    value={form.telefono} // esta lib entrega/espera E.164 (+52...)
-                    onChange={(value) => {
-                      // value ya viene en E.164 con la lada del país seleccionado
-                      setForm((f) => ({ ...f, telefono: toE164(value) }));
-                      setPhoneState("idle");
-                    }}
-                    onCountryChange={(c) => setCountry(c)} // por si quieres usarlo más tarde
-                    preferredCountries={["mx", "us", "es"]}
-                    className="!w-full"
-                    inputClassName="!w-full !h-[46px] !rounded-xl !border !border-white/70 !bg-white/70 !backdrop-blur-sm !px-3 !text-[15.5px] !text-black !outline-none focus:!ring-2 focus:!ring-sky-200"
-                    countrySelectorStyleProps={{
-                      buttonClassName:
-                        "!h-[46px] !rounded-xl !bg-white/70 !border !border-white/70 !backdrop-blur-sm !px-2",
-                      dropdownClassName: "!rounded-xl !shadow-lg",
-                      searchBoxClassName: "!rounded-lg",
-                    }}
-                    placeholder="Número sin lada"
-                  />
-                </div>
-
-                {isVerifiedReal ? (
-                  <span className="h-[42px] w-[42px] flex items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-[0_4px_12px_rgba(16,185,129,0.45)]">
-                    <FiCheckCircle className="h-6 w-6 text-white" />
-                  </span>
-                ) : phoneState === "sent" ? (
-                  <button
-                    type="button"
-                    onClick={() => setShowPhoneModal(true)}
-                    className="h-[46px] inline-flex items-center gap-1.5 px-3 rounded-xl text-[13px] font-medium text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100 whitespace-nowrap"
-                  >
-                    <FiClock className="h-4 w-4" /> Pendiente
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setShowPhoneModal(true)}
-                    className="h-[46px] inline-flex items-center justify-center px-4 rounded-xl text-[13px] font-semibold text-white bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700 active:scale-[.98] whitespace-nowrap shadow-[0_6px_16px_rgba(2,132,199,0.20)]"
-                  >
-                    Verificar
-                  </button>
-                )}
+            {isVerifiedReal ? (
+              <div className={`${inputHeight} w-10 bg-green-50 rounded-lg flex items-center justify-center`}>
+                <CheckCircle className="w-4 h-4 text-green-600" />
               </div>
-            </div>
-
-            {/* Mi Ciudad */}
-            <div className="grid gap-2">
-              <label className="text-[14px] font-semibold text-black">Mi Ciudad</label>
-              <div className="grid gap-3">
-                <div>
-                  <CiudadesAutocompleteGoogle
-                    apiKey={import.meta.env.VITE_GOOGLE_MAPS_KEY}
-                    onSelect={handleCitySelect}
-                    placeholder="Escribe tu ciudad…"
-                    forceFromList={true}
-                    defaultValue={form.ciudad}
-                    label=""
-                  />
-                  {status === "ok" && (
-                    <div className="text-[12.5px] text-green-700 mt-1 inline-flex items-center gap-1.5 bg-green-50 border border-green-100 px-2 py-1 rounded-md">
-                      <FiCheckCircle className="h-4 w-4" />
-                      <span>Ciudad seleccionada</span>
-                    </div>
-                  )}
-                  {status === "fail" && (
-                    <div className="text-[12.5px] text-amber-700 mt-1 inline-flex items-center gap-1.5 bg-amber-50 border border-amber-100 px-2 py-1 rounded-md">
-                      <FiAlertCircle className="h-4 w-4" />
-                      <span>No pudimos obtener tu ubicación actual</span>
-                    </div>
-                  )}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleUseCurrent}
-                  disabled={gpsLoading}
-                  title="Usar mi ubicación actual"
-                  className="w-fit self-start inline-flex justify-center items-center gap-2 px-3 py-3 rounded-xl text-[14px] font-semibold text-black bg-sky-50 border border-sky-100 hover:bg-sky-100 active:scale-[.98] disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  <FiMapPin className="h-5 w-5 text-sky-700" />
-                  {gpsLoading ? "Detectando ubicación…" : "Detectar mi ubicación actual"}
-                </button>
-              </div>
-            </div>
-
-            {/* Guardar */}
-            <div className="pt-2 flex items-center justify-end gap-3">
-              {saved && (
-                <span className="inline-flex items-center gap-1.5 text-[13px] text-green-700 bg-green-50 border border-green-100 px-3 py-1.5 rounded-md">
-                  <FiCheckCircle className="h-4 w-4" />
-                  <span>Cambios guardados</span>
-                </span>
-              )}
+            ) : (
               <button
-                type="submit"
-                disabled={saving}
-                className="px-4 py-2.5 rounded-xl text-white text-[14px] font-semibold bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700 active:scale-[.98] disabled:opacity-60 shadow-[0_10px_22px_rgba(2,132,199,0.25)] hover:shadow-[0_12px_26px_rgba(2,132,199,0.28)] active:scale-[.99]"
+                type="button"
+                onClick={() => setShowPhoneModal(true)}
+                className={`${inputHeight} px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-medium`}
               >
-                {saving ? "Guardando…" : "Guardar cambios"}
+                Verificar
               </button>
-            </div>
-          </form>
+            )}
+          </div>
         </div>
 
-        <TelefonoVerificacionModal
-          open={showPhoneModal}
-          telefono={toE164(form.telefono)}
-          onClose={() => setShowPhoneModal(false)}
-          onVerified={handleVerified}
-          onSend={() => setPhoneState("sent")}
-        />
-      </div>
+        {/* Ciudad compacta */}
+        <div className="space-y-1">
+          <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
+            <MapPin className="w-3 h-3" />
+            Mi Ciudad
+          </label>
+          <div className="space-y-2">
+            <CiudadesAutocompleteGoogle
+              apiKey={import.meta.env.VITE_GOOGLE_MAPS_KEY}
+              onSelect={handleCitySelect}
+              placeholder="Escribe tu ciudad..."
+              forceFromList={true}
+              defaultValue={form.ciudad}
+              label=""
+            />
+            
+            {status === "ok" && (
+              <div className="flex items-center gap-1.5 text-xs text-green-700 bg-green-50 border border-green-200 rounded p-2">
+                <CheckCircle className="w-3 h-3" />
+                Ciudad seleccionada
+              </div>
+            )}
 
-      <div className="pointer-events-none absolute -inset-x-4 -bottom-6 h-10 bg-gradient-to-b from-transparent to-sky-100/40 blur-2xl rounded-b-3xl" />
+            <button
+              type="button"
+              onClick={handleUseCurrent}
+              disabled={gpsLoading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors disabled:opacity-50 text-sm"
+            >
+              <MapPin className="w-3 h-3 text-gray-600" />
+              {gpsLoading ? "Detectando..." : "Usar mi ubicación"}
+            </button>
+          </div>
+        </div>
+
+        {/* Botón guardar compacto */}
+        <div className="flex items-center justify-between pt-2">
+          {saved && (
+            <div className="flex items-center gap-1.5 text-xs text-green-700">
+              <CheckCircle className="w-3 h-3" />
+              Guardado
+            </div>
+          )}
+          
+          <button
+            type="submit"
+            disabled={saving}
+            className={`ml-auto flex items-center gap-1.5 px-4 py-2 ${inputHeight} bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition-colors text-sm font-medium`}
+          >
+            {saving ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <Save className="w-3 h-3" />
+            )}
+            {saving ? "Guardando..." : "Guardar"}
+          </button>
+        </div>
+      </form>
+
+      <TelefonoVerificacionModal
+        open={showPhoneModal}
+        telefono={toE164(form.telefono)}
+        onClose={() => setShowPhoneModal(false)}
+        onVerified={handleVerified}
+        onSend={() => setPhoneState("sent")}
+      />
     </div>
   );
 }

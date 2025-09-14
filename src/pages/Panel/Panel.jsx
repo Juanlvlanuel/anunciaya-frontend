@@ -1,13 +1,14 @@
-// src/pages/Panel/Panel.jsx (actualizado para usar componentes externos)
+// src/pages/Panel/Panel.jsx - Sistema layout fijo universal para todas las secciones
 import { useNavigate } from "react-router-dom";
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { setSuppressLoginOnce } from "../../utils/authStorage";
 
-// Header
+// Header y Bottom Nav
 import HeaderLogeadoMobile from "../../components/HeaderLogeado/HeaderLogeadoMobile.jsx";
+import MobileBottomNav from "../../components/NavsLogeado/MobileBottomNav.jsx";
 
-// Sidebar (nombre limpio en imports)
+// Sidebar
 import PanelSidebar from "./PanelSidebar.jsx";
 
 // Secciones extraídas
@@ -25,6 +26,7 @@ export default function Panel() {
   const { usuario: user, autenticado, cargando, actualizarPerfil, logout } = useAuth() || {};
 
   const navigate = useNavigate();
+  
   useEffect(() => {
     if (!cargando && autenticado === false) {
       try { setSuppressLoginOnce(true); } catch { }
@@ -57,19 +59,19 @@ export default function Panel() {
     }
   };
 
-  if (cargando) {
+  // Estados de carga y no autenticado usando layout simple
+  if (cargando || !autenticado) {
+    const message = cargando ? "Cargando tu panel…" : "Inicia sesión para ver tu panel.";
+    const className = cargando ? "animate-pulse text-gray-500" : "text-gray-600";
+    
     return (
-      <div className="min-h-[100dvh] min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-gray-500">Cargando tu panel…</div>
-      </div>
-    );
-  }
-
-  if (!autenticado) {
-    return (
-      <div className="min-h-[100dvh] min-h-screen flex items-center justify-center">
-        <div className="text-gray-600">Inicia sesión para ver tu panel.</div>
-      </div>
+      <>
+        <HeaderLogeadoMobile />
+        <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-gray-50 to-white">
+          <div className={className}>{message}</div>
+        </div>
+        <MobileBottomNav />
+      </>
     );
   }
 
@@ -80,52 +82,62 @@ export default function Panel() {
   const onIrSoporte = () => setActive("soporte");
 
   return (
-    <div className="min-h-[100dvh] min-h-screen bg-gradient-to-b from-gray-50 to-white">
+    <>
+      {/* Header fijo - siempre presente */}
       <HeaderLogeadoMobile />
-
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
-        <div className="flex gap-4">
-          <PanelSidebar
-            activeKey={active}
-            onSelect={setActive}
-            user={safeUser}
-            onLogout={handleLogout}
-          />
-
-          <div className="flex-1">
-            {active === "inicio" && (
-              <InicioSection
+      
+      {/* Sistema de layout fijo universal - reemplaza .scrollable-content */}
+      <div
+        className="fixed top-[169px] left-0 right-0 overflow-y-auto"
+        style={{ bottom: 'var(--bottom-total-h, 110px)' }}
+      >
+        <div className="bg-gradient-to-b from-gray-50 to-white min-h-full">
+          <div className="max-w-6xl mx-auto px-2 sm:px-6 lg:px-8">
+            <div className="flex gap-2 sm:gap-4">
+              {/* Sidebar del panel */}
+              <PanelSidebar
+                activeKey={active}
+                onSelect={setActive}
                 user={safeUser}
-                onCreateCupon={onCreateCupon}
-                onIrCupones={onIrCupones}
-                onIrNegocios={onIrNegocios}
-                onIrEstadisticas={onIrEstadisticas}
-                onIrSoporte={onIrSoporte}
+                onLogout={handleLogout}
               />
-            )}
-            {active === "perfil" && (
-              <PerfilSection
-                key={safeUser?._id || "fallback"}
-                user={safeUser}
-                onSave={actualizarPerfil}
-              />
-            )}
-            {active === "seguridad" && <SeguridadSection />}
-            {active === "historial" && (
-              <PublicacionesSection user={safeUser} onUpgrade={goUpgrade} />
-            )}
-            {active === "notificaciones" && <NotificacionesSection />}
-            {active === "plan" && <PlanSection user={safeUser} />}
-            {active === "soporte" && <SoporteSection />}
+
+              {/* Área de contenido principal */}
+              <div className="flex-1">
+                <div className="py-2">
+                  {active === "inicio" && (
+                    <InicioSection
+                      user={safeUser}
+                      onCreateCupon={onCreateCupon}
+                      onIrCupones={onIrCupones}
+                      onIrNegocios={onIrNegocios}
+                      onIrEstadisticas={onIrEstadisticas}
+                      onIrSoporte={onIrSoporte}
+                    />
+                  )}
+                  {active === "perfil" && (
+                    <PerfilSection
+                      key={safeUser?._id || "fallback"}
+                      user={safeUser}
+                      onSave={actualizarPerfil}
+                    />
+                  )}
+                  {active === "seguridad" && <SeguridadSection />}
+                  {active === "historial" && (
+                    <PublicacionesSection user={safeUser} onUpgrade={goUpgrade} />
+                  )}
+                  {active === "notificaciones" && <NotificacionesSection />}
+                  {active === "plan" && <PlanSection user={safeUser} />}
+                  {active === "soporte" && <SoporteSection />}
+                </div>
+              </div>
+            </div>
           </div>
-
         </div>
       </div>
-    </div>
+      
+      {/* Bottom Nav fijo - siempre presente */}
+      <MobileBottomNav />
+    </>
   );
 }
-
-
-
-
-

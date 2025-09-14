@@ -1,14 +1,14 @@
 import React, { useState, useRef, useEffect, useContext } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import HeaderNoLogeado from "../HeaderNoLogeado";
-import RegistroModal from "../../modals/RegistroModal";
-import RecuperarCuentaModal from "../../modals/RecuperarCuentaModal";
-import PerfilModal from "../../modals/PerfilModal";
-import CarrouselSecciones from "../CarrouselSecciones";
+import HeaderNoLogeado from "../../HeaderNoLogeado";
+import RegistroModal from "../../../modals/RegistroModal";
+import RecuperarCuentaModal from "../../../modals/RecuperarCuentaModal";
+import PerfilModal from "../../../modals/PerfilModal";
+import CarrouselSecciones from "../../CarrouselSecciones";
 import { motion, AnimatePresence } from "framer-motion";
-import { UbiContext } from "../../context/UbiContext"; // Ajusta la ruta si es diferente
-import { AuthContext } from "../../context/AuthContext";
-import { getSuppressLoginOnce, clearSuppressLoginOnce } from "../../utils/authStorage";
+import { UbiContext } from "../../../context/UbiContext"; // Ajusta la ruta si es diferente
+import { AuthContext } from "../../../context/AuthContext";
+import { getSuppressLoginOnce, clearSuppressLoginOnce } from "../../../utils/authStorage";
 
 
 const limpiarEstadoRegistro = () => {

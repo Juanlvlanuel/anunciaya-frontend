@@ -1,12 +1,7 @@
-// TelefonoVerificacionModal-1.jsx (refresco de sesión tras verificar)
-// - Sigue siendo WhatsApp-only
-// - Después de verificar, limpia el mini-cache de /session y rehidrata el usuario
-//   para que, incluso tras refresh rápido, el botón 'Verificar' no reaparezca.
-
+// TelefonoVerificacionModal.jsx - Rediseñado con estilo premium consistente
 import React, { useEffect, useState } from "react";
 import { getJSON, clearSessionCache } from "../../../services/api";
-import { FiX, FiSmartphone, FiClock } from "react-icons/fi";
-import { FaWhatsapp } from "react-icons/fa6";
+import { X, Smartphone, Clock, MessageSquare } from "lucide-react";
 import { setAuthSession } from "../../../utils/authStorage";
 
 const OTP_LEN = 6;
@@ -16,7 +11,7 @@ export default function TelefonoVerificacionModal({
   open,
   telefono,
   onClose,
-  onVerified,   // (ok, usuarioActualizado?) => void
+  onVerified,
 }) {
   const [sentAt, setSentAt] = useState(0);
   const [now, setNow] = useState(Date.now());
@@ -34,7 +29,7 @@ export default function TelefonoVerificacionModal({
     return () => clearInterval(t);
   }, [open]);
 
-  // WebOTP (si usas SMS en pruebas)
+  // WebOTP para auto-llenar SMS
   useEffect(() => {
     if (typeof window !== "undefined" && "OTPCredential" in window && open) {
       const ac = new AbortController();
@@ -90,7 +85,7 @@ export default function TelefonoVerificacionModal({
         body: JSON.stringify({ telefono, codigo: otp.trim() })
       });
 
-      // -- Refrescar sesión inmediatamente para evitar estado viejo
+      // Refrescar sesión
       try { clearSessionCache(); } catch {}
       try {
         const s = await getJSON(`/api/usuarios/session`, { headers: {}, credentials: "include" });
@@ -120,80 +115,100 @@ export default function TelefonoVerificacionModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div
-        className="relative w-full max-w-md rounded-2xl bg-white/90 backdrop-blur p-6 shadow-2xl border border-white/70"
+        className="relative w-full max-w-md bg-white rounded-xl shadow-xl border border-gray-100 p-6"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-emerald-50 border border-emerald-100">
-              <FiSmartphone className="h-5 w-5 text-emerald-600" />
-            </span>
-            <div className="text-lg font-bold text-slate-900">Verifica tu teléfono</div>
-          </div>
-          <button className="p-2 rounded-full hover:bg-gray-100" onClick={onClose}><FiX /></button>
-        </div>
-
-        {/* WhatsApp único */}
-        <div className="flex flex-col items-center gap-2 mb-5">
-          <div className="text-sm text-slate-600">Canal de verificación</div>
+        <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className="h-[72px] w-[72px] flex items-center justify-center rounded-full border bg-emerald-50 border-emerald-200">
-              <FaWhatsapp className="text-emerald-600 text-3xl" />
+            <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center">
+              <Smartphone className="w-5 h-5 text-green-600" />
             </div>
-            <div className="text-sm text-slate-700">
-              Se enviará un código a tu WhatsApp asociado al número:
-              <div className="font-semibold text-slate-900">{telefono || "—"}</div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Verificar teléfono</h2>
+              <p className="text-sm text-gray-500">Confirma tu número</p>
             </div>
           </div>
-        </div>
-
-        {/* Enviar */}
-        <div className="flex items-center gap-2 mb-3">
-          <button
-            onClick={send}
-            disabled={blocked || loadingSend}
-            className="h-10 px-4 rounded-xl text-base font-semibold text-white bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 disabled:opacity-60"
+          <button 
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
           >
-            {loadingSend ? "Enviando…" : blocked ? `Reenviar en ${fmt(remaining)}` : "Enviar código"}
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* OTP */}
-        <div className="mb-2">
-          <label className="text-sm font-medium text-slate-700">Código de verificación</label>
+        {/* WhatsApp info */}
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+              <MessageSquare className="w-6 h-6 text-green-600" />
+            </div>
+            <div>
+              <h3 className="font-medium text-green-900">WhatsApp</h3>
+              <p className="text-sm text-green-700">Canal de verificación</p>
+            </div>
+          </div>
+          <p className="text-sm text-green-800">
+            Se enviará un código de 6 dígitos a tu WhatsApp:
+          </p>
+          <p className="font-semibold text-green-900">{telefono || "—"}</p>
+        </div>
+
+        {/* Enviar código */}
+        <div className="mb-6">
+          <button
+            onClick={send}
+            disabled={blocked || loadingSend}
+            className="w-full h-12 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
+          >
+            {loadingSend ? "Enviando..." : blocked ? `Reenviar en ${fmt(remaining)}` : "Enviar código"}
+          </button>
+        </div>
+
+        {/* Input de código */}
+        <div className="space-y-2 mb-4">
+          <label className="text-sm font-medium text-gray-700">Código de verificación</label>
           <input
             autoComplete="one-time-code"
             inputMode="numeric"
             pattern="[0-9]*"
             maxLength={OTP_LEN}
-            placeholder="••••••"
+            placeholder="000000"
             value={otp}
             onChange={(e) => setOtp(e.target.value.replace(/\D+/g, ""))}
             onKeyDown={(e) => { if (e.key === "Enter") confirm(); }}
-            className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-4 py-3.5 text-xl tracking-[0.4em] text-center outline-none focus:ring-2 focus:ring-emerald-200"
+            className="w-full h-14 border border-gray-200 rounded-lg px-4 text-xl text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
           />
         </div>
 
-        {err ? <div className="text-sm text-red-600 mb-2">{err}</div> : null}
+        {err && (
+          <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-3 rounded-lg mb-4">
+            {err}
+          </div>
+        )}
 
         {/* Actions */}
-        <div className="flex items-center justify-between mt-4">
-          <div className="inline-flex items-center gap-1 text-[14px] text-slate-500">
-            <FiClock className="h-4 w-4" />
-            <span>Caduca en 10 min</span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <Clock className="w-4 h-4" />
+            Expira en 10 min
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={onClose} className="px-3 py-2 rounded-xl text-base hover:bg-gray-100">Cerrar</button>
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              Cancelar
+            </button>
             <button
               onClick={confirm}
               disabled={otp.length < OTP_LEN || loadingConfirm}
-              className="px-4 py-2 rounded-xl text-base font-semibold text-white bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 disabled:opacity-60"
+              className="px-6 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
             >
-              {loadingConfirm ? "Verificando…" : "Confirmar"}
+              {loadingConfirm ? "Verificando..." : "Confirmar"}
             </button>
           </div>
         </div>
